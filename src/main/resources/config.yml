@@ -1,0 +1,35 @@
+# JavaSkript Configuration
+# https://github.com/mukulx/javaskript
+
+# File Watcher Settings
+# The file watcher automatically reloads scripts when they are modified
+file-watcher:
+  # Enable or disable automatic script reloading
+  # If disabled, you must use /js reload to reload scripts manually
+  enabled: true
+  
+  # Delay in milliseconds before reloading a script after it's modified
+  # This prevents multiple reloads when saving files
+  reload-delay: 500
+
+# Debug Settings
+debug:
+  # Enable debug mode to see detailed logging
+  # Can be toggled with /js debug command while server is running
+  enabled: false
+
+# Script Settings
+scripts:
+  # Automatically load all scripts on server startup
+  auto-load: true
+  
+  # Allow scripts to create folders anywhere in the JavaSkript directory
+  # When false (recommended), scripts must use the script-data folder
+  # When true, scripts can create folders anywhere
+  allow-unrestricted-folders: false
+
+# Dependency Settings
+dependencies:
+  # Cache directory for downloaded Maven dependencies
+  # Relative to the plugin folder
+  cache-folder: "libs"

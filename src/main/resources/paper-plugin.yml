@@ -1,0 +1,37 @@
+name: JavaSkript
+version: '1.0.0'
+main: dev.mukulx.javaskript.JavaSkriptPlugin
+loader: dev.mukulx.javaskript.dependency.DependencyLoader
+api-version: '1.21'
+folia-supported: true
+description: Java scripting engine for Paper and Folia
+website: https://github.com/mukulx/javaskript
+authors:
+  - mukulx
+
+commands:
+  javaskript:
+    description: JavaSkript main command
+    aliases: [js, jskript]
+    usage: /<command> [reload|restart|configreload|list|load|unload|enable|disable|info] <script|all>
+    permission: javaskript.admin
+
+permissions:
+  javaskript.admin:
+    description: Allows access to all JavaSkript commands
+    default: op
+
+dependencies:
+  server:
+    LuckPerms:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Vault:
+      load: BEFORE
+      required: false
+      join-classpath: true

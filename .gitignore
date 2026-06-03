@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+out/
+bin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Plugin
+plugins/JavaSkript/temp/
+plugins/JavaSkript/scripts/*.class
+
+# Logs
+logs/
+*.log
