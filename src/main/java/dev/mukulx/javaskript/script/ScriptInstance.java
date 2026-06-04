@@ -205,12 +205,14 @@ public class ScriptInstance {
   private void injectAPIs() {
     try {
       // Try to inject API helpers via fields
+      injectField("api", plugin.getAPI());
       injectField("scheduler", scheduler);
       injectField("config", config);
       injectField("database", database);
       injectField("db", database); // Alternative name
       injectField("placeholders", placeholders);
       injectField("papi", placeholders); // Alternative name
+      injectField("actionBar", plugin.getAPI().getActionBarHelper());
 
     } catch (Exception e) {
       // Injection is optional, scripts can also get APIs manually

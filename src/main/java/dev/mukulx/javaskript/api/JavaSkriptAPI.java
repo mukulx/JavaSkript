@@ -9,9 +9,20 @@ import java.util.Map;
 public class JavaSkriptAPI {
 
   private final JavaSkriptPlugin plugin;
+  private final ActionBarHelper actionBarHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
+    this.actionBarHelper = new ActionBarHelper(plugin);
+  }
+
+  /**
+   * Get the ActionBar helper for creating action bars
+   *
+   * @return ActionBarHelper instance
+   */
+  public ActionBarHelper getActionBarHelper() {
+    return actionBarHelper;
   }
 
   /**

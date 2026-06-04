@@ -9,7 +9,8 @@ Complete reference for all JavaSkript APIs available to scripts.
 3. [DatabaseHelper](#databasehelper)
 4. [GUI Builder](#gui-builder)
 5. [PlaceholderHelper](#placeholderhelper)
-6. [Annotations](#annotations)
+6. [ActionBarHelper](#actionbarhelper)
+7. [Annotations](#annotations)
 
 ---
 
@@ -1007,6 +1008,157 @@ dependencies:
   
   # Maven repository URL for downloading script dependencies
   repository: "https://repo1.maven.org/maven2/"
+```
+
+---
+
+## ActionBarHelper
+
+Comprehensive ActionBar API with gradients, animations, and MiniMessage support.
+
+### Auto-Injection
+```java
+private ActionBarHelper actionBar; // Automatically injected!
+```
+
+### Simple Messages
+
+#### `send(Player player, String text)`
+Send a plain text action bar.
+```java
+actionBar.send(player, "Hello!");
+```
+
+#### `sendMini(Player player, String miniMessageText)`
+Send with MiniMessage formatting.
+```java
+actionBar.sendMini(player, "<gradient:gold:yellow><bold>Fancy Text!</bold></gradient>");
+actionBar.sendMini(player, "<red>❤</red> <aqua>Health</aqua>");
+```
+
+#### `send(Player player, String text, Duration duration)`
+Send with auto-clear after duration.
+```java
+actionBar.send(player, "This disappears in 5 seconds", Duration.ofSeconds(5));
+```
+
+### Gradients
+
+#### `gradient(String text)`
+Create gradient text builder.
+```java
+actionBar.gradient("Beautiful Text")
+    .colors(NamedTextColor.AQUA, NamedTextColor.LIGHT_PURPLE)
+    .bold()
+    .send(player);
+
+actionBar.gradient("Rainbow!")
+    .colors(NamedTextColor.RED, NamedTextColor.BLUE)
+    .italic()
+    .underlined()
+    .send(player, Duration.ofSeconds(10));
+```
+
+### Progress Bars
+
+#### `progressBar()`
+Create a customizable progress bar.
+```java
+actionBar.progressBar()
+    .current(75)
+    .max(100)
+    .length(20)
+    .prefix("<gold>⚡ Power: </gold>")
+    .showPercentage(true)
+    .filledColor(NamedTextColor.YELLOW)
+    .emptyColor(NamedTextColor.DARK_GRAY)
+    .send(player);
+```
+
+### Persistent Messages
+
+#### `sendPersistent(Player player, String text)`
+Send a message that stays until manually cleared (refreshes every second).
+```java
+actionBar.sendPersistentMini(player, "<gradient:green:aqua>Persistent Message</gradient>");
+// Stays until cleared
+actionBar.clear(player);
+```
+
+### Animations
+
+#### `sendAnimated(Player player, List<String> frames, long interval)`
+Animate through multiple frames.
+```java
+List<String> frames = Arrays.asList(
+    "<gray>Loading<white>.",
+    "<gray>Loading<white>..",
+    "<gray>Loading<white>..."
+);
+actionBar.sendAnimated(player, frames, 10L);
+
+// With auto-stop
+actionBar.sendAnimated(player, frames, 10L, Duration.ofSeconds(5));
+```
+
+### Quick Utilities
+
+Pre-made components for common patterns.
+
+#### Health Bar
+```java
+Component health = ActionBarHelper.Quick.healthBar(player.getHealth(), player.getMaxHealth());
+actionBar.send(player, health);
+
+// Custom length
+Component health = ActionBarHelper.Quick.healthBar(20.0, 20.0, 15);
+```
+
+#### XP Bar
+```java
+Component xp = ActionBarHelper.Quick.xpBar(450, 1000);
+actionBar.send(player, xp);
+```
+
+#### Cooldown Bar
+```java
+Component cooldown = ActionBarHelper.Quick.cooldownBar(5000, 10000); // 5s remaining of 10s
+actionBar.send(player, cooldown);
+```
+
+#### Loading Animation
+```java
+List<String> loading = ActionBarHelper.Quick.loadingAnimation();
+actionBar.sendAnimated(player, loading, 10L, Duration.ofSeconds(5));
+```
+
+#### Spinner Animation
+```java
+List<String> spinner = ActionBarHelper.Quick.spinnerAnimation();
+actionBar.sendAnimated(player, spinner, 2L, Duration.ofSeconds(5));
+```
+
+#### Rainbow Animation
+```java
+List<String> rainbow = ActionBarHelper.Quick.rainbowAnimation("Rainbow Text!");
+actionBar.sendAnimated(player, rainbow, 5L, Duration.ofSeconds(10));
+```
+
+### Broadcasting
+
+#### `broadcast(String text)`
+Send to all online players.
+```java
+actionBar.broadcast("Server message!");
+actionBar.broadcastMini("<gradient:red:yellow>Important!</gradient>");
+```
+
+### Clearing
+
+#### `clear(Player player)`
+Clear the player's action bar and cancel any active tasks.
+```java
+actionBar.clear(player);
 ```
 
 ---

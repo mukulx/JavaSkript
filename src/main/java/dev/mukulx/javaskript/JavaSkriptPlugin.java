@@ -146,6 +146,11 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         fileWatcher.stop();
       }
 
+      // Cleanup action bar tasks
+      if (api != null && api.getActionBarHelper() != null) {
+        api.getActionBarHelper().shutdown();
+      }
+
       // Unload active maps to clear object references for the Garbage Collector
       if (scriptManager != null) {
         scriptManager.unloadAllScripts();
