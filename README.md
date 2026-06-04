@@ -2,9 +2,9 @@
   <img src="assets/banner.jpg" alt="JavaSkript Banner" width="800">
 </p>
 
-# ☕ JavaSkript
+#  JavaSkript
 
-> **⚠️ Work in Progress** - This project is under active development. Features may change and bugs may exist.
+> **Work in Progress** - This project is under active development. Features may change and bugs may exist.
 
 JavaSkript is a scripting engine for Paper and Folia which allows developers to write scripts in .java files with hot-reload and automatic compilation, without the hassle of setting up a new project each time.
 
