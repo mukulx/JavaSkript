@@ -62,12 +62,14 @@ public class ScriptInstance {
 
       // Initialize API helpers
       String scriptName = scriptFile.getName();
+      plugin.getLogger().info("[ScriptInstance] Creating APIs for script: " + scriptName);
       this.scheduler = new ScriptScheduler(plugin);
       this.config = new ScriptConfig(plugin, scriptName);
       this.database = new DatabaseHelper(plugin, scriptName);
       this.placeholders = new PlaceholderHelper(plugin, scriptName);
 
       // Inject API helpers into script instance
+      plugin.getLogger().info("[ScriptInstance] Injecting APIs into script: " + scriptName);
       injectAPIs();
 
       // Call onEnable method if it exists
@@ -260,6 +262,7 @@ public class ScriptInstance {
 
   public void unload() {
     String scriptName = scriptFile.getName();
+    plugin.getLogger().info("[ScriptInstance] Starting unload of: " + scriptName);
     plugin.debug("Starting forced unload of: " + scriptName);
 
     // Call onDisable method if it exists (but don't let it stop the unload)

@@ -21,9 +21,23 @@ public class ScriptConfig {
   public ScriptConfig(JavaSkriptPlugin plugin, String scriptName) {
     this.plugin = plugin;
     this.scriptName = scriptName.replace(".java", "");
+
+    if (this.scriptName.isEmpty()
+        || this.scriptName.contains("..")
+        || this.scriptName.contains("/")
+        || this.scriptName.contains("\\")) {
+      throw new IllegalArgumentException("Invalid script name: " + scriptName);
+    }
+
     this.scriptFolder = new File(plugin.getDataFolder(), "script-data/" + this.scriptName);
 
-    // Don't create folder until actually needed
+    plugin
+        .getLogger()
+        .info(
+            "[ScriptConfig] Created for script: "
+                + this.scriptName
+                + " -> "
+                + scriptFolder.getAbsolutePath());
   }
 
   /**
@@ -37,8 +51,14 @@ public class ScriptConfig {
       fileName += ".yml";
     }
 
-    // Create folder only when actually accessing a config file
     if (!scriptFolder.exists()) {
+      plugin
+          .getLogger()
+          .info(
+              "[ScriptConfig] Creating folder for "
+                  + scriptName
+                  + ": "
+                  + scriptFolder.getAbsolutePath());
       scriptFolder.mkdirs();
     }
 
@@ -46,6 +66,13 @@ public class ScriptConfig {
 
     if (!configFile.exists()) {
       try {
+        plugin
+            .getLogger()
+            .info(
+                "[ScriptConfig] Creating config file: "
+                    + configFile.getAbsolutePath()
+                    + " for script: "
+                    + scriptName);
         configFile.createNewFile();
       } catch (IOException e) {
         plugin.getLogger().log(Level.SEVERE, "Failed to create config file: " + fileName, e);
