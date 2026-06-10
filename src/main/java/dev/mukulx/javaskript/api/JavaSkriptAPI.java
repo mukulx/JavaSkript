@@ -10,10 +10,12 @@ public class JavaSkriptAPI {
 
   private final JavaSkriptPlugin plugin;
   private final ActionBarHelper actionBarHelper;
+  private final TitleHelper titleHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.actionBarHelper = new ActionBarHelper(plugin);
+    this.titleHelper = new TitleHelper();
   }
 
   /**
@@ -23,6 +25,15 @@ public class JavaSkriptAPI {
    */
   public ActionBarHelper getActionBarHelper() {
     return actionBarHelper;
+  }
+
+  /**
+   * Get the Title helper for creating titles and subtitles
+   *
+   * @return TitleHelper instance
+   */
+  public TitleHelper getTitleHelper() {
+    return titleHelper;
   }
 
   /**

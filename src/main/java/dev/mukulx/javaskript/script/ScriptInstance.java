@@ -215,6 +215,7 @@ public class ScriptInstance {
       injectField("placeholders", placeholders);
       injectField("papi", placeholders); // Alternative name
       injectField("actionBar", plugin.getAPI().getActionBarHelper());
+      injectField("title", plugin.getAPI().getTitleHelper());
 
     } catch (Exception e) {
       // Injection is optional, scripts can also get APIs manually
