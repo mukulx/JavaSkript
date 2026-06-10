@@ -3,7 +3,6 @@ import dev.mukulx.javaskript.script.FoliaSupport;
 import java.util.Arrays;
 import java.util.List;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
 
@@ -55,8 +54,7 @@ public class TitleExample implements CommandExecutor, TabCompleter {
       case "gradient":
         title.send(
             player,
-            TitleHelper.Quick.gradient(
-                "Rainbow Title", NamedTextColor.RED, NamedTextColor.BLUE),
+            TitleHelper.Quick.gradient("Rainbow Title", NamedTextColor.RED, NamedTextColor.BLUE),
             TitleHelper.Quick.gradient(
                 "Gradient Subtitle", NamedTextColor.AQUA, NamedTextColor.GREEN));
         break;
@@ -94,7 +92,8 @@ public class TitleExample implements CommandExecutor, TabCompleter {
 
       case "broadcast":
         title.broadcastMini(
-            "<gradient:red:yellow>Server Announcement</gradient>", "<white>Everyone sees this!</white>");
+            "<gradient:red:yellow>Server Announcement</gradient>",
+            "<white>Everyone sees this!</white>");
         player.sendMessage("§aBroadcasted title to all players");
         break;
 
@@ -111,7 +110,8 @@ public class TitleExample implements CommandExecutor, TabCompleter {
   }
 
   @Override
-  public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
+  public List<String> onTabComplete(
+      CommandSender sender, Command command, String label, String[] args) {
     if (args.length == 1) {
       return Arrays.asList(
           "simple",

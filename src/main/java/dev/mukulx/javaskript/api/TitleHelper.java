@@ -29,7 +29,8 @@ public class TitleHelper {
         Title.title(
             titleComponent,
             subtitleComponent,
-            Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
+            Title.Times.times(
+                Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
 
     player.showTitle(titleObj);
   }
@@ -39,7 +40,8 @@ public class TitleHelper {
         Title.title(
             title,
             subtitle,
-            Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
+            Title.Times.times(
+                Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
 
     player.showTitle(titleObj);
   }
@@ -56,12 +58,14 @@ public class TitleHelper {
         Title.title(
             titleComponent,
             subtitleComponent,
-            Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
+            Title.Times.times(
+                Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
 
     player.showTitle(titleObj);
   }
 
-  public void send(Player player, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
+  public void send(
+      Player player, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
     Component titleComponent = Component.text(title);
     Component subtitleComponent = Component.text(subtitle);
 
@@ -95,12 +99,7 @@ public class TitleHelper {
   }
 
   public void send(
-      Player player,
-      Component title,
-      Component subtitle,
-      int fadeIn,
-      int stay,
-      int fadeOut) {
+      Player player, Component title, Component subtitle, int fadeIn, int stay, int fadeOut) {
     Title titleObj =
         Title.title(
             title,
