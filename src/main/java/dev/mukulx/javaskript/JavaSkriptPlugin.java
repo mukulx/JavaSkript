@@ -46,19 +46,13 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       // Anonymous metric collection via bStats
       int pluginId = 31615;
       Metrics metrics = new Metrics(this, pluginId);
-      if (debugMode) {
-        getLogger().info("bStats metrics enabled!");
-      }
 
-      // Folia regional multithreading will break non-thread-safe scripts
-      getLogger().info("Running on: " + ServerUtil.getServerType());
+      debug("Running on: " + ServerUtil.getServerType());
       if (ServerUtil.isFolia()) {
-        getLogger().info("Folia detected! Scripts without @FoliaSupport will completely break.");
+        getLogger().info("Folia detected! Scripts without @FoliaSupport will break.");
       }
 
-      // Handle dynamic runtime Maven dependency downloads
       this.dependencyManager = new DependencyManager(this);
-      getLogger().info("Dependency manager initialized");
 
       // Inject script commands directly into the server routing table
       this.commandRegistry = new DynamicCommandRegistry(this);
@@ -111,20 +105,16 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       if (getConfig().getBoolean("file-watcher.enabled", true)) {
         this.fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
         fileWatcher.start();
-        getLogger().info("File watcher enabled - live reloads might trigger a mini-heart-attack.");
-      } else {
-        getLogger()
-            .info("File watcher disabled - enjoy typing /js reload manually 400 times a day.");
+        debug("File watcher enabled");
       }
 
-      // Run filesystem monitor to keep layout clean
       startFolderMonitoring();
 
       getLogger()
           .info(
-              "JavaSkript has been enabled! Loaded "
+              "Enabled! Loaded "
                   + scriptManager.getLoadedScripts().size()
-                  + " scripts. It's functional. Somehow.");
+                  + " script(s)");
 
     } catch (Exception e) {
       // Emergency kill switch to prevent data leaks or corrupted state
@@ -161,7 +151,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       if (permissionRegistry != null) {
         permissionRegistry.unregisterAll();
       }
-      getLogger().info("JavaSkript has been disabled! Turning off the lights.");
+      getLogger().info("JavaSkript has been disabled!");
     } catch (Exception e) {
       getLogger().log(Level.SEVERE, "Error during plugin disable! Even dying failed.", e);
     }

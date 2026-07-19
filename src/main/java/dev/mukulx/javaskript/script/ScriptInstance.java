@@ -63,14 +63,14 @@ public class ScriptInstance {
       // Initialize API helpers
       // Use class name instead of file name to avoid issues with manual config creation
       String scriptName = scriptClass.getSimpleName() + ".java";
-      plugin.getLogger().info("[ScriptInstance] Creating APIs for script: " + scriptName);
+      plugin.debug("Creating APIs for script: " + scriptName);
       this.scheduler = new ScriptScheduler(plugin);
       this.config = new ScriptConfig(plugin, scriptName);
       this.database = new DatabaseHelper(plugin, scriptName);
       this.placeholders = new PlaceholderHelper(plugin, scriptName);
 
       // Inject API helpers into script instance
-      plugin.getLogger().info("[ScriptInstance] Injecting APIs into script: " + scriptName);
+      plugin.debug("Injecting APIs into script: " + scriptName);
       injectAPIs();
 
       // Call onEnable method if it exists
@@ -217,6 +217,7 @@ public class ScriptInstance {
       injectField("papi", placeholders); // Alternative name
       injectField("actionBar", plugin.getAPI().getActionBarHelper());
       injectField("title", plugin.getAPI().getTitleHelper());
+      injectField("bossBar", plugin.getAPI().getBossBarHelper());
 
     } catch (Exception e) {
       // Injection is optional, scripts can also get APIs manually
@@ -264,8 +265,7 @@ public class ScriptInstance {
 
   public void unload() {
     String scriptName = scriptFile.getName();
-    plugin.getLogger().info("[ScriptInstance] Starting unload of: " + scriptName);
-    plugin.debug("Starting forced unload of: " + scriptName);
+    plugin.debug("Starting unload of: " + scriptName);
 
     // Call onDisable method if it exists (but don't let it stop the unload)
     try {

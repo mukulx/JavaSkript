@@ -11,11 +11,13 @@ public class JavaSkriptAPI {
   private final JavaSkriptPlugin plugin;
   private final ActionBarHelper actionBarHelper;
   private final TitleHelper titleHelper;
+  private final BossBarHelper bossBarHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.actionBarHelper = new ActionBarHelper(plugin);
     this.titleHelper = new TitleHelper();
+    this.bossBarHelper = new BossBarHelper(plugin);
   }
 
   /**
@@ -34,6 +36,15 @@ public class JavaSkriptAPI {
    */
   public TitleHelper getTitleHelper() {
     return titleHelper;
+  }
+
+  /**
+   * Get the BossBar helper for creating boss bars
+   *
+   * @return BossBarHelper instance
+   */
+  public BossBarHelper getBossBarHelper() {
+    return bossBarHelper;
   }
 
   /**
