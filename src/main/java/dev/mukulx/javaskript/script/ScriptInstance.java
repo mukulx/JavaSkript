@@ -61,7 +61,8 @@ public class ScriptInstance {
       }
 
       // Initialize API helpers
-      String scriptName = scriptFile.getName();
+      // Use class name instead of file name to avoid issues with manual config creation
+      String scriptName = scriptClass.getSimpleName() + ".java";
       plugin.getLogger().info("[ScriptInstance] Creating APIs for script: " + scriptName);
       this.scheduler = new ScriptScheduler(plugin);
       this.config = new ScriptConfig(plugin, scriptName);
