@@ -46,7 +46,7 @@ public class RestartTimerCommand implements CommandExecutor, TabCompleter {
           player, "§c§lѕᴇʀᴠᴇʀ ʀᴇѕᴛᴀʀᴛ", seconds, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
     }
 
-    scheduler.runTaskLater(
+    scheduler.runLater(
         () -> {
           for (Player player : Bukkit.getOnlinePlayers()) {
             player.kick(

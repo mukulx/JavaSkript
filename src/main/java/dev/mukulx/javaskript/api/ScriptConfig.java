@@ -31,7 +31,8 @@ public class ScriptConfig {
 
     this.scriptFolder = new File(plugin.getDataFolder(), "script-data/" + this.scriptName);
 
-    plugin.debug("ScriptConfig created for: " + this.scriptName + " -> " + scriptFolder.getAbsolutePath());
+    plugin.debug(
+        "ScriptConfig created for: " + this.scriptName + " -> " + scriptFolder.getAbsolutePath());
   }
 
   /**
@@ -54,7 +55,8 @@ public class ScriptConfig {
 
     if (!configFile.exists()) {
       try {
-        plugin.debug("Creating config file: " + configFile.getAbsolutePath() + " for script: " + scriptName);
+        plugin.debug(
+            "Creating config file: " + configFile.getAbsolutePath() + " for script: " + scriptName);
         configFile.createNewFile();
       } catch (IOException e) {
         plugin.getLogger().log(Level.SEVERE, "Failed to create config file: " + fileName, e);

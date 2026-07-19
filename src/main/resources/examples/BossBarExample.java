@@ -1,4 +1,5 @@
 import dev.mukulx.javaskript.api.BossBarHelper;
+import dev.mukulx.javaskript.api.ScriptScheduler;
 import java.util.Arrays;
 import java.util.List;
 import net.kyori.adventure.bossbar.BossBar;
@@ -11,6 +12,7 @@ import org.bukkit.entity.Player;
 public class BossBarExample implements CommandExecutor, TabCompleter {
 
   private BossBarHelper bossBar;
+  private ScriptScheduler scheduler;
 
   @Override
   public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -50,21 +52,21 @@ public class BossBarExample implements CommandExecutor, TabCompleter {
         bossBar.show(player, "Green Bar", 1.0f, BossBar.Color.GREEN);
         player.sendMessage("§aShowing green bar, cycling colors...");
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateColor(player, BossBar.Color.YELLOW);
               bossBar.updateText(player, "Yellow Bar");
             },
             40);
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateColor(player, BossBar.Color.RED);
               bossBar.updateText(player, "Red Bar");
             },
             80);
 
-        scheduler.runTaskLater(() -> bossBar.hide(player), 120);
+        scheduler.runLater(() -> bossBar.hide(player), 120);
       }
 
       case "gradient" -> {
@@ -88,7 +90,7 @@ public class BossBarExample implements CommandExecutor, TabCompleter {
 
         for (int i = 1; i <= 10; i++) {
           final int step = i;
-          scheduler.runTaskLater(
+          scheduler.runLater(
               () -> {
                 bossBar.updateProgress(player, step / 10.0f);
                 bossBar.updateText(player, "Progress: " + (step * 10) + "%");
@@ -101,7 +103,7 @@ public class BossBarExample implements CommandExecutor, TabCompleter {
                 }
                 if (step == 10) {
                   bossBar.updateText(player, "Complete!");
-                  scheduler.runTaskLater(() -> bossBar.hide(player), 40);
+                  scheduler.runLater(() -> bossBar.hide(player), 40);
                 }
               },
               i * 20L);
@@ -113,35 +115,35 @@ public class BossBarExample implements CommandExecutor, TabCompleter {
             player, "PROGRESS Style", 0.8f, BossBar.Color.PURPLE, BossBar.Overlay.PROGRESS);
         player.sendMessage("§aShowing different styles...");
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateStyle(player, BossBar.Overlay.NOTCHED_6);
               bossBar.updateText(player, "NOTCHED_6 Style");
             },
             40);
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateStyle(player, BossBar.Overlay.NOTCHED_10);
               bossBar.updateText(player, "NOTCHED_10 Style");
             },
             80);
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateStyle(player, BossBar.Overlay.NOTCHED_12);
               bossBar.updateText(player, "NOTCHED_12 Style");
             },
             120);
 
-        scheduler.runTaskLater(
+        scheduler.runLater(
             () -> {
               bossBar.updateStyle(player, BossBar.Overlay.NOTCHED_20);
               bossBar.updateText(player, "NOTCHED_20 Style");
             },
             160);
 
-        scheduler.runTaskLater(() -> bossBar.hide(player), 200);
+        scheduler.runLater(() -> bossBar.hide(player), 200);
       }
 
       case "builder" -> {

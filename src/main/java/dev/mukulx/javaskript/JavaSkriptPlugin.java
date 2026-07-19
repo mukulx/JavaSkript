@@ -110,11 +110,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
       startFolderMonitoring();
 
-      getLogger()
-          .info(
-              "Enabled! Loaded "
-                  + scriptManager.getLoadedScripts().size()
-                  + " script(s)");
+      getLogger().info("Enabled! Loaded " + scriptManager.getLoadedScripts().size() + " script(s)");
 
     } catch (Exception e) {
       // Emergency kill switch to prevent data leaks or corrupted state
