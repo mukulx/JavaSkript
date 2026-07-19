@@ -30,6 +30,7 @@ public class ScriptInstance {
   private ScriptConfig config;
   private DatabaseHelper database;
   private PlaceholderHelper placeholders;
+  private RecipeHelper recipes;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -68,6 +69,7 @@ public class ScriptInstance {
       this.config = new ScriptConfig(plugin, scriptName);
       this.database = new DatabaseHelper(plugin, scriptName);
       this.placeholders = new PlaceholderHelper(plugin, scriptName);
+      this.recipes = new RecipeHelper(plugin, scriptName);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -215,6 +217,7 @@ public class ScriptInstance {
       injectField("db", database); // Alternative name
       injectField("placeholders", placeholders);
       injectField("papi", placeholders); // Alternative name
+      injectField("recipes", recipes);
       injectField("actionBar", plugin.getAPI().getActionBarHelper());
       injectField("title", plugin.getAPI().getTitleHelper());
       injectField("bossBar", plugin.getAPI().getBossBarHelper());
@@ -312,6 +315,17 @@ public class ScriptInstance {
       plugin
           .getLogger()
           .warning("Error unregistering placeholders (continuing): " + e.getMessage());
+    }
+
+    // Unregister recipes (force it)
+    try {
+      if (recipes != null) {
+        recipes.removeAll();
+        recipes = null;
+        plugin.debug("Unregistered recipes for: " + scriptName);
+      }
+    } catch (Exception e) {
+      plugin.getLogger().warning("Error unregistering recipes (continuing): " + e.getMessage());
     }
 
     // Unregister events if listener (force it)
