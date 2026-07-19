@@ -92,7 +92,7 @@ public class ScriptManager {
     String scriptName = scriptFile.getName();
 
     if (disabledScripts.contains(scriptName)) {
-      plugin.getLogger().info("Script is disabled, skipping: " + scriptName);
+      plugin.debug("Script is disabled, skipping: " + scriptName);
       return false;
     }
 
@@ -102,7 +102,7 @@ public class ScriptManager {
         unloadScript(scriptName);
       }
 
-      plugin.getLogger().info("Loading script: " + scriptName);
+      plugin.debug("Loading script: " + scriptName);
 
       String scriptContent = Files.readString(scriptFile.toPath());
 
@@ -158,7 +158,7 @@ public class ScriptManager {
       if (cached != null
           && cached.lastModified == lastModified
           && cached.contentHash.equals(contentHash)) {
-        plugin.getLogger().info("Using cached compilation for: " + scriptName);
+        plugin.debug("Using cached compilation for: " + scriptName);
         compiledClasses = cached.compiledClasses;
       } else {
         // Fallback to active runtime compilation using dependencies as custom classpath attachments
@@ -171,7 +171,7 @@ public class ScriptManager {
 
         compilationCache.put(
             scriptName, new CachedScript(lastModified, contentHash, compiledClasses));
-        plugin.getLogger().info("Compiled and cached: " + scriptName);
+        plugin.debug("Compiled and cached: " + scriptName);
       }
 
       // Instantiate isolated classloader mapping to assign the raw byte array data into real
@@ -230,7 +230,7 @@ public class ScriptManager {
       }
 
       loadedScripts.put(scriptName, instance);
-      plugin.getLogger().info("Successfully loaded script: " + scriptName);
+      plugin.getLogger().info("Loaded: " + scriptName);
       return true;
 
     } catch (Exception e) {
@@ -256,7 +256,7 @@ public class ScriptManager {
       // Force-null local tracking hooks to help out old class loaders clear from memory
       instance = null;
 
-      plugin.getLogger().info("Unloaded script: " + scriptName);
+      plugin.debug("Unloaded script: " + scriptName);
       return true;
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error unloading script: " + scriptName, e);
@@ -272,7 +272,7 @@ public class ScriptManager {
   }
 
   public void reloadAllScripts() {
-    plugin.getLogger().info("Reloading all scripts...");
+    plugin.debug("Reloading all scripts...");
 
     List<String> scriptNames = new ArrayList<>(loadedScripts.keySet());
     int unloadedCount = 0;
@@ -289,7 +289,7 @@ public class ScriptManager {
       }
     }
 
-    plugin.getLogger().info("Unloaded " + unloadedCount + " scripts");
+    plugin.debug("Unloaded " + unloadedCount + " scripts");
 
     scriptDependencies.clear();
 
@@ -342,7 +342,7 @@ public class ScriptManager {
       }
 
       Files.copy(resource, targetFile.toPath());
-      plugin.getLogger().info("Created example script: " + targetFileName);
+      plugin.debug("Created example script: " + targetFileName);
     } catch (IOException e) {
       plugin.getLogger().log(Level.WARNING, "Failed to copy example script: " + resourcePath, e);
     }
@@ -364,7 +364,7 @@ public class ScriptManager {
       unloadScript(scriptName);
     }
 
-    plugin.getLogger().info("Disabled script: " + scriptName);
+    plugin.debug("Disabled script: " + scriptName);
     return true;
   }
 
@@ -386,7 +386,7 @@ public class ScriptManager {
       loadScript(scriptFile);
     }
 
-    plugin.getLogger().info("Enabled script: " + scriptName);
+    plugin.debug("Enabled script: " + scriptName);
     return true;
   }
 
@@ -428,7 +428,7 @@ public class ScriptManager {
         }
       }
 
-      plugin.getLogger().info("Loaded " + disabledScripts.size() + " disabled script(s)");
+      plugin.debug("Loaded " + disabledScripts.size() + " disabled script(s)");
     } catch (IOException e) {
       plugin.getLogger().log(Level.WARNING, "Failed to load disabled scripts list", e);
     }

@@ -98,14 +98,12 @@ public class ScriptClassLoader extends URLClassLoader {
       throw new RuntimeException("Failed to define any classes for script: " + scriptName);
     }
 
-    plugin
-        .getLogger()
-        .info(
-            "["
-                + scriptName
-                + "] Loaded "
-                + definedClasses.size()
-                + " class(es) in isolated ClassLoader");
+    plugin.debug(
+        "["
+            + scriptName
+            + "] Loaded "
+            + definedClasses.size()
+            + " class(es) in isolated ClassLoader");
     return definedClasses;
   }
 

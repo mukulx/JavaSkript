@@ -66,15 +66,13 @@ public class ScriptCompiler {
       return null;
     }
 
-    plugin
-        .getLogger()
-        .info(
-            "Found "
-                + allClassNames.size()
-                + " class(es) in "
-                + scriptName
-                + ": "
-                + String.join(", ", allClassNames));
+    plugin.debug(
+        "Found "
+            + allClassNames.size()
+            + " class(es) in "
+            + scriptName
+            + ": "
+            + String.join(", ", allClassNames));
 
     File sourceFile = null;
     File outputDir = null;
@@ -159,9 +157,8 @@ public class ScriptCompiler {
         return null;
       }
 
-      plugin
-          .getLogger()
-          .info("Successfully compiled " + compiledClasses.size() + " class(es) for " + scriptName);
+      plugin.debug(
+          "Successfully compiled " + compiledClasses.size() + " class(es) for " + scriptName);
 
       return compiledClasses;
 
