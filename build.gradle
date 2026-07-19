@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'dev.mukulx'
-version = '1.0.0'
+version = '1.1.0'
 description = 'Java scripting engine for Paper and Folia'
 
 java {
@@ -36,6 +36,14 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 21
+}
+
+processResources {
+    inputs.property 'version', project.version
+    
+    filesMatching('paper-plugin.yml') {
+        expand 'version': project.version
+    }
 }
 
 spotless {

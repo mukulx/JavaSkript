@@ -7,6 +7,7 @@ import dev.mukulx.javaskript.command.JavaSkriptCommand;
 import dev.mukulx.javaskript.dependency.DependencyManager;
 import dev.mukulx.javaskript.permission.DynamicPermissionRegistry;
 import dev.mukulx.javaskript.script.ScriptManager;
+import dev.mukulx.javaskript.update.UpdateChecker;
 import dev.mukulx.javaskript.util.ServerUtil;
 import dev.mukulx.javaskript.watcher.FileWatcher;
 import java.io.File;
@@ -24,6 +25,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private DynamicPermissionRegistry permissionRegistry;
   private FileWatcher fileWatcher;
   private DependencyManager dependencyManager;
+  private UpdateChecker updateChecker;
   private Thread folderMonitorThread;
   private boolean debugMode;
 
@@ -109,6 +111,11 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       }
 
       startFolderMonitoring();
+
+      if (getConfig().getBoolean("update-checker.enabled", true)) {
+        this.updateChecker = new UpdateChecker(this);
+        updateChecker.checkAsync();
+      }
 
       getLogger().info("Enabled! Loaded " + scriptManager.getLoadedScripts().size() + " script(s)");
 

@@ -18,6 +18,11 @@ debug:
   # Can be toggled with /js debug command while server is running
   enabled: false
 
+# Update Checker
+update-checker:
+  # Check for updates on Modrinth when server starts
+  enabled: true
+
 # Script Settings
 scripts:
   # Automatically load all scripts on server startup

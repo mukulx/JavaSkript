@@ -1,5 +1,5 @@
 name: JavaSkript
-version: '1.0.0'
+version: '${version}'
 main: dev.mukulx.javaskript.JavaSkriptPlugin
 loader: dev.mukulx.javaskript.dependency.DependencyLoader
 api-version: '1.21'
