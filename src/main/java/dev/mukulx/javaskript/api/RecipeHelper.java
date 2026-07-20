@@ -67,6 +67,31 @@ public class RecipeHelper {
   }
 
   private boolean register(Recipe recipe, NamespacedKey key) {
+    // If not on main thread, schedule to main thread and wait
+    if (!Bukkit.isPrimaryThread()) {
+      final boolean[] result = {false};
+      try {
+        Bukkit.getScheduler()
+            .callSyncMethod(
+                plugin,
+                () -> {
+                  result[0] = registerSync(recipe, key);
+                  return result[0];
+                })
+            .get();
+        return result[0];
+      } catch (Exception e) {
+        plugin
+            .getLogger()
+            .warning("Failed to register recipe " + key + " (async): " + e.getMessage());
+        return false;
+      }
+    }
+
+    return registerSync(recipe, key);
+  }
+
+  private boolean registerSync(Recipe recipe, NamespacedKey key) {
     try {
       Bukkit.addRecipe(recipe);
       registeredRecipes.add(key);
