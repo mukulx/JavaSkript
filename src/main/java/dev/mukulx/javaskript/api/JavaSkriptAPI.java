@@ -12,12 +12,14 @@ public class JavaSkriptAPI {
   private final ActionBarHelper actionBarHelper;
   private final TitleHelper titleHelper;
   private final BossBarHelper bossBarHelper;
+  private final SoundHelper soundHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.actionBarHelper = new ActionBarHelper(plugin);
     this.titleHelper = new TitleHelper();
     this.bossBarHelper = new BossBarHelper(plugin);
+    this.soundHelper = new SoundHelper();
   }
 
   /**
@@ -45,6 +47,15 @@ public class JavaSkriptAPI {
    */
   public BossBarHelper getBossBarHelper() {
     return bossBarHelper;
+  }
+
+  /**
+   * Get the Sound helper for playing sounds
+   *
+   * @return SoundHelper instance
+   */
+  public SoundHelper getSoundHelper() {
+    return soundHelper;
   }
 
   /**

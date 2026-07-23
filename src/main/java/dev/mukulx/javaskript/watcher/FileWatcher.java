@@ -6,24 +6,37 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
-/** Watches script files for changes and auto-reloads them */
 public class FileWatcher implements Runnable {
 
   private final JavaSkriptPlugin plugin;
   private final File scriptsFolder;
   private WatchService watchService;
   private final Map<WatchKey, Path> watchKeys;
+  private final Map<String, Long> pendingReloads;
   private volatile boolean running = false;
   private Thread watchThread;
+  private ScheduledExecutorService debounceExecutor;
   private final long reloadDelay;
 
   public FileWatcher(JavaSkriptPlugin plugin, File scriptsFolder) {
     this.plugin = plugin;
     this.scriptsFolder = scriptsFolder;
     this.watchKeys = new HashMap<>();
+    this.pendingReloads = new ConcurrentHashMap<>();
     this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
+    this.debounceExecutor =
+        Executors.newSingleThreadScheduledExecutor(
+            r -> {
+              Thread t = new Thread(r, "JavaSkript-Debounce");
+              t.setDaemon(true);
+              return t;
+            });
   }
 
   /** Start watching for file changes */
@@ -55,16 +68,22 @@ public class FileWatcher implements Runnable {
     }
   }
 
-  /** Stop watching for file changes */
   public void stop() {
     running = false;
 
-    // Interrupt the thread first
+    if (debounceExecutor != null && !debounceExecutor.isShutdown()) {
+      debounceExecutor.shutdown();
+      try {
+        debounceExecutor.awaitTermination(1, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        debounceExecutor.shutdownNow();
+      }
+    }
+
     if (watchThread != null && watchThread.isAlive()) {
       watchThread.interrupt();
     }
 
-    // Then close the watch service
     if (watchService != null) {
       try {
         watchService.close();
@@ -104,9 +123,7 @@ public class FileWatcher implements Runnable {
             continue;
           }
 
-          // Handle the event - use direct call for Folia compatibility
-          // File events are already async from the watch service thread
-          handleFileEvent(kind, fullPath.toFile(), filename.toString());
+          scheduleReload(kind, fullPath.toFile(), filename.toString());
         }
 
         boolean valid = key.reset();
@@ -131,33 +148,32 @@ public class FileWatcher implements Runnable {
     }
   }
 
+  private void scheduleReload(WatchEvent.Kind<?> kind, File file, String fileName) {
+    String key = fileName + ":" + kind.name();
+    pendingReloads.put(key, System.currentTimeMillis());
+
+    debounceExecutor.schedule(
+        () -> {
+          Long scheduledTime = pendingReloads.get(key);
+          if (scheduledTime != null
+              && System.currentTimeMillis() - scheduledTime >= reloadDelay - 50) {
+            pendingReloads.remove(key);
+            handleFileEvent(kind, file, fileName);
+          }
+        },
+        reloadDelay,
+        TimeUnit.MILLISECONDS);
+  }
+
   private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String fileName) {
     try {
       if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
         plugin.getLogger().info("New script detected: " + fileName);
-        // Wait for file to be fully written
-        Thread.sleep(reloadDelay);
         plugin.getScriptManager().loadScript(file);
 
       } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
         plugin.getLogger().info("Script modified: " + fileName);
-        // Wait for file to be fully written
-        Thread.sleep(reloadDelay);
-
-        // Fully unload the script first
         plugin.getScriptManager().unloadScript(fileName);
-
-        // Give time for cleanup (listeners, commands, etc.) to complete
-        // Increased delay for Folia command unregistration
-        Thread.sleep(200);
-
-        // Suggest GC to clean up old class loader and instances
-        System.gc();
-
-        // Small delay to let GC run
-        Thread.sleep(100);
-
-        // Now load the script fresh
         plugin.getScriptManager().loadScript(file);
 
       } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
@@ -169,11 +185,6 @@ public class FileWatcher implements Runnable {
     }
   }
 
-  /**
-   * Check if the watcher is running
-   *
-   * @return true if running
-   */
   public boolean isRunning() {
     return running;
   }

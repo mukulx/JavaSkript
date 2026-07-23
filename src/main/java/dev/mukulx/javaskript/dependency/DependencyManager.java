@@ -6,6 +6,7 @@ import java.io.*;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class DependencyManager {
@@ -21,19 +22,13 @@ public class DependencyManager {
     this.gson = new Gson();
     String cacheFolderName = plugin.getConfig().getString("dependencies.cache-folder", "libs");
     this.libsDirectory = new File(plugin.getDataFolder(), cacheFolderName);
-    this.resolvedDependencies = new HashMap<>();
+    this.resolvedDependencies = new ConcurrentHashMap<>();
 
     if (!libsDirectory.exists()) {
       libsDirectory.mkdirs();
     }
   }
 
-  /**
-   * Resolves and downloads a Maven dependency with all transitive dependencies
-   *
-   * @param coordinate Maven coordinate in format "groupId:artifactId:version"
-   * @return List of resolved JAR files, or empty list if resolution failed
-   */
   public List<File> resolveDependency(String coordinate) {
     // Check cache first
     if (resolvedDependencies.containsKey(coordinate)) {
@@ -63,7 +58,6 @@ public class DependencyManager {
       List<File> allJars = new ArrayList<>();
       allJars.add(mainJar);
 
-      // Try to resolve transitive dependencies from POM
       List<String> transitiveDeps = parseTransitiveDependencies(groupId, artifactId, version);
       for (String dep : transitiveDeps) {
         try {
@@ -81,7 +75,6 @@ public class DependencyManager {
         }
       }
 
-      // Cache the result
       resolvedDependencies.put(coordinate, allJars);
 
       plugin
@@ -109,13 +102,11 @@ public class DependencyManager {
         return localFile;
       }
 
-      // Build download URL
       String urlString =
           MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + jarName;
 
       plugin.getLogger().info("Downloading: " + urlString);
 
-      // Download
       URL url = new URL(urlString);
       try (InputStream in = url.openStream()) {
         Files.copy(in, localFile.toPath());
@@ -180,7 +171,6 @@ public class DependencyManager {
             String scope = extractXmlTag(depBlock, "scope");
             String optional = extractXmlTag(depBlock, "optional");
 
-            // Skip dependencies provided by Paper/Bukkit
             if (depGroupId != null
                 && (depGroupId.equals("org.slf4j")
                     || depGroupId.equals("org.bukkit")
@@ -189,7 +179,6 @@ public class DependencyManager {
               continue;
             }
 
-            // Skip if version contains unresolved property placeholders
             if (depVersion != null && depVersion.contains("${")) {
               plugin
                   .getLogger()
@@ -204,7 +193,6 @@ public class DependencyManager {
               continue;
             }
 
-            // Only include compile scope dependencies
             if (depGroupId != null
                 && depArtifactId != null
                 && depVersion != null
@@ -240,12 +228,6 @@ public class DependencyManager {
     return null;
   }
 
-  /**
-   * Resolves multiple dependencies at once
-   *
-   * @param coordinates List of Maven coordinates
-   * @return Combined list of all resolved JAR files
-   */
   public List<File> resolveDependencies(List<String> coordinates) {
     List<File> allFiles = new ArrayList<>();
 
@@ -257,28 +239,19 @@ public class DependencyManager {
     return allFiles;
   }
 
-  /**
-   * Get all resolved dependencies for a specific coordinate
-   *
-   * @param coordinate Maven coordinate
-   * @return List of resolved files, or empty list if not resolved
-   */
   public List<File> getResolvedDependency(String coordinate) {
     return resolvedDependencies.getOrDefault(coordinate, Collections.emptyList());
   }
 
-  /** Clear the dependency cache */
   public void clearCache() {
     resolvedDependencies.clear();
     plugin.getLogger().info("Dependency cache cleared");
   }
 
-  /** Get the libs directory where dependencies are stored */
   public File getLibsDirectory() {
     return libsDirectory;
   }
 
-  /** Get all cached dependencies */
   public Map<String, List<File>> getAllResolvedDependencies() {
     return Collections.unmodifiableMap(resolvedDependencies);
   }

@@ -10,9 +10,20 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public class ScriptManager {
+
+  private static final Pattern DEPENDENCY_ANNOTATION_PATTERN =
+      Pattern.compile("@ScriptDependenc(?:y|ies)\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)");
+  private static final Pattern DEPENDENCY_QUOTE_PATTERN = Pattern.compile("\"([^\"]+)\"");
+  private static final Pattern DEPENDENCY_COMMENT_PATTERN =
+      Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
+  private static final Pattern BAD_FOLDER_PATTERN =
+      Pattern.compile(
+          "new\\s+File\\s*\\(\\s*(?:[^,]+\\.)?getDataFolder\\(\\)\\s*,\\s*\"([^\"]+)\"\\s*\\)");
 
   private final JavaSkriptPlugin plugin;
   private final File scriptsFolder;
@@ -21,8 +32,6 @@ public class ScriptManager {
   private final ScriptCompiler compiler;
   private final File disabledFile;
   private final Map<String, List<File>> scriptDependencies;
-
-  // In-memory compilation cache to bypass repetitive disk/javac tasks on reload
   private final Map<String, CachedScript> compilationCache;
 
   // Cached bytecode and hash state to verify source modifications
@@ -53,7 +62,6 @@ public class ScriptManager {
       createExampleScripts();
     }
 
-    // Load blacklist array from the local JSON storage file
     loadDisabledScripts();
   }
 
@@ -149,9 +157,8 @@ public class ScriptManager {
         scriptDependencies.put(scriptName, dependencyFiles);
       }
 
-      // Check timestamps and structural hashes before spinning up the Java compiler engine
       long lastModified = scriptFile.lastModified();
-      String contentHash = Integer.toHexString(scriptContent.hashCode());
+      String contentHash = computeHash(scriptContent);
       CachedScript cached = compilationCache.get(scriptName);
       Map<String, byte[]> compiledClasses;
 
@@ -161,7 +168,6 @@ public class ScriptManager {
         plugin.debug("Using cached compilation for: " + scriptName);
         compiledClasses = cached.compiledClasses;
       } else {
-        // Fallback to active runtime compilation using dependencies as custom classpath attachments
         compiledClasses = compiler.compileAll(scriptName, scriptContent, dependencyFiles);
 
         if (compiledClasses == null || compiledClasses.isEmpty()) {
@@ -247,15 +253,9 @@ public class ScriptManager {
     }
 
     try {
-      // Execute unregister loops for listeners and command maps inside the target container
       instance.unload();
-
       scriptDependencies.remove(scriptName);
       compilationCache.remove(scriptName);
-
-      // Force-null local tracking hooks to help out old class loaders clear from memory
-      instance = null;
-
       plugin.debug("Unloaded script: " + scriptName);
       return true;
     } catch (Exception e) {
@@ -290,25 +290,7 @@ public class ScriptManager {
     }
 
     plugin.debug("Unloaded " + unloadedCount + " scripts");
-
     scriptDependencies.clear();
-
-    // Sleep interval blocks giving regional Folia ticks space to safely cycle unregistrations
-    try {
-      Thread.sleep(200);
-    } catch (InterruptedException e) {
-      // Ignore
-    }
-
-    // Suggest execution cleanups between transitions to keep native memory usage in check
-    System.gc();
-
-    try {
-      Thread.sleep(100);
-    } catch (InterruptedException e) {
-      // Ignore
-    }
-
     loadAllScripts();
   }
 
@@ -466,15 +448,10 @@ public class ScriptManager {
   private List<String> extractDependencies(String sourceCode) {
     List<String> dependencies = new ArrayList<>();
 
-    // Parser block 1: Scrapes @ScriptDependency blocks via structured RegEx matchers
-    java.util.regex.Pattern annotationPattern =
-        java.util.regex.Pattern.compile("@ScriptDependenc(?:y|ies)\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)");
-    java.util.regex.Matcher annotationMatcher = annotationPattern.matcher(sourceCode);
-
+    Matcher annotationMatcher = DEPENDENCY_ANNOTATION_PATTERN.matcher(sourceCode);
     if (annotationMatcher.find()) {
       String dependenciesStr = annotationMatcher.group(1);
-      java.util.regex.Pattern quotePattern = java.util.regex.Pattern.compile("\"([^\"]+)\"");
-      java.util.regex.Matcher quoteMatcher = quotePattern.matcher(dependenciesStr);
+      Matcher quoteMatcher = DEPENDENCY_QUOTE_PATTERN.matcher(dependenciesStr);
 
       while (quoteMatcher.find()) {
         String dep = quoteMatcher.group(1).trim();
@@ -484,11 +461,7 @@ public class ScriptManager {
       }
     }
 
-    // Parser block 2: Inline line comments parsing strategy (// @dependency coordinates)
-    java.util.regex.Pattern commentPattern =
-        java.util.regex.Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
-    java.util.regex.Matcher commentMatcher = commentPattern.matcher(sourceCode);
-
+    Matcher commentMatcher = DEPENDENCY_COMMENT_PATTERN.matcher(sourceCode);
     while (commentMatcher.find()) {
       String dep = commentMatcher.group(1).trim();
       if (!dep.isEmpty() && !dependencies.contains(dep)) {
@@ -511,13 +484,7 @@ public class ScriptManager {
       return true;
     }
 
-    // RegEx block tracking File instances targeted out-of-bounds from the layout standard
-    java.util.regex.Pattern badFolderPattern =
-        java.util.regex.Pattern.compile(
-            "new\\s+File\\s*\\(\\s*(?:[^,]+\\.)?getDataFolder\\(\\)\\s*,\\s*\"([^\"]+)\"\\s*\\)");
-
-    java.util.regex.Matcher matcher = badFolderPattern.matcher(sourceCode);
-
+    Matcher matcher = BAD_FOLDER_PATTERN.matcher(sourceCode);
     List<String> violations = new ArrayList<>();
 
     while (matcher.find()) {
@@ -570,5 +537,21 @@ public class ScriptManager {
     }
 
     return true;
+  }
+
+  private String computeHash(String content) {
+    try {
+      var digest = java.security.MessageDigest.getInstance("SHA-256");
+      var hash = digest.digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      var hexString = new StringBuilder();
+      for (byte b : hash) {
+        String hex = Integer.toHexString(0xff & b);
+        if (hex.length() == 1) hexString.append('0');
+        hexString.append(hex);
+      }
+      return hexString.toString();
+    } catch (Exception e) {
+      return Integer.toHexString(content.hashCode());
+    }
   }
 }

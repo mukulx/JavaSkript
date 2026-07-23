@@ -4,12 +4,12 @@ import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.command.*;
 import org.bukkit.plugin.Plugin;
 
-/** Dynamically registers commands without needing plugin.yml entries */
 public class DynamicCommandRegistry {
 
   private final JavaSkriptPlugin plugin;
@@ -17,17 +17,9 @@ public class DynamicCommandRegistry {
 
   public DynamicCommandRegistry(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
-    this.registeredCommands = new HashMap<>();
+    this.registeredCommands = new ConcurrentHashMap<>();
   }
 
-  /**
-   * Register a command dynamically
-   *
-   * @param commandName The name of the command (without /)
-   * @param executor The command executor
-   * @param aliases Optional aliases for the command
-   * @return true if successful
-   */
   public boolean registerCommand(String commandName, CommandExecutor executor, String... aliases) {
     if (commandName == null || commandName.isEmpty() || executor == null) {
       plugin.getLogger().warning("Cannot register command with null name or executor");
@@ -35,7 +27,6 @@ public class DynamicCommandRegistry {
     }
 
     try {
-      // Create a PluginCommand instance
       Constructor<PluginCommand> constructor =
           PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
       constructor.setAccessible(true);
@@ -43,36 +34,28 @@ public class DynamicCommandRegistry {
       PluginCommand command = constructor.newInstance(commandName.toLowerCase(), plugin);
       command.setExecutor(executor);
 
-      // Set tab completer if executor implements it
       if (executor instanceof TabCompleter tabCompleter) {
         command.setTabCompleter(tabCompleter);
       }
 
-      // Set aliases
       if (aliases != null && aliases.length > 0) {
         command.setAliases(Arrays.asList(aliases));
       }
 
-      // Get the command map
       CommandMap commandMap = getCommandMap();
       if (commandMap == null) {
         plugin.getLogger().severe("Failed to get command map!");
         return false;
       }
 
-      // Unregister existing command if present
       unregisterCommand(commandName);
 
-      // Register the command
       boolean registered = commandMap.register(plugin.getName().toLowerCase(), command);
 
       if (registered) {
         registeredCommands.put(commandName.toLowerCase(), command);
         plugin.debug("Dynamically registered command: /" + commandName);
-
-        // Sync commands to clients (for tab completion)
         syncCommands();
-
         return true;
       } else {
         plugin.getLogger().warning("Failed to register command: /" + commandName);
@@ -85,16 +68,6 @@ public class DynamicCommandRegistry {
     }
   }
 
-  /**
-   * Unregister a command using dummy command replacement technique. This forces Paper/Folia's
-   * Brigadier system to rebuild correctly.
-   *
-   * <p>Process: 1. Find command in map 2. Unregister original command 3. Remove from knownCommands
-   * map 4. Sync commands (forces Brigadier rebuild)
-   *
-   * @param commandName The name of the command to unregister
-   * @return true if successful
-   */
   public boolean unregisterCommand(String commandName) {
     if (commandName == null || commandName.isEmpty()) {
       return false;
@@ -110,7 +83,6 @@ public class DynamicCommandRegistry {
         return false;
       }
 
-      // STEP 1: Get knownCommands map
       Map<String, Command> knownCommands = getKnownCommandsMap(commandMap);
       if (knownCommands == null) {
         plugin
@@ -120,7 +92,6 @@ public class DynamicCommandRegistry {
         return false;
       }
 
-      // STEP 2: Find the command in the map
       Command command = null;
       List<String> keysToRemove = new ArrayList<>();
       List<String> keysToTry = new ArrayList<>();
@@ -145,7 +116,6 @@ public class DynamicCommandRegistry {
 
       plugin.debug("Found command keys to remove: " + keysToRemove);
 
-      // STEP 3: Unregister the command
       try {
         command.unregister(commandMap);
         plugin.debug("Called unregister() for: " + commandName);
@@ -153,13 +123,11 @@ public class DynamicCommandRegistry {
         plugin.getLogger().warning("Error calling unregister (continuing): " + e.getMessage());
       }
 
-      // STEP 4: Remove from knownCommands map
       for (String key : keysToRemove) {
         knownCommands.remove(key);
         plugin.debug("Removed command key: " + key);
       }
 
-      // STEP 5: Remove aliases
       try {
         List<String> aliases = command.getAliases();
         if (aliases != null && !aliases.isEmpty()) {
@@ -176,12 +144,9 @@ public class DynamicCommandRegistry {
         plugin.getLogger().warning("Error removing aliases (continuing): " + e.getMessage());
       }
 
-      // Remove from our tracking map
       registeredCommands.remove(lowerName);
 
-      // STEP 6: Sync commands to force Brigadier rebuild
       syncCommands();
-
       plugin.debug("Successfully unregistered command: /" + commandName);
       return true;
 
@@ -193,24 +158,17 @@ public class DynamicCommandRegistry {
     return false;
   }
 
-  /**
-   * Get the knownCommands map from CommandMap using multiple methods. Tries getKnownCommands()
-   * method first, then falls back to reflection.
-   */
   private Map<String, Command> getKnownCommandsMap(CommandMap commandMap) {
-    // Try getKnownCommands() method first
     try {
       var method = commandMap.getClass().getMethod("getKnownCommands");
       @SuppressWarnings("unchecked")
       Map<String, Command> commands = (Map<String, Command>) method.invoke(commandMap);
       return commands;
     } catch (NoSuchMethodException e) {
-      // Method doesn't exist, try reflection
     } catch (Exception e) {
       plugin.getLogger().warning("Error calling getKnownCommands(): " + e.getMessage());
     }
 
-    // Try reflection on field
     String[] fieldNames = {"knownCommands", "commands"};
     for (String fieldName : fieldNames) {
       try {
@@ -221,13 +179,11 @@ public class DynamicCommandRegistry {
         field.setAccessible(false);
         return commands;
       } catch (NoSuchFieldException e) {
-        // Try next field name
       } catch (Exception e) {
         plugin.getLogger().warning("Error accessing field " + fieldName + ": " + e.getMessage());
       }
     }
 
-    // Try direct access to SimpleCommandMap.knownCommands as last resort
     try {
       Class<?> simpleCommandMapClass = Class.forName("org.bukkit.command.SimpleCommandMap");
       Field field = simpleCommandMapClass.getDeclaredField("knownCommands");
@@ -244,53 +200,32 @@ public class DynamicCommandRegistry {
     return null;
   }
 
-  /**
-   * Sync commands to force Brigadier rebuild. This updates the command tree for all online players.
-   */
   private void syncCommands() {
     try {
-      // Try to call syncCommands() on server (Paper/Folia)
       try {
         var method = Bukkit.getServer().getClass().getMethod("syncCommands");
         method.invoke(Bukkit.getServer());
         plugin.debug("Synced commands via syncCommands()");
       } catch (NoSuchMethodException e) {
-        // Method doesn't exist on this server version
       }
 
-      // Update commands for all online players
       int updated = 0;
       for (org.bukkit.entity.Player player : Bukkit.getOnlinePlayers()) {
         try {
           player.updateCommands();
           updated++;
         } catch (Exception e) {
-          // Ignore individual player errors
         }
       }
 
       if (updated > 0) {
         plugin.debug("Updated commands for " + updated + " player(s)");
       }
-
-      // Small delay to let sync complete
-      try {
-        Thread.sleep(50);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-
     } catch (Exception e) {
       plugin.getLogger().warning("Error syncing commands: " + e.getMessage());
     }
   }
 
-  /**
-   * Debug method to check if a command still exists in the command map
-   *
-   * @param commandName The command name to check
-   * @return true if command still exists
-   */
   public boolean isCommandInMap(String commandName) {
     try {
       CommandMap commandMap = getCommandMap();
@@ -305,7 +240,6 @@ public class DynamicCommandRegistry {
 
       String lowerName = commandName.toLowerCase();
 
-      // Check all possible variations
       List<String> keysToCheck = new ArrayList<>();
       keysToCheck.add(lowerName);
       keysToCheck.add(plugin.getName().toLowerCase() + ":" + lowerName);
@@ -326,29 +260,94 @@ public class DynamicCommandRegistry {
     }
   }
 
-  /** Unregister all commands registered by this registry */
   public void unregisterAll() {
+    if (registeredCommands.isEmpty()) return;
+
     List<String> commands = new ArrayList<>(registeredCommands.keySet());
     for (String commandName : commands) {
-      unregisterCommand(commandName);
+      unregisterCommandSilent(commandName);
     }
+    syncCommands();
   }
 
-  /**
-   * Get all registered commands
-   *
-   * @return Map of command names to Command objects
-   */
+  private boolean unregisterCommandSilent(String commandName) {
+    if (commandName == null || commandName.isEmpty()) {
+      return false;
+    }
+
+    String lowerName = commandName.toLowerCase();
+
+    try {
+      CommandMap commandMap = getCommandMap();
+      if (commandMap == null) {
+        registeredCommands.remove(lowerName);
+        return false;
+      }
+
+      Map<String, Command> knownCommands = getKnownCommandsMap(commandMap);
+      if (knownCommands == null) {
+        registeredCommands.remove(lowerName);
+        return false;
+      }
+
+      Command command = null;
+      List<String> keysToRemove = new ArrayList<>();
+      List<String> keysToTry = new ArrayList<>();
+      keysToTry.add(lowerName);
+      keysToTry.add(plugin.getName().toLowerCase() + ":" + lowerName);
+      keysToTry.add("javaskript:" + lowerName);
+      keysToTry.add("js:" + lowerName);
+
+      for (String key : keysToTry) {
+        Command found = knownCommands.get(key);
+        if (found != null) {
+          command = found;
+          keysToRemove.add(key);
+        }
+      }
+
+      if (command == null) {
+        registeredCommands.remove(lowerName);
+        return false;
+      }
+
+      try {
+        command.unregister(commandMap);
+      } catch (Exception e) {
+      }
+
+      for (String key : keysToRemove) {
+        knownCommands.remove(key);
+      }
+
+      try {
+        List<String> aliases = command.getAliases();
+        if (aliases != null && !aliases.isEmpty()) {
+          for (String alias : aliases) {
+            String aliasLower = alias.toLowerCase();
+            knownCommands.remove(aliasLower);
+            knownCommands.remove(plugin.getName().toLowerCase() + ":" + aliasLower);
+            knownCommands.remove("javaskript:" + aliasLower);
+            knownCommands.remove("js:" + aliasLower);
+          }
+        }
+      } catch (Exception e) {
+      }
+
+      registeredCommands.remove(lowerName);
+      return true;
+
+    } catch (Exception e) {
+      registeredCommands.remove(lowerName);
+    }
+
+    return false;
+  }
+
   public Map<String, Command> getRegisteredCommands() {
     return Collections.unmodifiableMap(registeredCommands);
   }
 
-  /**
-   * Check if a command is registered
-   *
-   * @param commandName The command name to check
-   * @return true if registered
-   */
   public boolean isCommandRegistered(String commandName) {
     if (commandName == null || commandName.isEmpty()) {
       return false;
@@ -356,7 +355,6 @@ public class DynamicCommandRegistry {
     return registeredCommands.containsKey(commandName.toLowerCase());
   }
 
-  /** Get the server's command map using reflection */
   private CommandMap getCommandMap() {
     try {
       Field commandMapField = Bukkit.getServer().getClass().getDeclaredField("commandMap");

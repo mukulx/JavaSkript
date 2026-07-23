@@ -221,6 +221,7 @@ public class ScriptInstance {
       injectField("actionBar", plugin.getAPI().getActionBarHelper());
       injectField("title", plugin.getAPI().getTitleHelper());
       injectField("bossBar", plugin.getAPI().getBossBarHelper());
+      injectField("sound", plugin.getAPI().getSoundHelper());
 
     } catch (Exception e) {
       // Injection is optional, scripts can also get APIs manually

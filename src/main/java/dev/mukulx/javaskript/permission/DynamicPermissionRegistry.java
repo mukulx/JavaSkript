@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.permission;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
@@ -17,7 +18,7 @@ public class DynamicPermissionRegistry {
   public DynamicPermissionRegistry(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.pluginManager = plugin.getServer().getPluginManager();
-    this.registeredPermissions = new HashMap<>();
+    this.registeredPermissions = new ConcurrentHashMap<>();
   }
 
   /**
