@@ -1,13 +1,19 @@
 package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ServerUtil;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.*;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
+/**
+ * ponytail: Folia-safe via runtime scheduler dispatch
+ */
 public class BossBarHelper {
 
   private final JavaSkriptPlugin plugin;
@@ -90,15 +96,19 @@ public class BossBarHelper {
       int durationTicks) {
     show(player, text, progress, color, style);
 
-    Bukkit.getScheduler()
-        .runTaskLater(
-            plugin,
-            () -> {
-              if (player.isOnline()) {
-                hide(player);
-              }
-            },
-            durationTicks);
+    if (ServerUtil.isFolia()) {
+      player.getScheduler().runDelayed(plugin, scheduledTask -> {
+        if (player.isOnline()) {
+          hide(player);
+        }
+      }, null, durationTicks);
+    } else {
+      Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        if (player.isOnline()) {
+          hide(player);
+        }
+      }, durationTicks);
+    }
   }
 
   public void showCountdown(Player player, String text, int totalSeconds) {
@@ -117,28 +127,43 @@ public class BossBarHelper {
 
     final int[] remaining = {totalSeconds};
 
-    Bukkit.getScheduler()
-        .runTaskTimer(
-            plugin,
-            task -> {
-              if (!player.isOnline() || remaining[0] <= 0) {
-                task.cancel();
-                hide(player);
-                return;
-              }
+    if (ServerUtil.isFolia()) {
+      player.getScheduler().runAtFixedRate(plugin, scheduledTask -> {
+        if (!player.isOnline() || remaining[0] <= 0) {
+          scheduledTask.cancel();
+          hide(player);
+          return;
+        }
 
-              remaining[0]--;
-              float progress = (float) remaining[0] / totalSeconds;
-              bossBar.progress(progress);
-              bossBar.name(Component.text(text + " (" + remaining[0] + "s)"));
+        remaining[0]--;
+        float progress = (float) remaining[0] / totalSeconds;
+        bossBar.progress(progress);
+        bossBar.name(Component.text(text + " (" + remaining[0] + "s)"));
 
-              if (remaining[0] <= 0) {
-                task.cancel();
-                Bukkit.getScheduler().runTaskLater(plugin, () -> hide(player), 20L);
-              }
-            },
-            20L,
-            20L);
+        if (remaining[0] <= 0) {
+          scheduledTask.cancel();
+          player.getScheduler().runDelayed(plugin, t -> hide(player), null, 20L);
+        }
+      }, null, 20L, 20L);
+    } else {
+      Bukkit.getScheduler().runTaskTimer(plugin, task -> {
+        if (!player.isOnline() || remaining[0] <= 0) {
+          task.cancel();
+          hide(player);
+          return;
+        }
+
+        remaining[0]--;
+        float progress = (float) remaining[0] / totalSeconds;
+        bossBar.progress(progress);
+        bossBar.name(Component.text(text + " (" + remaining[0] + "s)"));
+
+        if (remaining[0] <= 0) {
+          task.cancel();
+          Bukkit.getScheduler().runTaskLater(plugin, () -> hide(player), 20L);
+        }
+      }, 20L, 20L);
+    }
   }
 
   public void updateText(Player player, String text) {
@@ -283,18 +308,19 @@ public class BossBarHelper {
       } else if (durationTicks != null) {
         if (useMiniMessage) {
           helper.showMini(player, text, progress, color, style);
-          helper
-              .plugin
-              .getServer()
-              .getScheduler()
-              .runTaskLater(
-                  helper.plugin,
-                  () -> {
-                    if (player.isOnline()) {
-                      helper.hide(player);
-                    }
-                  },
-                  durationTicks);
+          if (ServerUtil.isFolia()) {
+            player.getScheduler().runDelayed(helper.plugin, t -> {
+              if (player.isOnline()) {
+                helper.hide(player);
+              }
+            }, null, durationTicks);
+          } else {
+            helper.plugin.getServer().getScheduler().runTaskLater(helper.plugin, () -> {
+              if (player.isOnline()) {
+                helper.hide(player);
+              }
+            }, durationTicks);
+          }
         } else {
           helper.showTimed(player, text, progress, color, style, durationTicks);
         }

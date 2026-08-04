@@ -1,5 +1,7 @@
 package dev.mukulx.javaskript.api;
 
+import dev.mukulx.javaskript.util.ServerUtil;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,12 +18,13 @@ import org.bukkit.scheduler.BukkitTask;
 /**
  * Comprehensive ActionBar API with full Adventure API support. Supports gradients, animations,
  * MiniMessage, and all text formatting.
+ * ponytail: Folia-safe via runtime scheduler dispatch
  */
 public class ActionBarHelper {
 
   private final Plugin plugin;
   private final MiniMessage miniMessage;
-  private final Map<UUID, BukkitTask> activeTasks;
+  private final Map<UUID, Object> activeTasks; // BukkitTask or ScheduledTask
 
   public ActionBarHelper(Plugin plugin) {
     this.plugin = plugin;
@@ -69,37 +72,25 @@ public class ActionBarHelper {
   // Persistent (stays until manually cleared, refreshes every second)
   public void sendPersistent(Player player, String text) {
     cancelTask(player);
-    BukkitTask task =
-        Bukkit.getScheduler()
-            .runTaskTimer(
-                plugin,
-                () -> {
-                  if (!player.isOnline()) {
-                    cancelTask(player);
-                    return;
-                  }
-                  send(player, text);
-                },
-                0L,
-                20L);
+    Object task = scheduleRepeating(player, () -> {
+      if (!player.isOnline()) {
+        cancelTask(player);
+        return;
+      }
+      send(player, text);
+    }, 0L, 20L);
     activeTasks.put(player.getUniqueId(), task);
   }
 
   public void sendPersistentMini(Player player, String miniMessageText) {
     cancelTask(player);
-    BukkitTask task =
-        Bukkit.getScheduler()
-            .runTaskTimer(
-                plugin,
-                () -> {
-                  if (!player.isOnline()) {
-                    cancelTask(player);
-                    return;
-                  }
-                  sendMini(player, miniMessageText);
-                },
-                0L,
-                20L);
+    Object task = scheduleRepeating(player, () -> {
+      if (!player.isOnline()) {
+        cancelTask(player);
+        return;
+      }
+      sendMini(player, miniMessageText);
+    }, 0L, 20L);
     activeTasks.put(player.getUniqueId(), task);
   }
 
@@ -109,20 +100,14 @@ public class ActionBarHelper {
     if (frames.isEmpty()) return;
 
     final int[] index = {0};
-    BukkitTask task =
-        Bukkit.getScheduler()
-            .runTaskTimer(
-                plugin,
-                () -> {
-                  if (!player.isOnline()) {
-                    cancelTask(player);
-                    return;
-                  }
-                  sendMini(player, frames.get(index[0]));
-                  index[0] = (index[0] + 1) % frames.size();
-                },
-                0L,
-                interval);
+    Object task = scheduleRepeating(player, () -> {
+      if (!player.isOnline()) {
+        cancelTask(player);
+        return;
+      }
+      sendMini(player, frames.get(index[0]));
+      index[0] = (index[0] + 1) % frames.size();
+    }, 0L, interval);
     activeTasks.put(player.getUniqueId(), task);
   }
 
@@ -159,18 +144,38 @@ public class ActionBarHelper {
 
   // Cleanup
   public void shutdown() {
-    activeTasks.values().forEach(BukkitTask::cancel);
+    activeTasks.values().forEach(task -> {
+      if (task instanceof BukkitTask) {
+        ((BukkitTask) task).cancel();
+      } else if (task instanceof ScheduledTask) {
+        ((ScheduledTask) task).cancel();
+      }
+    });
     activeTasks.clear();
   }
 
   private void scheduleTask(Player player, Runnable task, long delay) {
-    Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+    if (ServerUtil.isFolia()) {
+      player.getScheduler().runDelayed(plugin, scheduledTask -> task.run(), null, delay);
+    } else {
+      Bukkit.getScheduler().runTaskLater(plugin, task, delay);
+    }
+  }
+
+  private Object scheduleRepeating(Player player, Runnable task, long delay, long period) {
+    if (ServerUtil.isFolia()) {
+      return player.getScheduler().runAtFixedRate(plugin, scheduledTask -> task.run(), null, delay, period);
+    } else {
+      return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
+    }
   }
 
   private void cancelTask(Player player) {
-    BukkitTask task = activeTasks.remove(player.getUniqueId());
-    if (task != null) {
-      task.cancel();
+    Object task = activeTasks.remove(player.getUniqueId());
+    if (task instanceof BukkitTask) {
+      ((BukkitTask) task).cancel();
+    } else if (task instanceof ScheduledTask) {
+      ((ScheduledTask) task).cancel();
     }
   }
 

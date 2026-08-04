@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.command;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.script.ScriptInstance;
+import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -138,20 +139,20 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         plugin.getScriptManager().unloadAllScripts();
         sender.sendMessage(Component.text("All scripts unloaded").color(NamedTextColor.GRAY));
 
-        // Small delay to ensure cleanup
-        plugin
-            .getServer()
-            .getScheduler()
-            .runTaskLater(
-                plugin,
-                () -> {
-                  plugin.getScriptManager().loadAllScripts();
-                  int count = plugin.getScriptManager().getLoadedScripts().size();
-                  sender.sendMessage(
-                      Component.text("Successfully restarted " + count + " script(s)!")
-                          .color(NamedTextColor.GREEN));
-                },
-                20L); // 1 second delay
+        // Small delay to ensure cleanup (Folia-safe via global region scheduler)
+        Runnable loadTask = () -> {
+          plugin.getScriptManager().loadAllScripts();
+          int count = plugin.getScriptManager().getLoadedScripts().size();
+          sender.sendMessage(
+              Component.text("Successfully restarted " + count + " script(s)!")
+                  .color(NamedTextColor.GREEN));
+        };
+
+        if (ServerUtil.isFolia()) {
+          plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task -> loadTask.run(), 20L);
+        } else {
+          plugin.getServer().getScheduler().runTaskLater(plugin, loadTask, 20L);
+        }
       } catch (Exception e) {
         sender.sendMessage(
             Component.text("Error restarting scripts: " + e.getMessage())
@@ -180,27 +181,27 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       plugin.getScriptManager().unloadScript(scriptName);
       sender.sendMessage(Component.text("Script unloaded").color(NamedTextColor.GRAY));
 
-      // Reload after delay
+      // Reload after delay (Folia-safe)
       String finalScriptName = scriptName;
-      plugin
-          .getServer()
-          .getScheduler()
-          .runTaskLater(
-              plugin,
-              () -> {
-                boolean success = plugin.getScriptManager().loadScript(scriptFile);
+      Runnable reloadTask = () -> {
+        boolean success = plugin.getScriptManager().loadScript(scriptFile);
 
-                if (success) {
-                  sender.sendMessage(
-                      Component.text("Successfully restarted: " + finalScriptName)
-                          .color(NamedTextColor.GREEN));
-                } else {
-                  sender.sendMessage(
-                      Component.text("Failed to restart: " + finalScriptName)
-                          .color(NamedTextColor.RED));
-                }
-              },
-              20L); // 1 second delay
+        if (success) {
+          sender.sendMessage(
+              Component.text("Successfully restarted: " + finalScriptName)
+                  .color(NamedTextColor.GREEN));
+        } else {
+          sender.sendMessage(
+              Component.text("Failed to restart: " + finalScriptName)
+                  .color(NamedTextColor.RED));
+        }
+      };
+
+      if (ServerUtil.isFolia()) {
+        plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task -> reloadTask.run(), 20L);
+      } else {
+        plugin.getServer().getScheduler().runTaskLater(plugin, reloadTask, 20L);
+      }
     }
   }
 
