@@ -106,6 +106,9 @@ public class SubcommandBuilder {
   // ==========================================
 
   public boolean execute(CommandSender sender, String label, String[] args, int offset) {
+    if (sender == null) return false;
+    if (args == null) args = new String[0];
+
     if (permission != null && !permission.isEmpty() && !sender.hasPermission(permission)) {
       sender.sendMessage(Component.text(permissionMessage));
       return true;

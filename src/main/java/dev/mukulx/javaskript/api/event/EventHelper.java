@@ -120,6 +120,13 @@ public class EventHelper {
       Predicate<T> filter,
       Consumer<T> handler) {
 
+    if (eventClass == null) {
+      throw new IllegalArgumentException("eventClass cannot be null");
+    }
+    if (handler == null) {
+      throw new IllegalArgumentException("handler cannot be null");
+    }
+
     EventSubscriptionImpl<T> subscription =
         new EventSubscriptionImpl<>(eventClass, priority, ignoreCancelled, filter, handler);
     subscription.register();

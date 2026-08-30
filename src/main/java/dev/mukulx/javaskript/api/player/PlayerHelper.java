@@ -206,9 +206,11 @@ public class PlayerHelper {
 
     // Remove negative potion effects
     for (var effect : player.getActivePotionEffects()) {
-      String typeName = effect.getType().getName();
-      if (NEGATIVE_POTION_EFFECT_NAMES.contains(typeName)) {
-        player.removePotionEffect(effect.getType());
+      if (effect != null && effect.getType() != null) {
+        String typeName = effect.getType().getName();
+        if (typeName != null && NEGATIVE_POTION_EFFECT_NAMES.contains(typeName)) {
+          player.removePotionEffect(effect.getType());
+        }
       }
     }
   }
@@ -351,8 +353,10 @@ public class PlayerHelper {
     double radiusSq = radius * radius;
     List<Player> result = new ArrayList<>();
     for (Player p : center.getWorld().getPlayers()) {
-      if (p.getLocation().distanceSquared(center) <= radiusSq) {
-        result.add(p);
+      if (p != null && p.isOnline() && p.getWorld().equals(center.getWorld())) {
+        if (p.getLocation().distanceSquared(center) <= radiusSq) {
+          result.add(p);
+        }
       }
     }
     return result;

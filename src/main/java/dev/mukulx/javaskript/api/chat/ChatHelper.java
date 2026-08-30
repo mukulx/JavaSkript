@@ -372,7 +372,10 @@ public class ChatHelper implements Listener {
   }
 
   private void dispatchPromptResult(Player player, String text, PromptContext ctx) {
-    if (text.equalsIgnoreCase("cancel")) {
+    if (player == null || ctx == null) return;
+    final String finalText = (text == null) ? "" : text;
+
+    if (finalText.equalsIgnoreCase("cancel")) {
       send(player, "<gray>[Action canceled.]</gray>");
       if (ctx.onCancel != null) {
         ctx.onCancel.accept(player);
@@ -384,7 +387,7 @@ public class ChatHelper implements Listener {
     Runnable action =
         () -> {
           try {
-            ctx.onInput.accept(player, text);
+            ctx.onInput.accept(player, finalText);
           } catch (Throwable t) {
             plugin.getLogger().severe("Error in chat prompt callback: " + t.getMessage());
           }

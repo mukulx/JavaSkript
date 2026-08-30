@@ -41,7 +41,8 @@ public class ItemBuilder implements Cloneable {
   }
 
   public ItemBuilder(Material material, int amount) {
-    this.item = new ItemStack(material, Math.max(1, amount));
+    Material safeMaterial = (material == null || material.isAir()) ? Material.STONE : material;
+    this.item = new ItemStack(safeMaterial, Math.max(1, amount));
     this.meta = item.getItemMeta();
   }
 

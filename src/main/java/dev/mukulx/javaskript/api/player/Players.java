@@ -37,7 +37,7 @@ public final class Players {
 
   private static PlayerHelper get() {
     if (instance == null) {
-      instance = new PlayerHelper(null);
+      instance = new PlayerHelper(dev.mukulx.javaskript.JavaSkriptPlugin.getInstance());
     }
     return instance;
   }
