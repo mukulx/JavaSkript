@@ -75,6 +75,12 @@ public class PlayerHelper {
    */
   public Component parse(String input) {
     if (input == null || input.isEmpty()) return Component.empty();
+
+    // Fast-path: return plain text component immediately if no formatting tags present
+    if (!input.contains("<") && !input.contains("&") && !input.contains("§")) {
+      return Component.text(input).decoration(TextDecoration.ITALIC, false);
+    }
+
     Component comp;
     if (input.contains("<") && input.contains(">")) {
       try {

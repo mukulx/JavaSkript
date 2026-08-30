@@ -49,6 +49,13 @@ public class ChatHelper implements Listener {
   // Global action token registry: token -> ActionEntry
   private static final Map<String, ActionEntry> GLOBAL_ACTIONS = new ConcurrentHashMap<>();
 
+  private static final java.util.regex.Pattern STRIP_AMP =
+      java.util.regex.Pattern.compile("&[0-9a-fk-orA-FK-OR]");
+  private static final java.util.regex.Pattern STRIP_SECTION =
+      java.util.regex.Pattern.compile("§[0-9a-fk-orA-FK-OR]");
+  private static final java.util.regex.Pattern STRIP_TAGS =
+      java.util.regex.Pattern.compile("<[^>]*>");
+
   private final JavaSkriptPlugin plugin;
   private final String scriptKey;
 
@@ -223,12 +230,12 @@ public class ChatHelper implements Listener {
   public String center(String message) {
     if (message == null || message.isEmpty()) return "";
 
-    // Strip formatting tags to calculate visible character lengths
+    // Strip formatting tags using precompiled patterns
     String stripped =
-        message
-            .replaceAll("&[0-9a-fk-orA-FK-OR]", "")
-            .replaceAll("§[0-9a-fk-orA-FK-OR]", "")
-            .replaceAll("<[^>]*>", "");
+        STRIP_TAGS
+            .matcher(
+                STRIP_SECTION.matcher(STRIP_AMP.matcher(message).replaceAll("")).replaceAll(""))
+            .replaceAll("");
 
     int messagePxSize = 0;
     boolean isBold = message.contains("<bold>") || message.contains("&l") || message.contains("§l");
@@ -289,6 +296,12 @@ public class ChatHelper implements Listener {
   /** Parse text into Adventure Component with default italics disabled. */
   public Component parse(String input) {
     if (input == null || input.isEmpty()) return Component.empty();
+
+    // Fast-path: return plain text component immediately if no formatting tags present
+    if (!input.contains("<") && !input.contains("&") && !input.contains("§")) {
+      return Component.text(input).decoration(TextDecoration.ITALIC, false);
+    }
+
     Component comp;
     if (input.contains("<") && input.contains(">")) {
       try {

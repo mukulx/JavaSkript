@@ -17,6 +17,8 @@ public class PlaceholderHelper {
 
   private final JavaSkriptPlugin plugin;
   private final String scriptName;
+  private static final java.util.regex.Pattern SAFE_NAME_PATTERN =
+      java.util.regex.Pattern.compile("[^a-zA-Z0-9_]");
   private final Map<String, BiFunction<OfflinePlayer, String, String>> placeholders;
   private boolean papiAvailable = false;
   private Object expansion = null;
@@ -204,7 +206,7 @@ public class PlaceholderHelper {
 
   private Class<?> createDynamicExpansionClass() {
     try {
-      String safeName = scriptName.replaceAll("[^a-zA-Z0-9_]", "_");
+      String safeName = SAFE_NAME_PATTERN.matcher(scriptName).replaceAll("_");
       String internalName =
           "dev/mukulx/javaskript/api/papi/DynamicExpansion_"
               + safeName

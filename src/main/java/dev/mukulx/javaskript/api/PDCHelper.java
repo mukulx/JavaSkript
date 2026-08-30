@@ -6,8 +6,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -31,6 +33,10 @@ public class PDCHelper {
   private final JavaSkriptPlugin plugin;
   private final String defaultNamespace;
 
+  private static final java.util.regex.Pattern PDC_KEY_CLEANER =
+      java.util.regex.Pattern.compile("[^a-z0-9/._-]");
+  private final Map<String, NamespacedKey> keyCache = new ConcurrentHashMap<>();
+
   public PDCHelper(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.defaultNamespace = "javaskript";
@@ -49,19 +55,25 @@ public class PDCHelper {
   /**
    * Creates a NamespacedKey from a key string. If the key contains a colon (e.g. "custom:key"), it
    * parses it directly. Otherwise, it uses the plugin's namespace.
+   *
+   * <p>Results are cached in memory for sub-microsecond O(1) lookups.
    */
   public NamespacedKey key(String key) {
     if (key == null || key.isEmpty()) {
       throw new IllegalArgumentException("Key cannot be null or empty");
     }
-    if (key.contains(":")) {
-      NamespacedKey parsed = NamespacedKey.fromString(key);
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-    String normalized = key.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
-    return new NamespacedKey(plugin, normalized);
+    return keyCache.computeIfAbsent(
+        key,
+        k -> {
+          if (k.contains(":")) {
+            NamespacedKey parsed = NamespacedKey.fromString(k);
+            if (parsed != null) {
+              return parsed;
+            }
+          }
+          String normalized = PDC_KEY_CLEANER.matcher(k.toLowerCase()).replaceAll("_");
+          return new NamespacedKey(plugin, normalized);
+        });
   }
 
   // ==========================================
