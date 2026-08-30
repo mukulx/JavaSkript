@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.script;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.*;
+import dev.mukulx.javaskript.api.chat.ChatHelper;
 import dev.mukulx.javaskript.api.command.CommandHelper;
 import dev.mukulx.javaskript.api.event.EventHelper;
 import dev.mukulx.javaskript.api.item.ItemHelper;
@@ -49,6 +50,7 @@ public class ScriptInstance {
   private CooldownHelper cooldowns;
   private EventHelper events;
   private PlayerHelper players;
+  private ChatHelper chat;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -96,6 +98,7 @@ public class ScriptInstance {
       this.cooldowns = new CooldownHelper(plugin, scriptKey);
       this.events = new EventHelper(plugin, scriptKey);
       this.players = new PlayerHelper(plugin);
+      this.chat = new ChatHelper(plugin, scriptKey);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -287,6 +290,8 @@ public class ScriptInstance {
               field.set(instance, events);
             } else if (type.isAssignableFrom(PlayerHelper.class)) {
               field.set(instance, players);
+            } else if (type.isAssignableFrom(ChatHelper.class)) {
+              field.set(instance, chat);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -346,6 +351,8 @@ public class ScriptInstance {
                 || name.equals("playerhelper")
                 || name.equals("playerutil")) {
               field.set(instance, players);
+            } else if (name.equals("chat") || name.equals("chathelper") || name.equals("chatapi")) {
+              field.set(instance, chat);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -616,6 +623,16 @@ public class ScriptInstance {
       plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
     }
 
+    // Cleanup chat prompts and action tokens
+    try {
+      if (chat != null) {
+        chat.cleanup();
+        chat = null;
+      }
+    } catch (Exception e) {
+      plugin.getLogger().warning("Error cleaning up chat (continuing): " + e.getMessage());
+    }
+
     // Clear config reference
     try {
       config = null;
@@ -868,6 +885,14 @@ public class ScriptInstance {
 
   public PlayerHelper getPlayerHelper() {
     return players;
+  }
+
+  public ChatHelper getChat() {
+    return chat;
+  }
+
+  public ChatHelper getChatHelper() {
+    return chat;
   }
 
   public boolean isFoliaCompatible() {

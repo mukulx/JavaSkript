@@ -119,6 +119,24 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get the ChatHelper for interactive clickable chat, confirmations, prompts, and pagers.
+   *
+   * @return ChatHelper instance
+   */
+  public dev.mukulx.javaskript.api.chat.ChatHelper getChatHelper() {
+    return new dev.mukulx.javaskript.api.chat.ChatHelper(plugin, "api");
+  }
+
+  /**
+   * Get the ChatHelper for interactive clickable chat, confirmations, prompts, and pagers (alias).
+   *
+   * @return ChatHelper instance
+   */
+  public dev.mukulx.javaskript.api.chat.ChatHelper chat() {
+    return getChatHelper();
+  }
+
+  /**
    * Get the Hologram helper for creating modern Display Entity holograms
    *
    * @return HologramHelper instance

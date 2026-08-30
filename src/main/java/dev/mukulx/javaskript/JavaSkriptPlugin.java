@@ -82,6 +82,16 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       this.commandRegistry.registerCommand(
           "javaskript", new JavaSkriptCommand(this), "js", "jskript");
 
+      // Register internal interactive chat action handler
+      this.commandRegistry.registerCommand(
+          "__jsk_action",
+          (sender, cmd, label, args) -> {
+            if (sender instanceof org.bukkit.entity.Player player && args.length > 0) {
+              dev.mukulx.javaskript.api.chat.ChatHelper.executeGlobalAction(player, args[0]);
+            }
+            return true;
+          });
+
       // Synchronous boot-time execution of stored scripts
       if (getConfig().getBoolean("scripts.auto-load", true)) {
         scriptManager.loadAllScripts();

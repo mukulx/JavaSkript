@@ -776,6 +776,7 @@ public class ScriptManager {
       "ItemBuilderExample.java",
       "CooldownExample.java",
       "EventAndPlayerExample.java",
+      "ChatAPIExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

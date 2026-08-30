@@ -1688,6 +1688,85 @@ for (Player target : Players.nearby(player.getLocation(), 10.0)) {
 
 ---
 
+## ChatHelper (Interactive Chat API)
+
+A modern, complete chat engine for interactive buttons, confirmation workflows, private prompts, paginated lists, and pixel-perfect centered text banners.
+
+### Auto-Injection
+```java
+private ChatHelper chat;
+```
+
+### 1. Interactive ChatBuilder (Buttons, Hover, & Lambda Actions)
+```java
+chat.builder()
+    .text("<yellow>Special Offer: ")
+    // Click to execute command:
+    .clickRun("<green><bold>[Claim Kit]</bold></green>", "/kit starter", "<gray>Click to claim kit")
+    .space()
+    // Click to prefill chatbox:
+    .clickSuggest("<aqua>[Message]</aqua>", "/msg mukul ", "<gray>Click to reply")
+    .space()
+    // Click to copy text:
+    .clickCopy("<light_purple>[IP]</light_purple>", "play.myserver.net", "<gray>Copy server IP")
+    .space()
+    // Click to open URL:
+    .clickUrl("<gold>[Discord]</gold>", "https://discord.gg/minecraft", "<gray>Open Discord")
+    .space()
+    // Click to execute an in-memory Java lambda callback directly!
+    .clickAction("<yellow>[⚡ Mystery Box]</yellow>", p -> {
+        Players.sound(p, Sound.ENTITY_PLAYER_LEVELUP);
+        Players.msg(p, "<green>✔ You triggered a live Java lambda action!");
+    }, "<gray>Click for surprise")
+    .send(player);
+```
+
+### 2. 1-Line Confirmations (`chat.confirm`)
+Automates clickable `[CONFIRM]` and `[CANCEL]` buttons with automatic single-use token invalidation and timeouts:
+```java
+chat.confirm(player)
+    .question("<gold>Purchase <yellow>Fly Perk</yellow> for <green>$5,000</green>?")
+    .accept("<green><bold>[CONFIRM]</bold></green>", p -> {
+        Players.msg(p, "<green>Perk activated!");
+    })
+    .deny("<red><bold>[CANCEL]</bold></red>", p -> {
+        Players.msg(p, "<red>Purchase canceled.");
+    })
+    .timeout(Duration.ofSeconds(30))
+    .send();
+```
+
+### 3. Private Chat Input Prompts (`chat.prompt`)
+Hides player's next chat message from everyone else and delivers it to a callback:
+```java
+// General text prompt:
+chat.prompt(player, "<yellow>Type your warp name in chat (or 'cancel'):", (p, name) -> {
+    Players.msg(p, "<green>Warp '" + name + "' created!");
+});
+
+// Validated number prompt (with auto-bounds checking and re-prompting):
+chat.promptInteger(player, "<yellow>Enter deposit amount (1 - 1000):", 1, 1000, (p, amount) -> {
+    Players.msg(p, "<green>Deposited $" + amount);
+});
+```
+
+### 4. Paginated Lists with Clickable Page Controls (`chat.pager`)
+```java
+chat.pager(player, "Server Warps", warpList)
+    .pageSize(7)
+    .header("<gold>✦ %title% <gray>(Page %page%/%max%)</gray> ✦")
+    .formatter((index, warp) -> "<yellow>#" + index + " <white>" + warp)
+    .send(1); // Clickable [◀ Previous] & [Next ▶] buttons automatically work!
+```
+
+### 5. Pixel-Perfect Centered Text
+```java
+chat.sendCentered(player, "<gradient:#ff5555:#ffaa00><bold>✦ MYTHIC EVENT ✦</bold></gradient>");
+chat.sendCentered(player, "<gray>Double EXP is now live!</gray>");
+```
+
+---
+
 ## Manual API Access
 
 If auto-injection doesn't work, you can create APIs manually:
