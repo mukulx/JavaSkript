@@ -10,7 +10,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandExecutor;
@@ -331,7 +333,16 @@ public class ScriptInstance {
     String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
     int registeredCount = 0;
 
-    for (Method method : listener.getClass().getMethods()) {
+    Set<Method> methods = new HashSet<>();
+    for (Class<?> clazz = listener.getClass();
+        clazz != null && clazz != Object.class;
+        clazz = clazz.getSuperclass()) {
+      for (Method m : clazz.getDeclaredMethods()) {
+        methods.add(m);
+      }
+    }
+
+    for (Method method : methods) {
       EventHandler handler = method.getAnnotation(EventHandler.class);
       if (handler == null) continue;
       if (method.getParameterCount() != 1) continue;

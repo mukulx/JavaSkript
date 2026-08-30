@@ -593,37 +593,64 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       sender.sendMessage(
           Component.text("=== JavaSkript Performance Profiler ===").color(NamedTextColor.GOLD));
       boolean active = profiler.isProfilingActive();
-      if (active) {
-        long elapsedSec = profiler.getSessionDurationMillis() / 1000;
-        sender.sendMessage(
-            Component.text("  Status: ")
-                .color(NamedTextColor.YELLOW)
-                .append(
-                    Component.text("ACTIVE (" + elapsedSec + "s elapsed)")
-                        .color(NamedTextColor.GREEN)));
+      long elapsedSec = profiler.getSessionDurationMillis() / 1000;
+      sender.sendMessage(
+          Component.text("  Status: ")
+              .color(NamedTextColor.YELLOW)
+              .append(
+                  active
+                      ? Component.text("ACTIVE (" + elapsedSec + "s)").color(NamedTextColor.GREEN)
+                      : Component.text("PAUSED").color(NamedTextColor.RED))
+              .append(
+                  Component.text(" | Scripts: " + profiler.getAllMetrics().size())
+                      .color(NamedTextColor.GRAY))
+              .append(
+                  Component.text(" | Calls: " + profiler.getTotalRecordedCalls())
+                      .color(NamedTextColor.GRAY)));
+
+      // Show top 5 active records immediately right in chat
+      var top = profiler.getTopRecords(null, 5);
+      if (!top.isEmpty()) {
+        sender.sendMessage(Component.text("  Top Active Handlers:").color(NamedTextColor.YELLOW));
+        int rank = 1;
+        for (var entry : top) {
+          var rec = entry.getValue();
+          String line =
+              String.format(
+                  "   #%d [%s] %s :: %s",
+                  rank++, rec.getCategory(), entry.getKey(), rec.getIdentifier());
+          sender.sendMessage(Component.text(line).color(NamedTextColor.YELLOW));
+          String stats =
+              String.format(
+                  "      Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
+                  rec.getCount(),
+                  rec.getStatusColor(),
+                  rec.getFormattedAverage(),
+                  rec.getFormattedMax(),
+                  rec.getFormattedTotal());
+          sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+        }
       } else {
         sender.sendMessage(
-            Component.text("  Status: ")
-                .color(NamedTextColor.YELLOW)
-                .append(Component.text("IDLE").color(NamedTextColor.GRAY)));
+            Component.text(
+                    "  No handler invocations recorded yet. Normal events and tasks track automatically.")
+                .color(NamedTextColor.GRAY));
       }
-      sender.sendMessage(
-          Component.text("  Profiled scripts: " + profiler.getAllMetrics().size())
-              .color(NamedTextColor.YELLOW));
+
       sender.sendMessage(Component.text(""));
       sender.sendMessage(
-          Component.text("  /js profile start [sec] - Start live profiling session (default 60s)")
+          Component.text("  /js profile top [count] - Display full rankings")
               .color(NamedTextColor.AQUA));
       sender.sendMessage(
-          Component.text("  /js profile stop - Stop profiling session").color(NamedTextColor.AQUA));
-      sender.sendMessage(
-          Component.text("  /js profile top [count] - Display slowest event handlers and tasks")
+          Component.text("  /js profile <script> - Inspect script breakdown")
               .color(NamedTextColor.AQUA));
       sender.sendMessage(
-          Component.text("  /js profile <script> - Display performance breakdown for a script")
-              .color(NamedTextColor.AQUA));
+          Component.text("  /js profile reset - Clear current metrics").color(NamedTextColor.AQUA));
       sender.sendMessage(
           Component.text("  /js profile dump - Export complete report to file")
+              .color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js profile start [sec] - Start dedicated capture window")
               .color(NamedTextColor.AQUA));
       sender.sendMessage(
           Component.text("  /js benchmark <script> - Run synthetic throughput test")
@@ -646,12 +673,14 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     }
 
     if (action.equals("stop")) {
-      if (!profiler.isProfilingActive()) {
-        sender.sendMessage(
-            Component.text("No profiling session is currently active.").color(NamedTextColor.RED));
-        return;
-      }
       profiler.stopSession(sender);
+      return;
+    }
+
+    if (action.equals("reset")) {
+      profiler.reset();
+      sender.sendMessage(
+          Component.text("Profiler metrics have been reset.").color(NamedTextColor.GREEN));
       return;
     }
 
@@ -684,8 +713,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
       if (topRecords.isEmpty()) {
         sender.sendMessage(
-            Component.text("No profiling data recorded yet. Run '/js profile start' first.")
-                .color(NamedTextColor.YELLOW));
+            Component.text("No profiling data recorded yet.").color(NamedTextColor.YELLOW));
         return;
       }
 
@@ -714,24 +742,25 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     // Otherwise, treat as script name: /js profile <script>
     String rawTarget = joinArgs(args, 1);
-    File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
-    String scriptKey =
-        (scriptFile != null && scriptFile.exists())
-            ? plugin.getScriptManager().getScriptKey(scriptFile)
-            : rawTarget;
-
-    var records = profiler.getScriptRecords(scriptKey);
+    var records = profiler.getScriptRecords(rawTarget);
+    String matchedKey = profiler.findMatchingScriptKey(rawTarget);
+    String displayKey = matchedKey != null ? matchedKey : rawTarget;
 
     sender.sendMessage(
-        Component.text("=== Performance Profile: " + scriptKey + " ===")
+        Component.text("=== Performance Profile: " + displayKey + " ===")
             .color(NamedTextColor.GOLD));
 
     if (records.isEmpty()) {
-      sender.sendMessage(
-          Component.text("No metrics recorded for this script yet.").color(NamedTextColor.YELLOW));
-      sender.sendMessage(
-          Component.text("Start profiling with '/js profile start' to collect data.")
-              .color(NamedTextColor.GRAY));
+      File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
+      if (scriptFile != null && scriptFile.exists()) {
+        sender.sendMessage(
+            Component.text(
+                    "Script is loaded, but has not had any event handlers or tasks executed yet.")
+                .color(NamedTextColor.YELLOW));
+      } else {
+        sender.sendMessage(
+            Component.text("Script not found: " + rawTarget).color(NamedTextColor.RED));
+      }
       return;
     }
 
@@ -948,20 +977,28 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
       if (subCommand.equals("profile")) {
         if (args.length == 2) {
-          List<String> suggestions = new ArrayList<>(Arrays.asList("start", "stop", "top", "dump"));
-          suggestions.addAll(
-              plugin.getScriptManager().getLoadedScripts().keySet().stream()
-                  .map(s -> s.replace(".java", ""))
-                  .collect(Collectors.toList()));
+          String arg1 = args[1].toLowerCase();
+          List<String> suggestions =
+              new ArrayList<>(Arrays.asList("start", "stop", "top", "dump", "reset"));
+          suggestions.addAll(subdirs);
+          for (String key : plugin.getScriptManager().getLoadedScripts().keySet()) {
+            String cleanKey = key.replace(".java", "");
+            suggestions.add(cleanKey);
+            int lastSlash = cleanKey.lastIndexOf('/');
+            if (lastSlash >= 0) {
+              suggestions.add(cleanKey.substring(lastSlash + 1));
+            }
+          }
           return suggestions.stream()
-              .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+              .filter(s -> s.toLowerCase().startsWith(arg1))
+              .distinct()
               .collect(Collectors.toList());
         } else if (args.length == 3 && args[1].equalsIgnoreCase("start")) {
           return Arrays.asList("30", "60", "120", "300").stream()
               .filter(s -> s.startsWith(args[2]))
               .collect(Collectors.toList());
         } else if (args.length == 3 && args[1].equalsIgnoreCase("top")) {
-          return Arrays.asList("5", "10", "20").stream()
+          return Arrays.asList("5", "10", "20", "50").stream()
               .filter(s -> s.startsWith(args[2]))
               .collect(Collectors.toList());
         }
@@ -969,9 +1006,19 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
       if (subCommand.equals("benchmark")) {
         if (args.length == 2) {
-          return plugin.getScriptManager().getLoadedScripts().keySet().stream()
-              .map(s -> s.replace(".java", ""))
-              .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+          String arg1 = args[1].toLowerCase();
+          List<String> suggestions = new ArrayList<>(subdirs);
+          for (String key : plugin.getScriptManager().getLoadedScripts().keySet()) {
+            String cleanKey = key.replace(".java", "");
+            suggestions.add(cleanKey);
+            int lastSlash = cleanKey.lastIndexOf('/');
+            if (lastSlash >= 0) {
+              suggestions.add(cleanKey.substring(lastSlash + 1));
+            }
+          }
+          return suggestions.stream()
+              .filter(s -> s.toLowerCase().startsWith(arg1))
+              .distinct()
               .collect(Collectors.toList());
         } else if (args.length == 3) {
           return Arrays.asList("10000", "50000", "100000").stream()

@@ -26,8 +26,8 @@ import org.bukkit.scheduler.BukkitTask;
 public class ScriptProfiler {
 
   private final JavaSkriptPlugin plugin;
-  private final AtomicBoolean profilingActive = new AtomicBoolean(false);
-  private long sessionStartTime = 0;
+  private final AtomicBoolean profilingActive = new AtomicBoolean(true);
+  private long sessionStartTime = System.currentTimeMillis();
   private long sessionEndTime = 0;
   private BukkitTask bukkitStopTask = null;
   private Object foliaStopTask = null;
@@ -37,6 +37,7 @@ public class ScriptProfiler {
 
   public ScriptProfiler(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
+    this.sessionStartTime = System.currentTimeMillis();
   }
 
   // ==========================================
@@ -184,8 +185,85 @@ public class ScriptProfiler {
   // Queries & Analytics
   // ==========================================
 
-  public Map<String, ProfileRecord> getScriptRecords(String scriptKey) {
-    return metrics.getOrDefault(scriptKey, Collections.emptyMap());
+  public Map<String, ProfileRecord> getScriptRecords(String query) {
+    if (query == null || query.isBlank()) {
+      return Collections.emptyMap();
+    }
+
+    // 1. Direct match
+    if (metrics.containsKey(query)) {
+      return metrics.get(query);
+    }
+
+    // 2. Normalize and check fuzzy
+    String normalized = normalizeKey(query);
+    for (Map.Entry<String, Map<String, ProfileRecord>> entry : metrics.entrySet()) {
+      String key = normalizeKey(entry.getKey());
+      int lastSlash = key.lastIndexOf('/');
+      String simpleName = lastSlash >= 0 ? key.substring(lastSlash + 1) : key;
+
+      if (key.equals(normalized)
+          || simpleName.equals(normalized)
+          || key.endsWith("/" + normalized)
+          || normalized.endsWith("/" + simpleName)) {
+        return entry.getValue();
+      }
+    }
+
+    return Collections.emptyMap();
+  }
+
+  public String findMatchingScriptKey(String query) {
+    if (query == null || query.isBlank()) {
+      return null;
+    }
+    if (metrics.containsKey(query)) {
+      return query;
+    }
+    String normalized = normalizeKey(query);
+    for (String key : metrics.keySet()) {
+      String normKey = normalizeKey(key);
+      int lastSlash = normKey.lastIndexOf('/');
+      String simpleName = lastSlash >= 0 ? normKey.substring(lastSlash + 1) : normKey;
+      if (normKey.equals(normalized)
+          || simpleName.equals(normalized)
+          || normKey.endsWith("/" + normalized)
+          || normalized.endsWith("/" + simpleName)) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  private String normalizeKey(String k) {
+    String res = k.replace('\\', '/').toLowerCase().trim();
+    if (res.endsWith(".java")) {
+      res = res.substring(0, res.length() - 5);
+    }
+    if (res.startsWith("-")) {
+      res = res.substring(1);
+    }
+    return res;
+  }
+
+  public long getTotalRecordedCalls() {
+    long total = 0;
+    for (Map<String, ProfileRecord> map : metrics.values()) {
+      for (ProfileRecord rec : map.values()) {
+        total += rec.getCount();
+      }
+    }
+    return total;
+  }
+
+  public long getTotalRecordedNanos() {
+    long total = 0;
+    for (Map<String, ProfileRecord> map : metrics.values()) {
+      for (ProfileRecord rec : map.values()) {
+        total += rec.getTotalNanos();
+      }
+    }
+    return total;
   }
 
   public Map<String, Map<String, ProfileRecord>> getAllMetrics() {
