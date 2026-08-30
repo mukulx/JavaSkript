@@ -14,6 +14,7 @@ public class ScriptClassLoader extends URLClassLoader {
   private final JavaSkriptPlugin plugin;
   private final String scriptName;
   private final Map<String, Class<?>> loadedClasses;
+  private long totalBytecodeBytes = 0;
 
   public ScriptClassLoader(JavaSkriptPlugin plugin, String scriptName) {
     this(plugin, scriptName, new ArrayList<>());
@@ -58,6 +59,7 @@ public class ScriptClassLoader extends URLClassLoader {
     try {
       Class<?> clazz = defineClass(name, classData, 0, classData.length);
       loadedClasses.put(name, clazz);
+      totalBytecodeBytes += classData.length;
       plugin.getLogger().fine("[" + scriptName + "] Defined class: " + name);
       return clazz;
     } catch (Exception e) {
@@ -133,6 +135,10 @@ public class ScriptClassLoader extends URLClassLoader {
    */
   public boolean isClassLoaded(String name) {
     return loadedClasses.containsKey(name);
+  }
+
+  public long getTotalBytecodeBytes() {
+    return totalBytecodeBytes;
   }
 
   public void unloadAll() {

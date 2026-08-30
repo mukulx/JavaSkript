@@ -768,4 +768,8 @@ public class ScriptInstance {
       return "Unknown (not marked)";
     }
   }
+
+  public ScriptClassLoader getClassLoader() {
+    return classLoader;
+  }
 }

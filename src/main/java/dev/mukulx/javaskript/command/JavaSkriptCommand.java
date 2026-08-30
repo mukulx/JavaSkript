@@ -819,16 +819,23 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
           sender.sendMessage(
               Component.text(
                       String.format(
+                          "  99th Percentile (P99): %.2f µs", result.getP99LatencyMicros()))
+                  .color(NamedTextColor.YELLOW));
+          sender.sendMessage(
+              Component.text(
+                      String.format(
                           "  Min / Max: %.2f µs / %.2f µs",
                           result.getMinLatencyMicros(), result.getMaxLatencyMicros()))
                   .color(NamedTextColor.GRAY));
-          if (result.getMemoryUsedBytes() > 0) {
-            sender.sendMessage(
-                Component.text(
-                        String.format(
-                            "  Heap Allocation: %,d KB", result.getMemoryUsedBytes() / 1024))
-                    .color(NamedTextColor.GRAY));
-          }
+          sender.sendMessage(
+              Component.text(
+                      String.format(
+                          "  Footprint: Bytecode: %,.1f KB | Source: %,.1f KB (%d class%s)",
+                          result.getBytecodeSizeBytes() / 1024.0,
+                          result.getSourceSizeBytes() / 1024.0,
+                          result.getClassesCount(),
+                          result.getClassesCount() > 1 ? "es" : ""))
+                  .color(NamedTextColor.GRAY));
           sender.sendMessage(
               Component.text("------------------------------------------")
                   .color(NamedTextColor.GRAY));

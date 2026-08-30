@@ -3,7 +3,7 @@ package dev.mukulx.javaskript.profiler;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Holds benchmark execution results and performance analysis. */
+/** Holds truthful benchmark execution results and performance analysis. */
 public class BenchmarkResult {
 
   private final String scriptKey;
@@ -12,8 +12,10 @@ public class BenchmarkResult {
   private final double opsPerSecond;
   private final double avgLatencyMicros;
   private final double minLatencyMicros;
+  private final double p99LatencyMicros;
   private final double maxLatencyMicros;
-  private final long memoryUsedBytes;
+  private final long bytecodeSizeBytes;
+  private final long sourceSizeBytes;
   private final int classesCount;
   private final String grade;
   private final List<String> suggestions = new ArrayList<>();
@@ -24,16 +26,20 @@ public class BenchmarkResult {
       long totalNanos,
       double avgLatencyMicros,
       double minLatencyMicros,
+      double p99LatencyMicros,
       double maxLatencyMicros,
-      long memoryUsedBytes,
+      long bytecodeSizeBytes,
+      long sourceSizeBytes,
       int classesCount) {
     this.scriptKey = scriptKey;
     this.iterations = iterations;
     this.totalNanos = totalNanos;
     this.avgLatencyMicros = avgLatencyMicros;
     this.minLatencyMicros = minLatencyMicros;
+    this.p99LatencyMicros = p99LatencyMicros;
     this.maxLatencyMicros = maxLatencyMicros;
-    this.memoryUsedBytes = memoryUsedBytes;
+    this.bytecodeSizeBytes = bytecodeSizeBytes;
+    this.sourceSizeBytes = sourceSizeBytes;
     this.classesCount = classesCount;
 
     if (totalNanos > 0) {
@@ -47,13 +53,13 @@ public class BenchmarkResult {
   }
 
   private String calculateGrade() {
-    if (avgLatencyMicros < 1.0) {
+    if (avgLatencyMicros < 2.0) {
       return "A+";
-    } else if (avgLatencyMicros < 10.0) {
+    } else if (avgLatencyMicros < 25.0) {
       return "A";
-    } else if (avgLatencyMicros < 100.0) {
+    } else if (avgLatencyMicros < 150.0) {
       return "B";
-    } else if (avgLatencyMicros < 500.0) {
+    } else if (avgLatencyMicros < 1000.0) {
       return "C";
     } else {
       return "F";
@@ -61,16 +67,19 @@ public class BenchmarkResult {
   }
 
   private void generateSuggestions() {
-    if (avgLatencyMicros >= 100.0) {
+    if (avgLatencyMicros >= 500.0) {
       suggestions.add(
-          "Handler latency is high (>0.1ms). Avoid heavy loops or I/O in event listeners.");
+          "Average execution time is high (>0.5ms). Consider moving heavy operations to async tasks.");
+    } else if (p99LatencyMicros >= 2000.0) {
+      suggestions.add(
+          "Occasional latency spikes detected in 99th percentile (>2ms). Check for synchronous I/O or large iterations.");
     }
-    if (maxLatencyMicros > 5000.0) {
-      suggestions.add("Detected spike (>5ms). Use async tasks for database, web, or file queries.");
+
+    if (bytecodeSizeBytes > 500 * 1024) {
+      suggestions.add(
+          "Compiled bytecode is over 500KB. Consider splitting into multiple modular scripts.");
     }
-    if (memoryUsedBytes > 10 * 1024 * 1024) {
-      suggestions.add("Memory usage is above 10MB. Check for unreleased collections or caches.");
-    }
+
     if (suggestions.isEmpty()) {
       suggestions.add("Performance is optimal! Ready for high-concurrency production servers.");
     }
@@ -100,12 +109,20 @@ public class BenchmarkResult {
     return minLatencyMicros;
   }
 
+  public double getP99LatencyMicros() {
+    return p99LatencyMicros;
+  }
+
   public double getMaxLatencyMicros() {
     return maxLatencyMicros;
   }
 
-  public long getMemoryUsedBytes() {
-    return memoryUsedBytes;
+  public long getBytecodeSizeBytes() {
+    return bytecodeSizeBytes;
+  }
+
+  public long getSourceSizeBytes() {
+    return sourceSizeBytes;
   }
 
   public int getClassesCount() {

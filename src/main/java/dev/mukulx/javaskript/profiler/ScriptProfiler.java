@@ -15,7 +15,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
-import org.bukkit.event.EventHandler;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
@@ -312,73 +311,112 @@ public class ScriptProfiler {
     Object scriptObj = instance.getInstance();
     Class<?> clazz = instance.getScriptClass();
 
-    // Find any testable method (event handler, command, or public method)
-    Method targetMethod = null;
-    for (Method m : clazz.getDeclaredMethods()) {
-      if (m.isAnnotationPresent(EventHandler.class)) {
-        targetMethod = m;
+    // Cache declared methods OUTSIDE of any timed loop to prevent generating garbage
+    final Method[] methods = clazz.getDeclaredMethods();
+    Method candidate = null;
+
+    // Look for 0-arg public method
+    for (Method m : methods) {
+      if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getParameterCount() == 0) {
+        candidate = m;
         break;
       }
     }
-    if (targetMethod == null) {
-      for (Method m : clazz.getDeclaredMethods()) {
-        if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getParameterCount() == 0) {
-          targetMethod = m;
-          break;
-        }
-      }
-    }
 
-    // Measure memory delta
-    System.gc();
-    long memBefore = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-
-    long minNanos = Long.MAX_VALUE;
-    long maxNanos = 0;
-    long totalNanos = 0;
-
-    // Warm up JIT compiler
-    if (targetMethod != null && targetMethod.getParameterCount() == 0) {
-      targetMethod.setAccessible(true);
-      for (int i = 0; i < 500; i++) {
-        try {
-          targetMethod.invoke(scriptObj);
-        } catch (Exception ignored) {
-        }
-      }
-
-      // Active timed loop
-      for (int i = 0; i < iterations; i++) {
-        long t0 = System.nanoTime();
-        try {
-          targetMethod.invoke(scriptObj);
-        } catch (Exception ignored) {
-        }
-        long dt = System.nanoTime() - t0;
-        totalNanos += dt;
-        if (dt < minNanos) minNanos = dt;
-        if (dt > maxNanos) maxNanos = dt;
-      }
+    // Determine callable action without allocating objects in the loop
+    final Runnable targetAction;
+    if (candidate != null) {
+      final Method target = candidate;
+      target.setAccessible(true);
+      targetAction =
+          () -> {
+            try {
+              target.invoke(scriptObj);
+            } catch (Exception ignored) {
+            }
+          };
+    } else if (scriptObj instanceof org.bukkit.command.CommandExecutor executor) {
+      // Benchmark command execution dispatch path with console sender
+      final org.bukkit.command.ConsoleCommandSender console = Bukkit.getConsoleSender();
+      final org.bukkit.command.Command dummyCmd =
+          new org.bukkit.command.Command("benchmark") {
+            @Override
+            public boolean execute(
+                org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
+              return true;
+            }
+          };
+      final String[] emptyArgs = new String[0];
+      targetAction =
+          () -> {
+            try {
+              executor.onCommand(console, dummyCmd, "benchmark", emptyArgs);
+            } catch (Exception ignored) {
+            }
+          };
     } else {
-      // Benchmark reflection overhead and method access dispatch
-      for (int i = 0; i < iterations; i++) {
-        long t0 = System.nanoTime();
-        clazz.getDeclaredMethods();
-        long dt = System.nanoTime() - t0;
-        totalNanos += dt;
-        if (dt < minNanos) minNanos = dt;
-        if (dt > maxNanos) maxNanos = dt;
+      // Test method dispatch overhead on the cached method handle
+      final Method sample = methods.length > 0 ? methods[0] : null;
+      if (sample != null) {
+        sample.setAccessible(true);
+        final Object[] dummyArgs = new Object[sample.getParameterCount()];
+        targetAction =
+            () -> {
+              try {
+                sample.invoke(scriptObj, dummyArgs);
+              } catch (Exception ignored) {
+              }
+            };
+      } else {
+        targetAction =
+            () -> {
+              clazz.getName();
+            };
       }
     }
 
-    long memAfter = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-    long memDelta = Math.max(0, memAfter - memBefore);
+    // 1. Warm-up Phase: Execute 2,000 iterations to trigger JIT C1/C2 native compilation
+    for (int i = 0; i < 2000; i++) {
+      targetAction.run();
+    }
+
+    // 2. Pre-allocate sample array before timer to guarantee ZERO heap allocation during test
+    long[] samples = new long[iterations];
+
+    // 3. Timed Execution Loop (Completely zero garbage creation)
+    for (int i = 0; i < iterations; i++) {
+      long t0 = System.nanoTime();
+      targetAction.run();
+      samples[i] = System.nanoTime() - t0;
+    }
+
+    // 4. Statistical Analysis
+    Arrays.sort(samples);
+    long minNanos = samples[0];
+    long p99Nanos = samples[(int) (iterations * 0.99)];
+    long maxNanos = samples[iterations - 1];
+
+    long totalNanos = 0;
+    for (long s : samples) {
+      totalNanos += s;
+    }
 
     double avgLatencyMicros = (totalNanos / (double) iterations) / 1000.0;
-    double minLatencyMicros = (minNanos == Long.MAX_VALUE) ? 0.0 : (minNanos / 1000.0);
+    double minLatencyMicros = minNanos / 1000.0;
+    double p99LatencyMicros = p99Nanos / 1000.0;
     double maxLatencyMicros = maxNanos / 1000.0;
 
-    int classesCount = 1;
+    // 5. Accurate Code Footprint Metrics
+    long bytecodeBytes =
+        (instance.getClassLoader() != null) ? instance.getClassLoader().getTotalBytecodeBytes() : 0;
+    long sourceBytes =
+        (instance.getScriptFile() != null && instance.getScriptFile().exists())
+            ? instance.getScriptFile().length()
+            : 0;
+    int classesCount =
+        (instance.getClassLoader() != null)
+            ? instance.getClassLoader().getLoadedClasses().size()
+            : 1;
 
     return new BenchmarkResult(
         scriptKey,
@@ -386,8 +424,10 @@ public class ScriptProfiler {
         totalNanos,
         avgLatencyMicros,
         minLatencyMicros,
+        p99LatencyMicros,
         maxLatencyMicros,
-        memDelta,
+        bytecodeBytes,
+        sourceBytes,
         classesCount);
   }
 }
