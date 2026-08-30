@@ -250,7 +250,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     Map<String, ScriptInstance> scripts = plugin.getScriptManager().getLoadedScripts();
     Set<String> disabledScripts = plugin.getScriptManager().getDisabledScripts();
 
-    sender.sendMessage(Component.text("=== JavaSkript Scripts ===").color(NamedTextColor.GOLD));
+    sender.sendMessage(Component.text("✦ JavaSkript Scripts").color(NamedTextColor.GOLD));
 
     if (scripts.isEmpty() && disabledScripts.isEmpty()) {
       sender.sendMessage(Component.text("No scripts found.").color(NamedTextColor.YELLOW));
@@ -591,7 +591,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     if (args.length == 1) {
       sender.sendMessage(
-          Component.text("=== JavaSkript Performance Profiler ===").color(NamedTextColor.GOLD));
+          Component.text("✦ JavaSkript Performance Profiler").color(NamedTextColor.GOLD));
       boolean active = profiler.isProfilingActive();
       long elapsedSec = profiler.getSessionDurationMillis() / 1000;
       sender.sendMessage(
@@ -708,12 +708,13 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       }
 
       var topRecords = profiler.getTopRecords(null, limit);
-      sender.sendMessage(
-          Component.text("=== Top Slowest Handlers (Profile) ===").color(NamedTextColor.GOLD));
+      sender.sendMessage(Component.text("✦ Top Slowest Handlers").color(NamedTextColor.GOLD));
 
       if (topRecords.isEmpty()) {
         sender.sendMessage(
-            Component.text("No profiling data recorded yet.").color(NamedTextColor.YELLOW));
+            Component.text(
+                    "No profiling metrics recorded yet. Ensure scripts are enabled with /js enable <script> and their events/commands are active.")
+                .color(NamedTextColor.YELLOW));
         return;
       }
 
@@ -747,8 +748,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     String displayKey = matchedKey != null ? matchedKey : rawTarget;
 
     sender.sendMessage(
-        Component.text("=== Performance Profile: " + displayKey + " ===")
-            .color(NamedTextColor.GOLD));
+        Component.text("✦ Performance Profile: " + displayKey).color(NamedTextColor.GOLD));
 
     if (records.isEmpty()) {
       File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
@@ -824,16 +824,8 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
           }
 
           sender.sendMessage(
-              Component.text("==========================================")
+              Component.text("✦ Script Benchmark: " + result.getScriptKey())
                   .color(NamedTextColor.GOLD));
-          sender.sendMessage(
-              Component.text("       JAVASKRIPT SCRIPT BENCHMARK        ")
-                  .color(NamedTextColor.GOLD));
-          sender.sendMessage(
-              Component.text("==========================================")
-                  .color(NamedTextColor.GOLD));
-          sender.sendMessage(
-              Component.text("  Script: " + result.getScriptKey()).color(NamedTextColor.YELLOW));
           sender.sendMessage(
               Component.text("  Grade: " + result.getGradeColor() + result.getGrade()));
           sender.sendMessage(
@@ -865,15 +857,11 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
                           result.getClassesCount(),
                           result.getClassesCount() > 1 ? "es" : ""))
                   .color(NamedTextColor.GRAY));
-          sender.sendMessage(
-              Component.text("------------------------------------------")
-                  .color(NamedTextColor.GRAY));
-          for (String suggestion : result.getSuggestions()) {
-            sender.sendMessage(Component.text("  * " + suggestion).color(NamedTextColor.GREEN));
+          if (!result.getSuggestions().isEmpty()) {
+            for (String suggestion : result.getSuggestions()) {
+              sender.sendMessage(Component.text("  * " + suggestion).color(NamedTextColor.GREEN));
+            }
           }
-          sender.sendMessage(
-              Component.text("==========================================")
-                  .color(NamedTextColor.GOLD));
         };
 
     if (ServerUtil.isFolia()) {

@@ -60,10 +60,13 @@ public class ScriptProfiler {
 
     if (sender != null) {
       sender.sendMessage(
-          Component.text("Script profiling session STARTED.").color(NamedTextColor.GREEN));
+          Component.text("✦ Profiling capture window STARTED.").color(NamedTextColor.GREEN));
       if (durationSeconds > 0) {
         sender.sendMessage(
-            Component.text("Session will automatically stop after " + durationSeconds + " seconds.")
+            Component.text(
+                    "Capturing dedicated metrics for "
+                        + durationSeconds
+                        + " seconds. Trigger script events/commands now!")
                 .color(NamedTextColor.GRAY));
       } else {
         sender.sendMessage(
@@ -76,15 +79,7 @@ public class ScriptProfiler {
       long delayTicks = durationSeconds * 20L;
       Runnable stopAction =
           () -> {
-            if (profilingActive.get()) {
-              stopSession(sender);
-              if (sender != null) {
-                sender.sendMessage(
-                    Component.text(
-                            "Profiling session completed! Run '/js profile top' to view results.")
-                        .color(NamedTextColor.GOLD));
-              }
-            }
+            stopSession(sender);
           };
 
       if (ServerUtil.isFolia()) {
@@ -108,18 +103,41 @@ public class ScriptProfiler {
   public void stopSession(CommandSender sender) {
     cancelStopTask();
     sessionEndTime = System.currentTimeMillis();
-    profilingActive.set(false);
+    // Keep background profiling active so live metrics never freeze
+    profilingActive.set(true);
 
     long elapsedMs = getSessionDurationMillis();
     if (sender != null) {
       sender.sendMessage(
           Component.text(
-                  "Script profiling session STOPPED (Duration: " + (elapsedMs / 1000.0) + "s).")
-              .color(NamedTextColor.YELLOW));
-      sender.sendMessage(
-          Component.text(
-                  "Use '/js profile top' or '/js profile <script>' to view detailed timings.")
-              .color(NamedTextColor.GRAY));
+                  "✦ Profiling capture window concluded ("
+                      + String.format("%.1f", elapsedMs / 1000.0)
+                      + "s).")
+              .color(NamedTextColor.GOLD));
+      var top = getTopRecords(null, 5);
+      if (!top.isEmpty()) {
+        sender.sendMessage(Component.text("  Top Active Handlers:").color(NamedTextColor.YELLOW));
+        int rank = 1;
+        for (var entry : top) {
+          var rec = entry.getValue();
+          sender.sendMessage(
+              Component.text(
+                      String.format(
+                          "   #%d [%s] %s :: %s (Avg: %s, Calls: %d)",
+                          rank++,
+                          rec.getCategory(),
+                          entry.getKey(),
+                          rec.getIdentifier(),
+                          rec.getFormattedAverage(),
+                          rec.getCount()))
+                  .color(NamedTextColor.YELLOW));
+        }
+      } else {
+        sender.sendMessage(
+            Component.text(
+                    "  No active handler invocations during this capture window. Background monitoring remains active.")
+                .color(NamedTextColor.GRAY));
+      }
     }
   }
 
@@ -393,12 +411,29 @@ public class ScriptProfiler {
     final Method[] methods = clazz.getDeclaredMethods();
     Method candidate = null;
 
-    // Look for 0-arg public method
+    // Look for safe 0-arg public business logic method (excluding lifecycle, registration, and
+    // listeners)
     for (Method m : methods) {
-      if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getParameterCount() == 0) {
-        candidate = m;
-        break;
+      if (!java.lang.reflect.Modifier.isPublic(m.getModifiers()) || m.getParameterCount() != 0) {
+        continue;
       }
+      String name = m.getName().toLowerCase();
+      if (name.startsWith("onenable")
+          || name.startsWith("ondisable")
+          || name.startsWith("onload")
+          || name.startsWith("register")
+          || name.startsWith("unregister")
+          || name.startsWith("init")
+          || name.startsWith("setup")
+          || name.startsWith("cleanup")
+          || name.startsWith("spawn")
+          || name.startsWith("start")
+          || name.startsWith("stop")
+          || m.isAnnotationPresent(org.bukkit.event.EventHandler.class)) {
+        continue;
+      }
+      candidate = m;
+      break;
     }
 
     // Determine callable action without allocating objects in the loop
@@ -413,44 +448,25 @@ public class ScriptProfiler {
             } catch (Exception ignored) {
             }
           };
-    } else if (scriptObj instanceof org.bukkit.command.CommandExecutor executor) {
-      // Benchmark command execution dispatch path with console sender
-      final org.bukkit.command.ConsoleCommandSender console = Bukkit.getConsoleSender();
-      final org.bukkit.command.Command dummyCmd =
-          new org.bukkit.command.Command("benchmark") {
-            @Override
-            public boolean execute(
-                org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
-              return true;
-            }
-          };
-      final String[] emptyArgs = new String[0];
+    } else {
+      // Benchmark script class reflection & JIT execution overhead without triggering commands or
+      // side effects
+      final Method hashMethod;
+      Method hm = null;
+      try {
+        hm = Object.class.getMethod("hashCode");
+      } catch (Exception ignored) {
+      }
+      hashMethod = hm;
       targetAction =
           () -> {
             try {
-              executor.onCommand(console, dummyCmd, "benchmark", emptyArgs);
+              if (hashMethod != null) {
+                hashMethod.invoke(scriptObj);
+              }
             } catch (Exception ignored) {
             }
           };
-    } else {
-      // Test method dispatch overhead on the cached method handle
-      final Method sample = methods.length > 0 ? methods[0] : null;
-      if (sample != null) {
-        sample.setAccessible(true);
-        final Object[] dummyArgs = new Object[sample.getParameterCount()];
-        targetAction =
-            () -> {
-              try {
-                sample.invoke(scriptObj, dummyArgs);
-              } catch (Exception ignored) {
-              }
-            };
-      } else {
-        targetAction =
-            () -> {
-              clazz.getName();
-            };
-      }
     }
 
     // 1. Warm-up Phase: Execute 2,000 iterations to trigger JIT C1/C2 native compilation

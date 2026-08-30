@@ -252,8 +252,10 @@ public class DynamicCommandRegistry {
       if (updated > 0) {
         plugin.debug("Updated commands for " + updated + " player(s)");
       }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error syncing commands: " + e.getMessage());
+    } catch (Throwable t) {
+      String msg = t.getCause() != null ? t.getCause().getMessage() : t.getMessage();
+      plugin.debug(
+          "Platform command sync note: " + (msg != null ? msg : t.getClass().getSimpleName()));
     }
   }
 
