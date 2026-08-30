@@ -28,6 +28,69 @@ This document outlines optimizations to ensure JavaSkript can handle many script
    - Event-driven, not polling
    - Minimal CPU usage
 
+5. **Built-in Nano Script Profiler & Benchmark Engine**
+   - Exact nanosecond timings for all script event listeners
+   - Task execution monitoring for all timers and async tasks
+   - Command latency tracking
+   - Zero-overhead when inactive, Folia & Paper safe concurrent metrics
+   - Live session profiling with `/js profile start [seconds]`
+   - Top bottleneck detection with `/js profile top` and `/js timings`
+   - Synthetic throughput and allocation grading with `/js benchmark <script>`
+
+---
+
+## ⏱️ Built-in Script Profiler & Benchmarking
+
+JavaSkript includes an enterprise-grade profiler to pinpoint lag causes without installing external plugins like Spark.
+
+### Live Session Profiling
+Start a profiling session for 60 seconds (or custom duration):
+```text
+/js profile start 120
+```
+This records call frequencies, average latencies, lag spikes (max execution time), and total CPU consumption across all scripts.
+
+To view the top bottlenecks across the entire server:
+```text
+/js profile top 10
+# Or quick alias:
+/js timings
+```
+
+Output:
+```text
+=== Top Slowest Handlers (Profile) ===
+  #1 [EVENT] pvp/CombatLog.java :: EntityDamageByEntityEvent
+     Calls: 2,450 | Avg: 0.08 ms | Max: 1.82 ms | Total: 196.00 ms
+  #2 [TASK] examples/HologramExample.java :: runTimer
+     Calls: 1,200 | Avg: 0.03 ms | Max: 0.45 ms | Total: 36.00 ms
+```
+
+### Inspecting a Specific Script
+To get a full breakdown of every listener, timer, and command inside a single script:
+```text
+/js profile pvp/CombatLog
+```
+
+### Exporting Full Reports
+Export a timestamped text report to `plugins/JavaSkript/profiles/profile-YYYY-MM-DD_HH-mm-ss.txt`:
+```text
+/js profile dump
+```
+
+### Synthetic Benchmarks (`/js benchmark <script>`)
+To benchmark any script immediately without waiting for real players:
+```text
+/js benchmark pvp/CombatLog 50000
+```
+Outputs a graded report card:
+- **Grade:** A+ / A / B / C / F
+- **Throughput:** Operations / second (e.g. 3,200,000 ops/sec)
+- **Latency:** Average execution duration (microseconds and milliseconds)
+- **Spikes:** Min and max execution jitter
+- **Memory:** Heap allocation delta during execution
+- **Optimization Suggestions:** Automatically identifies synchronous I/O or excessive latency.
+
 ---
 
 ## Recommended Optimizations

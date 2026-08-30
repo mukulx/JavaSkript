@@ -96,6 +96,9 @@ public class MyScript implements Listener {
 - `/js enable <script|folder>` - Enable a disabled script or folder
 - `/js disable <script|folder>` - Disable a script or folder
 - `/js info <script>` - Show script details & Folia status
+- `/js profile [start|stop|top|<script>|dump]` - Real-time nano profiler for events, tasks, and commands
+- `/js benchmark <script> [iterations]` - Run high-speed synthetic benchmark on a script
+- `/js timings` - Quick view of top slowest event handlers across all scripts
 
 **Aliases:** `/javaskript`, `/jskript`
 

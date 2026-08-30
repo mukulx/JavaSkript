@@ -22,11 +22,30 @@ public class ScriptScheduler {
   private final JavaSkriptPlugin plugin;
   private final List<Object> tasks; // BukkitTask or Folia ScheduledTask
   private final boolean isFolia;
+  private final String scriptKey;
 
   public ScriptScheduler(JavaSkriptPlugin plugin) {
+    this(plugin, "unknown");
+  }
+
+  public ScriptScheduler(JavaSkriptPlugin plugin, String scriptKey) {
     this.plugin = plugin;
+    this.scriptKey = scriptKey != null ? scriptKey : "unknown";
     this.tasks = new CopyOnWriteArrayList<>();
     this.isFolia = ServerUtil.isFolia();
+  }
+
+  private Runnable wrap(String type, Runnable runnable) {
+    if (runnable == null) return null;
+    return () -> {
+      long t0 = System.nanoTime();
+      try {
+        runnable.run();
+      } finally {
+        long elapsed = System.nanoTime() - t0;
+        plugin.getProfiler().record(scriptKey, "TASK", type, elapsed);
+      }
+    };
   }
 
   /**
@@ -37,10 +56,11 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object runLater(Runnable runnable, long delayTicks) {
+    Runnable profiled = wrap("runLater", runnable);
     if (isFolia) {
-      return runLaterFolia(runnable, delayTicks);
+      return runLaterFolia(profiled, delayTicks);
     } else {
-      BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, runnable, delayTicks);
+      BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, profiled, delayTicks);
       tasks.add(task);
       return task;
     }
@@ -55,11 +75,12 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object runTimer(Runnable runnable, long delayTicks, long periodTicks) {
+    Runnable profiled = wrap("runTimer", runnable);
     if (isFolia) {
-      return runTimerFolia(runnable, delayTicks, periodTicks);
+      return runTimerFolia(profiled, delayTicks, periodTicks);
     } else {
       BukkitTask task =
-          Bukkit.getScheduler().runTaskTimer(plugin, runnable, delayTicks, periodTicks);
+          Bukkit.getScheduler().runTaskTimer(plugin, profiled, delayTicks, periodTicks);
       tasks.add(task);
       return task;
     }
@@ -72,10 +93,11 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object run(Runnable runnable) {
+    Runnable profiled = wrap("run", runnable);
     if (isFolia) {
-      return runLaterFolia(runnable, 1L);
+      return runLaterFolia(profiled, 1L);
     } else {
-      BukkitTask task = Bukkit.getScheduler().runTask(plugin, runnable);
+      BukkitTask task = Bukkit.getScheduler().runTask(plugin, profiled);
       tasks.add(task);
       return task;
     }
@@ -88,10 +110,11 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object runAsync(Runnable runnable) {
+    Runnable profiled = wrap("runAsync", runnable);
     if (isFolia) {
-      return runAsyncFolia(runnable);
+      return runAsyncFolia(profiled);
     } else {
-      BukkitTask task = Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
+      BukkitTask task = Bukkit.getScheduler().runTaskAsynchronously(plugin, profiled);
       tasks.add(task);
       return task;
     }
@@ -105,11 +128,12 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object runLaterAsync(Runnable runnable, long delayTicks) {
+    Runnable profiled = wrap("runLaterAsync", runnable);
     if (isFolia) {
-      return runLaterAsyncFolia(runnable, delayTicks);
+      return runLaterAsyncFolia(profiled, delayTicks);
     } else {
       BukkitTask task =
-          Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, runnable, delayTicks);
+          Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, profiled, delayTicks);
       tasks.add(task);
       return task;
     }
@@ -124,12 +148,13 @@ public class ScriptScheduler {
    * @return The scheduled task
    */
   public Object runTimerAsync(Runnable runnable, long delayTicks, long periodTicks) {
+    Runnable profiled = wrap("runTimerAsync", runnable);
     if (isFolia) {
-      return runTimerAsyncFolia(runnable, delayTicks, periodTicks);
+      return runTimerAsyncFolia(profiled, delayTicks, periodTicks);
     } else {
       BukkitTask task =
           Bukkit.getScheduler()
-              .runTaskTimerAsynchronously(plugin, runnable, delayTicks, periodTicks);
+              .runTaskTimerAsynchronously(plugin, profiled, delayTicks, periodTicks);
       tasks.add(task);
       return task;
     }

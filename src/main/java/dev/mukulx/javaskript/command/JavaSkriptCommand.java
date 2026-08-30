@@ -4,10 +4,12 @@ import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.script.ScriptInstance;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -47,6 +49,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       case "enable" -> handleEnable(sender, args);
       case "disable" -> handleDisable(sender, args);
       case "info" -> handleInfo(sender, args);
+      case "profile" -> handleProfile(sender, args);
+      case "timings" -> handleProfile(sender, new String[] {"profile", "top"});
+      case "benchmark" -> handleBenchmark(sender, args);
       case "debug" -> handleDebug(sender);
       default -> sendHelp(sender);
     }
@@ -581,6 +586,271 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     }
   }
 
+  private void handleProfile(CommandSender sender, String[] args) {
+    var profiler = plugin.getProfiler();
+
+    if (args.length == 1) {
+      sender.sendMessage(
+          Component.text("=== JavaSkript Performance Profiler ===").color(NamedTextColor.GOLD));
+      boolean active = profiler.isProfilingActive();
+      if (active) {
+        long elapsedSec = profiler.getSessionDurationMillis() / 1000;
+        sender.sendMessage(
+            Component.text("  Status: ")
+                .color(NamedTextColor.YELLOW)
+                .append(
+                    Component.text("ACTIVE (" + elapsedSec + "s elapsed)")
+                        .color(NamedTextColor.GREEN)));
+      } else {
+        sender.sendMessage(
+            Component.text("  Status: ")
+                .color(NamedTextColor.YELLOW)
+                .append(Component.text("IDLE").color(NamedTextColor.GRAY)));
+      }
+      sender.sendMessage(
+          Component.text("  Profiled scripts: " + profiler.getAllMetrics().size())
+              .color(NamedTextColor.YELLOW));
+      sender.sendMessage(Component.text(""));
+      sender.sendMessage(
+          Component.text("  /js profile start [sec] - Start live profiling session (default 60s)")
+              .color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js profile stop - Stop profiling session").color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js profile top [count] - Display slowest event handlers and tasks")
+              .color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js profile <script> - Display performance breakdown for a script")
+              .color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js profile dump - Export complete report to file")
+              .color(NamedTextColor.AQUA));
+      sender.sendMessage(
+          Component.text("  /js benchmark <script> - Run synthetic throughput test")
+              .color(NamedTextColor.AQUA));
+      return;
+    }
+
+    String action = args[1].toLowerCase();
+
+    if (action.equals("start")) {
+      int duration = 60;
+      if (args.length >= 3) {
+        try {
+          duration = Integer.parseInt(args[2]);
+        } catch (NumberFormatException ignored) {
+        }
+      }
+      profiler.startSession(duration, sender);
+      return;
+    }
+
+    if (action.equals("stop")) {
+      if (!profiler.isProfilingActive()) {
+        sender.sendMessage(
+            Component.text("No profiling session is currently active.").color(NamedTextColor.RED));
+        return;
+      }
+      profiler.stopSession(sender);
+      return;
+    }
+
+    if (action.equals("dump")) {
+      try {
+        File file = profiler.dumpProfileToFile();
+        sender.sendMessage(
+            Component.text("Profile report exported successfully!").color(NamedTextColor.GREEN));
+        sender.sendMessage(
+            Component.text("Saved to: " + file.getAbsolutePath()).color(NamedTextColor.YELLOW));
+      } catch (IOException e) {
+        sender.sendMessage(
+            Component.text("Failed to save report: " + e.getMessage()).color(NamedTextColor.RED));
+      }
+      return;
+    }
+
+    if (action.equals("top")) {
+      int limit = 10;
+      if (args.length >= 3) {
+        try {
+          limit = Integer.parseInt(args[2]);
+        } catch (NumberFormatException ignored) {
+        }
+      }
+
+      var topRecords = profiler.getTopRecords(null, limit);
+      sender.sendMessage(
+          Component.text("=== Top Slowest Handlers (Profile) ===").color(NamedTextColor.GOLD));
+
+      if (topRecords.isEmpty()) {
+        sender.sendMessage(
+            Component.text("No profiling data recorded yet. Run '/js profile start' first.")
+                .color(NamedTextColor.YELLOW));
+        return;
+      }
+
+      int rank = 1;
+      for (var entry : topRecords) {
+        String scriptKey = entry.getKey();
+        dev.mukulx.javaskript.profiler.ProfileRecord rec = entry.getValue();
+
+        String line =
+            String.format(
+                "  #%d [%s] %s :: %s", rank++, rec.getCategory(), scriptKey, rec.getIdentifier());
+        sender.sendMessage(Component.text(line).color(NamedTextColor.YELLOW));
+
+        String stats =
+            String.format(
+                "     Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
+                rec.getCount(),
+                rec.getStatusColor(),
+                rec.getFormattedAverage(),
+                rec.getFormattedMax(),
+                rec.getFormattedTotal());
+        sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+      }
+      return;
+    }
+
+    // Otherwise, treat as script name: /js profile <script>
+    String rawTarget = joinArgs(args, 1);
+    File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
+    String scriptKey =
+        (scriptFile != null && scriptFile.exists())
+            ? plugin.getScriptManager().getScriptKey(scriptFile)
+            : rawTarget;
+
+    var records = profiler.getScriptRecords(scriptKey);
+
+    sender.sendMessage(
+        Component.text("=== Performance Profile: " + scriptKey + " ===")
+            .color(NamedTextColor.GOLD));
+
+    if (records.isEmpty()) {
+      sender.sendMessage(
+          Component.text("No metrics recorded for this script yet.").color(NamedTextColor.YELLOW));
+      sender.sendMessage(
+          Component.text("Start profiling with '/js profile start' to collect data.")
+              .color(NamedTextColor.GRAY));
+      return;
+    }
+
+    for (dev.mukulx.javaskript.profiler.ProfileRecord rec : records.values()) {
+      String title = String.format("  [%s] %s", rec.getCategory(), rec.getIdentifier());
+      sender.sendMessage(Component.text(title).color(NamedTextColor.AQUA));
+      String stats =
+          String.format(
+              "    Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
+              rec.getCount(),
+              rec.getStatusColor(),
+              rec.getFormattedAverage(),
+              rec.getFormattedMax(),
+              rec.getFormattedTotal());
+      sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+    }
+  }
+
+  private void handleBenchmark(CommandSender sender, String[] args) {
+    if (args.length < 2) {
+      sender.sendMessage(
+          Component.text("Usage: /js benchmark <script> [iterations]").color(NamedTextColor.RED));
+      return;
+    }
+
+    String rawTarget = args[1];
+    File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
+    if (!scriptFile.exists()) {
+      sender.sendMessage(
+          Component.text("Script not found: " + rawTarget).color(NamedTextColor.RED));
+      return;
+    }
+
+    String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+    int iterations = 50000;
+    if (args.length >= 3) {
+      try {
+        iterations = Integer.parseInt(args[2]);
+        if (iterations <= 0 || iterations > 500000) {
+          iterations = 50000;
+        }
+      } catch (NumberFormatException ignored) {
+      }
+    }
+
+    sender.sendMessage(
+        Component.text(
+                "Running synthetic benchmark on " + scriptKey + " (" + iterations + " ops)...")
+            .color(NamedTextColor.YELLOW));
+
+    final int iter = iterations;
+    Runnable benchTask =
+        () -> {
+          dev.mukulx.javaskript.profiler.BenchmarkResult result =
+              plugin.getProfiler().runBenchmark(scriptKey, iter);
+          if (result == null) {
+            sender.sendMessage(
+                Component.text("Could not benchmark script (is it loaded?)")
+                    .color(NamedTextColor.RED));
+            return;
+          }
+
+          sender.sendMessage(
+              Component.text("==========================================")
+                  .color(NamedTextColor.GOLD));
+          sender.sendMessage(
+              Component.text("       JAVASKRIPT SCRIPT BENCHMARK        ")
+                  .color(NamedTextColor.GOLD));
+          sender.sendMessage(
+              Component.text("==========================================")
+                  .color(NamedTextColor.GOLD));
+          sender.sendMessage(
+              Component.text("  Script: " + result.getScriptKey()).color(NamedTextColor.YELLOW));
+          sender.sendMessage(
+              Component.text("  Grade: " + result.getGradeColor() + result.getGrade()));
+          sender.sendMessage(
+              Component.text(String.format("  Throughput: %,.0f ops/sec", result.getOpsPerSecond()))
+                  .color(NamedTextColor.AQUA));
+          sender.sendMessage(
+              Component.text(
+                      String.format(
+                          "  Avg Latency: %.2f µs (%.4f ms)",
+                          result.getAvgLatencyMicros(), result.getAvgLatencyMicros() / 1000.0))
+                  .color(NamedTextColor.AQUA));
+          sender.sendMessage(
+              Component.text(
+                      String.format(
+                          "  Min / Max: %.2f µs / %.2f µs",
+                          result.getMinLatencyMicros(), result.getMaxLatencyMicros()))
+                  .color(NamedTextColor.GRAY));
+          if (result.getMemoryUsedBytes() > 0) {
+            sender.sendMessage(
+                Component.text(
+                        String.format(
+                            "  Heap Allocation: %,d KB", result.getMemoryUsedBytes() / 1024))
+                    .color(NamedTextColor.GRAY));
+          }
+          sender.sendMessage(
+              Component.text("------------------------------------------")
+                  .color(NamedTextColor.GRAY));
+          for (String suggestion : result.getSuggestions()) {
+            sender.sendMessage(Component.text("  * " + suggestion).color(NamedTextColor.GREEN));
+          }
+          sender.sendMessage(
+              Component.text("==========================================")
+                  .color(NamedTextColor.GOLD));
+        };
+
+    if (ServerUtil.isFolia()) {
+      try {
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> benchTask.run());
+      } catch (Exception ignored) {
+        benchTask.run();
+      }
+    } else {
+      Bukkit.getScheduler().runTaskAsynchronously(plugin, benchTask);
+    }
+  }
+
   private void sendHelp(CommandSender sender) {
     sender.sendMessage(Component.text("JavaSkript Commands:").color(NamedTextColor.GOLD));
     sender.sendMessage(
@@ -609,6 +879,15 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js info <script> - Show script information")
+            .color(NamedTextColor.YELLOW));
+    sender.sendMessage(
+        Component.text("  /js profile [start|stop|top|<script>] - Live performance profiler")
+            .color(NamedTextColor.YELLOW));
+    sender.sendMessage(
+        Component.text("  /js benchmark <script> - Run synthetic benchmark test")
+            .color(NamedTextColor.YELLOW));
+    sender.sendMessage(
+        Component.text("  /js timings - Quick view of top slowest handlers")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js debug - Toggle debug mode").color(NamedTextColor.YELLOW));
@@ -642,6 +921,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
               "enable",
               "disable",
               "info",
+              "profile",
+              "benchmark",
+              "timings",
               "debug")
           .stream()
           .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -656,6 +938,40 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
           plugin.getScriptManager().getSubdirectories().stream()
               .map(d -> d + "/")
               .collect(Collectors.toList());
+
+      if (subCommand.equals("profile")) {
+        if (args.length == 2) {
+          List<String> suggestions = new ArrayList<>(Arrays.asList("start", "stop", "top", "dump"));
+          suggestions.addAll(
+              plugin.getScriptManager().getLoadedScripts().keySet().stream()
+                  .map(s -> s.replace(".java", ""))
+                  .collect(Collectors.toList()));
+          return suggestions.stream()
+              .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+              .collect(Collectors.toList());
+        } else if (args.length == 3 && args[1].equalsIgnoreCase("start")) {
+          return Arrays.asList("30", "60", "120", "300").stream()
+              .filter(s -> s.startsWith(args[2]))
+              .collect(Collectors.toList());
+        } else if (args.length == 3 && args[1].equalsIgnoreCase("top")) {
+          return Arrays.asList("5", "10", "20").stream()
+              .filter(s -> s.startsWith(args[2]))
+              .collect(Collectors.toList());
+        }
+      }
+
+      if (subCommand.equals("benchmark")) {
+        if (args.length == 2) {
+          return plugin.getScriptManager().getLoadedScripts().keySet().stream()
+              .map(s -> s.replace(".java", ""))
+              .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+              .collect(Collectors.toList());
+        } else if (args.length == 3) {
+          return Arrays.asList("10000", "50000", "100000").stream()
+              .filter(s -> s.startsWith(args[2]))
+              .collect(Collectors.toList());
+        }
+      }
 
       if (subCommand.equals("reload") || subCommand.equals("restart")) {
         List<String> suggestions = new ArrayList<>();

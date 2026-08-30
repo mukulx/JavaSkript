@@ -6,6 +6,7 @@ import dev.mukulx.javaskript.command.DynamicCommandRegistry;
 import dev.mukulx.javaskript.command.JavaSkriptCommand;
 import dev.mukulx.javaskript.dependency.DependencyManager;
 import dev.mukulx.javaskript.permission.DynamicPermissionRegistry;
+import dev.mukulx.javaskript.profiler.ScriptProfiler;
 import dev.mukulx.javaskript.script.ScriptManager;
 import dev.mukulx.javaskript.update.UpdateChecker;
 import dev.mukulx.javaskript.util.ServerUtil;
@@ -27,6 +28,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private DependencyManager dependencyManager;
   private UpdateChecker updateChecker;
   private Thread folderMonitorThread;
+  private ScriptProfiler profiler;
   private boolean debugMode;
 
   @Override
@@ -53,6 +55,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       if (ServerUtil.isFolia()) {
         getLogger().info("Folia detected! Scripts without @FoliaSupport will break.");
       }
+
+      // Initialize performance profiler and benchmark engine
+      this.profiler = new ScriptProfiler(this);
 
       this.dependencyManager = new DependencyManager(this);
 
@@ -163,6 +168,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public DependencyManager getDependencyManager() {
     return dependencyManager;
+  }
+
+  public ScriptProfiler getProfiler() {
+    return profiler;
   }
 
   private void startFolderMonitoring() {

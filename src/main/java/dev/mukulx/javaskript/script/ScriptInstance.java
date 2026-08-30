@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandExecutor;
+import org.bukkit.event.Event;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.plugin.EventExecutor;
 
 public class ScriptInstance {
 
@@ -68,8 +71,8 @@ public class ScriptInstance {
       // Initialize API helpers
       // Use class name instead of file name to avoid issues with manual config creation
       String scriptName = scriptClass.getSimpleName() + ".java";
-      plugin.debug("Creating APIs for script: " + scriptName);
-      this.scheduler = new ScriptScheduler(plugin);
+      String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+      this.scheduler = new ScriptScheduler(plugin, scriptKey);
       this.config = new ScriptConfig(plugin, scriptName);
       this.database = new DatabaseHelper(plugin, scriptName);
       this.placeholders = new PlaceholderHelper(plugin, scriptName);
@@ -95,10 +98,9 @@ public class ScriptInstance {
         }
       }
 
-      // Register as event listener if applicable
+      // Register as event listener if applicable with profiling wrapper
       if (instance instanceof Listener listener) {
-        Bukkit.getPluginManager().registerEvents(listener, plugin);
-        plugin.debug("Registered event listener: " + scriptClass.getSimpleName());
+        registerProfiledEvents(listener);
       }
 
       // Register as command executor if applicable
@@ -325,6 +327,62 @@ public class ScriptInstance {
     return null;
   }
 
+  private void registerProfiledEvents(Listener listener) {
+    String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+    int registeredCount = 0;
+
+    for (Method method : listener.getClass().getMethods()) {
+      EventHandler handler = method.getAnnotation(EventHandler.class);
+      if (handler == null) continue;
+      if (method.getParameterCount() != 1) continue;
+      Class<?> paramType = method.getParameterTypes()[0];
+      if (!Event.class.isAssignableFrom(paramType)) continue;
+
+      Class<? extends Event> eventClass = paramType.asSubclass(Event.class);
+      method.setAccessible(true);
+
+      EventExecutor executor =
+          (l, event) -> {
+            if (!eventClass.isInstance(event)) return;
+            long t0 = System.nanoTime();
+            try {
+              method.invoke(l, event);
+            } catch (InvocationTargetException ite) {
+              Throwable cause = ite.getCause() != null ? ite.getCause() : ite;
+              plugin
+                  .getLogger()
+                  .log(
+                      Level.SEVERE,
+                      "Error in event handler " + method.getName() + " of script " + scriptKey,
+                      cause);
+            } catch (Exception ex) {
+              plugin
+                  .getLogger()
+                  .log(Level.SEVERE, "Error dispatching event to script " + scriptKey, ex);
+            } finally {
+              long elapsed = System.nanoTime() - t0;
+              plugin.getProfiler().record(scriptKey, "EVENT", eventClass.getSimpleName(), elapsed);
+            }
+          };
+
+      Bukkit.getPluginManager()
+          .registerEvent(
+              eventClass,
+              listener,
+              handler.priority(),
+              executor,
+              plugin,
+              handler.ignoreCancelled());
+      registeredCount++;
+    }
+
+    plugin.debug(
+        "Registered "
+            + registeredCount
+            + " profiled event handlers for: "
+            + scriptClass.getSimpleName());
+  }
+
   private void registerCommand() {
     try {
       // Extract command name from class name (e.g., HealCommand -> heal)
@@ -335,9 +393,24 @@ public class ScriptInstance {
         commandName = className.toLowerCase();
       }
 
+      String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+      CommandExecutor originalExecutor = (CommandExecutor) instance;
+
+      // Profiled command execution
+      CommandExecutor profiledExecutor =
+          (sender, cmd, label, args) -> {
+            long t0 = System.nanoTime();
+            try {
+              return originalExecutor.onCommand(sender, cmd, label, args);
+            } finally {
+              long elapsed = System.nanoTime() - t0;
+              plugin.getProfiler().record(scriptKey, "COMMAND", "/" + label, elapsed);
+            }
+          };
+
       // Use dynamic command registration
       boolean registered =
-          plugin.getCommandRegistry().registerCommand(commandName, (CommandExecutor) instance);
+          plugin.getCommandRegistry().registerCommand(commandName, profiledExecutor);
 
       if (registered) {
         registeredCommands.add(commandName);
