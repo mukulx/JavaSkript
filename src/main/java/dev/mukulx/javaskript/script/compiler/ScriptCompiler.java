@@ -14,9 +14,12 @@ public class ScriptCompiler {
 
   private final JavaSkriptPlugin plugin;
   private final File tempDir;
-  private static final Pattern PUBLIC_CLASS_PATTERN = Pattern.compile("public\\s+class\\s+(\\w+)");
+  private static final Pattern PUBLIC_CLASS_PATTERN =
+      Pattern.compile(
+          "public\\s+(?:(?:final|abstract|sealed|non-sealed|static)\\s+)*(?:class|record|enum|interface)\\s+(\\w+)");
   private static final Pattern CLASS_PATTERN =
-      Pattern.compile("(?:public\\s+)?class\\s+(\\w+)(?:\\s+extends|\\s+implements|\\s*\\{)");
+      Pattern.compile(
+          "(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed)\\s+)*(?:class|record|enum|interface)\\s+(\\w+)");
 
   public ScriptCompiler(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -259,8 +262,16 @@ public class ScriptCompiler {
       }
 
       // Add plugin jar itself (contains bundled dependencies)
-      String pluginJar =
-          plugin.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+      String pluginJar = null;
+      try {
+        var loc = plugin.getClass().getProtectionDomain().getCodeSource().getLocation();
+        if (loc != null) {
+          pluginJar = new File(loc.toURI()).getAbsolutePath();
+        }
+      } catch (Exception e) {
+        pluginJar = plugin.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
+      }
+
       if (pluginJar != null && !pluginJar.isEmpty()) {
         if (classpath.length() > 0) {
           classpath.append(File.pathSeparator);
@@ -271,13 +282,15 @@ public class ScriptCompiler {
       // Add all loaded plugin jars (for cross-plugin compatibility)
       for (var loadedPlugin : plugin.getServer().getPluginManager().getPlugins()) {
         try {
-          String path =
-              loadedPlugin.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-          if (path != null && !path.isEmpty() && !classpath.toString().contains(path)) {
-            if (classpath.length() > 0) {
-              classpath.append(File.pathSeparator);
+          var loc = loadedPlugin.getClass().getProtectionDomain().getCodeSource().getLocation();
+          if (loc != null) {
+            String path = new File(loc.toURI()).getAbsolutePath();
+            if (!classpath.toString().contains(path)) {
+              if (classpath.length() > 0) {
+                classpath.append(File.pathSeparator);
+              }
+              classpath.append(path);
             }
-            classpath.append(path);
           }
         } catch (Exception e) {
           // Skip plugins that can't provide their path
@@ -308,12 +321,15 @@ public class ScriptCompiler {
 
   private void addToClasspath(StringBuilder classpath, Class<?> clazz) {
     try {
-      String path = clazz.getProtectionDomain().getCodeSource().getLocation().getPath();
-      if (path != null && !path.isEmpty() && !classpath.toString().contains(path)) {
-        if (classpath.length() > 0) {
-          classpath.append(File.pathSeparator);
+      var loc = clazz.getProtectionDomain().getCodeSource().getLocation();
+      if (loc != null) {
+        String path = new File(loc.toURI()).getAbsolutePath();
+        if (!classpath.toString().contains(path)) {
+          if (classpath.length() > 0) {
+            classpath.append(File.pathSeparator);
+          }
+          classpath.append(path);
         }
-        classpath.append(path);
       }
     } catch (Exception e) {
       plugin

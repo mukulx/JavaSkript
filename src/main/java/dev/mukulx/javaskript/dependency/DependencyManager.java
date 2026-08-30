@@ -91,13 +91,14 @@ public class DependencyManager {
   }
 
   private File downloadArtifact(String groupId, String artifactId, String version) {
+    File tempFile = null;
     try {
       String groupPath = groupId.replace('.', '/');
       String jarName = artifactId + "-" + version + ".jar";
       File localFile = new File(libsDirectory, jarName);
 
-      // If already downloaded, return it
-      if (localFile.exists()) {
+      // If already downloaded and not empty, return it
+      if (localFile.exists() && localFile.length() > 0) {
         plugin.getLogger().fine("Using cached JAR: " + jarName);
         return localFile;
       }
@@ -107,15 +108,36 @@ public class DependencyManager {
 
       plugin.getLogger().info("Downloading: " + urlString);
 
+      tempFile = new File(libsDirectory, jarName + ".tmp." + System.currentTimeMillis());
+
       URL url = new URL(urlString);
       try (InputStream in = url.openStream()) {
-        Files.copy(in, localFile.toPath());
+        Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       }
 
-      plugin.getLogger().info("Downloaded: " + jarName);
-      return localFile;
+      if (tempFile.exists() && tempFile.length() > 0) {
+        Files.move(
+            tempFile.toPath(),
+            localFile.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        plugin.getLogger().info("Downloaded: " + jarName);
+        return localFile;
+      } else {
+        plugin.getLogger().warning("Downloaded file was empty: " + jarName);
+        if (tempFile.exists()) {
+          tempFile.delete();
+        }
+        return null;
+      }
 
     } catch (Exception e) {
+      if (tempFile != null && tempFile.exists()) {
+        try {
+          tempFile.delete();
+        } catch (Exception ignored) {
+        }
+      }
       plugin
           .getLogger()
           .warning(

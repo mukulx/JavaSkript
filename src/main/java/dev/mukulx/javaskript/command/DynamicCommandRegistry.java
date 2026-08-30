@@ -212,8 +212,14 @@ public class DynamicCommandRegistry {
       int updated = 0;
       for (org.bukkit.entity.Player player : Bukkit.getOnlinePlayers()) {
         try {
-          player.updateCommands();
-          updated++;
+          if (player != null && player.isOnline()) {
+            if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+              player.getScheduler().run(plugin, task -> player.updateCommands(), null);
+            } else {
+              player.updateCommands();
+            }
+            updated++;
+          }
         } catch (Exception e) {
         }
       }

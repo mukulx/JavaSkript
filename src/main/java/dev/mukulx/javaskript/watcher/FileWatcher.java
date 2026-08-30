@@ -4,7 +4,6 @@ import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -27,7 +26,7 @@ public class FileWatcher implements Runnable {
   public FileWatcher(JavaSkriptPlugin plugin, File scriptsFolder) {
     this.plugin = plugin;
     this.scriptsFolder = scriptsFolder;
-    this.watchKeys = new HashMap<>();
+    this.watchKeys = new ConcurrentHashMap<>();
     this.pendingReloads = new ConcurrentHashMap<>();
     this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
     this.debounceExecutor =
@@ -48,15 +47,8 @@ public class FileWatcher implements Runnable {
     try {
       watchService = FileSystems.getDefault().newWatchService();
 
-      // Register the scripts folder
-      Path path = scriptsFolder.toPath();
-      WatchKey key =
-          path.register(
-              watchService,
-              StandardWatchEventKinds.ENTRY_CREATE,
-              StandardWatchEventKinds.ENTRY_MODIFY,
-              StandardWatchEventKinds.ENTRY_DELETE);
-      watchKeys.put(key, path);
+      // Register the scripts folder and all subdirectories recursively
+      registerTree(scriptsFolder.toPath());
 
       running = true;
       watchThread = new Thread(this, "JavaSkript-FileWatcher");
@@ -66,6 +58,32 @@ public class FileWatcher implements Runnable {
     } catch (IOException e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to start file watcher", e);
     }
+  }
+
+  private void registerTree(Path start) throws IOException {
+    if (!Files.exists(start)) {
+      return;
+    }
+    Files.walkFileTree(
+        start,
+        new SimpleFileVisitor<Path>() {
+          @Override
+          public FileVisitResult preVisitDirectory(
+              Path dir, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+            registerDir(dir);
+            return FileVisitResult.CONTINUE;
+          }
+        });
+  }
+
+  private void registerDir(Path dir) throws IOException {
+    WatchKey key =
+        dir.register(
+            watchService,
+            StandardWatchEventKinds.ENTRY_CREATE,
+            StandardWatchEventKinds.ENTRY_MODIFY,
+            StandardWatchEventKinds.ENTRY_DELETE);
+    watchKeys.put(key, dir);
   }
 
   public void stop() {
@@ -118,12 +136,24 @@ public class FileWatcher implements Runnable {
           Path filename = ev.context();
           Path fullPath = dir.resolve(filename);
 
-          // Only process .java files
-          if (!filename.toString().endsWith(".java")) {
+          // If a new subdirectory is created, register it for watching
+          if (kind == StandardWatchEventKinds.ENTRY_CREATE && Files.isDirectory(fullPath)) {
+            try {
+              registerTree(fullPath);
+              plugin.debug("Registered new subfolder in watcher: " + fullPath);
+            } catch (IOException e) {
+              plugin.getLogger().warning("Failed to watch new folder: " + fullPath);
+            }
             continue;
           }
 
-          scheduleReload(kind, fullPath.toFile(), filename.toString());
+          // Only process .java files
+          String scriptFileName = filename.toString();
+          if (!scriptFileName.endsWith(".java")) {
+            continue;
+          }
+
+          scheduleReload(kind, fullPath.toFile(), scriptFileName);
         }
 
         boolean valid = key.reset();
