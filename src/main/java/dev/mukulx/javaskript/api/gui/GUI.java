@@ -1,7 +1,7 @@
 package dev.mukulx.javaskript.api.gui;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -29,8 +29,9 @@ public class GUI {
     if (rows < 1 || rows > 6) {
       throw new IllegalArgumentException("Rows must be between 1 and 6");
     }
-    this.inventory = Bukkit.createInventory(null, rows * 9, title);
-    this.clickHandlers = new HashMap<>();
+    this.inventory =
+        Bukkit.createInventory(null, rows * 9, title != null ? title : Component.empty());
+    this.clickHandlers = new ConcurrentHashMap<>();
   }
 
   /**
@@ -181,15 +182,29 @@ public class GUI {
    * @param event The click event
    */
   public void handleClick(InventoryClickEvent event) {
-    if (cancelAllClicks) {
-      event.setCancelled(true);
+    if (event.getClickedInventory() == null) {
+      if (cancelAllClicks) {
+        event.setCancelled(true);
+      }
+      return;
     }
 
-    int slot = event.getRawSlot();
-    Consumer<InventoryClickEvent> handler = clickHandlers.get(slot);
+    boolean isTopInventory = event.getClickedInventory().equals(inventory);
 
-    if (handler != null) {
-      handler.accept(event);
+    if (cancelAllClicks) {
+      if (isTopInventory || event.isShiftClick()) {
+        event.setCancelled(true);
+      }
+    }
+
+    if (isTopInventory) {
+      int slot = event.getSlot();
+      if (slot >= 0 && slot < inventory.getSize()) {
+        Consumer<InventoryClickEvent> handler = clickHandlers.get(slot);
+        if (handler != null) {
+          handler.accept(event);
+        }
+      }
     }
   }
 

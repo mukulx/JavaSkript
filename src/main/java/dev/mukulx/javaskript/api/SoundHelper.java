@@ -25,6 +25,31 @@ public class SoundHelper {
     player.playSound(player.getLocation(), sound, volume, pitch);
   }
 
+  private Key parseKey(String soundKey) {
+    if (soundKey == null || soundKey.trim().isEmpty()) {
+      return null;
+    }
+    String cleaned = soundKey.trim().toLowerCase();
+    if (cleaned.contains(":")) {
+      String[] split = cleaned.split(":", 2);
+      return Key.key(split[0], split[1]);
+    }
+    return Key.key(cleaned);
+  }
+
+  private org.bukkit.Sound parseBukkitSound(String soundKey) {
+    if (soundKey == null) return null;
+    try {
+      String normalized = soundKey.toUpperCase().replace(".", "_");
+      if (normalized.startsWith("MINECRAFT:")) {
+        normalized = normalized.substring("MINECRAFT:".length());
+      }
+      return org.bukkit.Sound.valueOf(normalized);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
   /** Play a sound by string key */
   public void play(Player player, String soundKey) {
     play(player, soundKey, 1.0f, 1.0f);
@@ -32,13 +57,29 @@ public class SoundHelper {
 
   /** Play a sound by string key with volume and pitch */
   public void play(Player player, String soundKey, float volume, float pitch) {
-    Sound sound = Sound.sound(Key.key(soundKey), Sound.Source.MASTER, volume, pitch);
-    player.playSound(sound);
+    if (player == null || soundKey == null) return;
+
+    org.bukkit.Sound bukkitSound = parseBukkitSound(soundKey);
+    if (bukkitSound != null) {
+      play(player, bukkitSound, volume, pitch);
+      return;
+    }
+
+    try {
+      Key key = parseKey(soundKey);
+      if (key != null) {
+        Sound sound = Sound.sound(key, Sound.Source.MASTER, volume, pitch);
+        player.playSound(sound);
+      }
+    } catch (Exception ignored) {
+    }
   }
 
   /** Play Adventure sound */
   public void play(Player player, Sound sound) {
-    player.playSound(sound);
+    if (player != null && sound != null) {
+      player.playSound(sound);
+    }
   }
 
   /** Play sound at a specific location */
@@ -48,16 +89,28 @@ public class SoundHelper {
 
   /** Play sound at location with volume and pitch */
   public void playAt(Location location, org.bukkit.Sound sound, float volume, float pitch) {
-    if (location.getWorld() != null) {
+    if (location != null && location.getWorld() != null && sound != null) {
       location.getWorld().playSound(location, sound, volume, pitch);
     }
   }
 
   /** Play sound by key at location */
   public void playAt(Location location, String soundKey, float volume, float pitch) {
-    if (location.getWorld() != null) {
-      Sound sound = Sound.sound(Key.key(soundKey), Sound.Source.MASTER, volume, pitch);
-      location.getWorld().playSound(sound, location.x(), location.y(), location.z());
+    if (location == null || location.getWorld() == null || soundKey == null) return;
+
+    org.bukkit.Sound bukkitSound = parseBukkitSound(soundKey);
+    if (bukkitSound != null) {
+      playAt(location, bukkitSound, volume, pitch);
+      return;
+    }
+
+    try {
+      Key key = parseKey(soundKey);
+      if (key != null) {
+        Sound sound = Sound.sound(key, Sound.Source.MASTER, volume, pitch);
+        location.getWorld().playSound(sound, location.x(), location.y(), location.z());
+      }
+    } catch (Exception ignored) {
     }
   }
 
@@ -186,21 +239,43 @@ public class SoundHelper {
     }
 
     public void play(Player player) {
+      if (player == null) return;
       if (useAdventure && soundKey != null) {
-        Sound adventureSound = Sound.sound(Key.key(soundKey), source, volume, pitch);
-        player.playSound(adventureSound);
+        org.bukkit.Sound bukkitSound = parseBukkitSound(soundKey);
+        if (bukkitSound != null) {
+          player.playSound(player.getLocation(), bukkitSound, volume, pitch);
+          return;
+        }
+        try {
+          Key key = parseKey(soundKey);
+          if (key != null) {
+            Sound adventureSound = Sound.sound(key, source, volume, pitch);
+            player.playSound(adventureSound);
+          }
+        } catch (Exception ignored) {
+        }
       } else if (sound != null) {
         player.playSound(player.getLocation(), sound, volume, pitch);
       }
     }
 
     public void playAt(Location location) {
+      if (location == null || location.getWorld() == null) return;
       if (useAdventure && soundKey != null) {
-        Sound adventureSound = Sound.sound(Key.key(soundKey), source, volume, pitch);
-        if (location.getWorld() != null) {
-          location.getWorld().playSound(adventureSound, location.x(), location.y(), location.z());
+        org.bukkit.Sound bukkitSound = parseBukkitSound(soundKey);
+        if (bukkitSound != null) {
+          location.getWorld().playSound(location, bukkitSound, volume, pitch);
+          return;
         }
-      } else if (sound != null && location.getWorld() != null) {
+        try {
+          Key key = parseKey(soundKey);
+          if (key != null) {
+            Sound adventureSound = Sound.sound(key, source, volume, pitch);
+            location.getWorld().playSound(adventureSound, location.x(), location.y(), location.z());
+          }
+        } catch (Exception ignored) {
+        }
+      } else if (sound != null) {
         location.getWorld().playSound(location, sound, volume, pitch);
       }
     }

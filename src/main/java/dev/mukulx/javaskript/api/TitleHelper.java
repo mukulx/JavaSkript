@@ -17,13 +17,21 @@ public class TitleHelper {
     this.miniMessage = MiniMessage.miniMessage();
   }
 
+  private Component toComponent(String text) {
+    return text != null ? Component.text(text) : Component.empty();
+  }
+
+  private Component toMiniComponent(String text) {
+    return text != null ? miniMessage.deserialize(text) : Component.empty();
+  }
+
   public void send(Player player, String title) {
     send(player, title, "");
   }
 
   public void send(Player player, String title, String subtitle) {
-    Component titleComponent = Component.text(title);
-    Component subtitleComponent = Component.text(subtitle);
+    Component titleComponent = toComponent(title);
+    Component subtitleComponent = toComponent(subtitle);
 
     Title titleObj =
         Title.title(
@@ -38,8 +46,8 @@ public class TitleHelper {
   public void send(Player player, Component title, Component subtitle) {
     Title titleObj =
         Title.title(
-            title,
-            subtitle,
+            title != null ? title : Component.empty(),
+            subtitle != null ? subtitle : Component.empty(),
             Title.Times.times(
                 Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500)));
 
@@ -51,8 +59,8 @@ public class TitleHelper {
   }
 
   public void sendMini(Player player, String title, String subtitle) {
-    Component titleComponent = miniMessage.deserialize(title);
-    Component subtitleComponent = miniMessage.deserialize(subtitle);
+    Component titleComponent = toMiniComponent(title);
+    Component subtitleComponent = toMiniComponent(subtitle);
 
     Title titleObj =
         Title.title(
@@ -66,34 +74,34 @@ public class TitleHelper {
 
   public void send(
       Player player, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
-    Component titleComponent = Component.text(title);
-    Component subtitleComponent = Component.text(subtitle);
+    Component titleComponent = toComponent(title);
+    Component subtitleComponent = toComponent(subtitle);
 
     Title titleObj =
         Title.title(
             titleComponent,
             subtitleComponent,
             Title.Times.times(
-                Duration.ofMillis(fadeIn * 50),
-                Duration.ofMillis(stay * 50),
-                Duration.ofMillis(fadeOut * 50)));
+                Duration.ofMillis(Math.max(0, fadeIn) * 50L),
+                Duration.ofMillis(Math.max(0, stay) * 50L),
+                Duration.ofMillis(Math.max(0, fadeOut) * 50L)));
 
     player.showTitle(titleObj);
   }
 
   public void sendMini(
       Player player, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
-    Component titleComponent = miniMessage.deserialize(title);
-    Component subtitleComponent = miniMessage.deserialize(subtitle);
+    Component titleComponent = toMiniComponent(title);
+    Component subtitleComponent = toMiniComponent(subtitle);
 
     Title titleObj =
         Title.title(
             titleComponent,
             subtitleComponent,
             Title.Times.times(
-                Duration.ofMillis(fadeIn * 50),
-                Duration.ofMillis(stay * 50),
-                Duration.ofMillis(fadeOut * 50)));
+                Duration.ofMillis(Math.max(0, fadeIn) * 50L),
+                Duration.ofMillis(Math.max(0, stay) * 50L),
+                Duration.ofMillis(Math.max(0, fadeOut) * 50L)));
 
     player.showTitle(titleObj);
   }
@@ -102,12 +110,12 @@ public class TitleHelper {
       Player player, Component title, Component subtitle, int fadeIn, int stay, int fadeOut) {
     Title titleObj =
         Title.title(
-            title,
-            subtitle,
+            title != null ? title : Component.empty(),
+            subtitle != null ? subtitle : Component.empty(),
             Title.Times.times(
-                Duration.ofMillis(fadeIn * 50),
-                Duration.ofMillis(stay * 50),
-                Duration.ofMillis(fadeOut * 50)));
+                Duration.ofMillis(Math.max(0, fadeIn) * 50L),
+                Duration.ofMillis(Math.max(0, stay) * 50L),
+                Duration.ofMillis(Math.max(0, fadeOut) * 50L)));
 
     player.showTitle(titleObj);
   }
@@ -178,32 +186,32 @@ public class TitleHelper {
     private int fadeOut = 10;
 
     public TitleBuilder title(String title) {
-      this.title = Component.text(title);
+      this.title = toComponent(title);
       return this;
     }
 
     public TitleBuilder title(Component title) {
-      this.title = title;
+      this.title = title != null ? title : Component.empty();
       return this;
     }
 
     public TitleBuilder titleMini(String title) {
-      this.title = miniMessage.deserialize(title);
+      this.title = toMiniComponent(title);
       return this;
     }
 
     public TitleBuilder subtitle(String subtitle) {
-      this.subtitle = Component.text(subtitle);
+      this.subtitle = toComponent(subtitle);
       return this;
     }
 
     public TitleBuilder subtitle(Component subtitle) {
-      this.subtitle = subtitle;
+      this.subtitle = subtitle != null ? subtitle : Component.empty();
       return this;
     }
 
     public TitleBuilder subtitleMini(String subtitle) {
-      this.subtitle = miniMessage.deserialize(subtitle);
+      this.subtitle = toMiniComponent(subtitle);
       return this;
     }
 

@@ -5,6 +5,7 @@ import dev.mukulx.javaskript.util.ServerUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
@@ -24,7 +25,7 @@ public class ScriptScheduler {
 
   public ScriptScheduler(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
-    this.tasks = new ArrayList<>();
+    this.tasks = new CopyOnWriteArrayList<>();
     this.isFolia = ServerUtil.isFolia();
   }
 

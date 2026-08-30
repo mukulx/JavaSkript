@@ -158,43 +158,61 @@ public class DynamicCommandRegistry {
     return false;
   }
 
+  private java.lang.reflect.Method cachedGetKnownCommandsMethod;
+  private java.lang.reflect.Field cachedKnownCommandsField;
+
   private Map<String, Command> getKnownCommandsMap(CommandMap commandMap) {
+    if (commandMap == null) return null;
+
+    if (cachedGetKnownCommandsMethod != null) {
+      try {
+        @SuppressWarnings("unchecked")
+        Map<String, Command> commands =
+            (Map<String, Command>) cachedGetKnownCommandsMethod.invoke(commandMap);
+        return commands;
+      } catch (Exception ignored) {
+      }
+    }
+
+    if (cachedKnownCommandsField != null) {
+      try {
+        @SuppressWarnings("unchecked")
+        Map<String, Command> commands =
+            (Map<String, Command>) cachedKnownCommandsField.get(commandMap);
+        return commands;
+      } catch (Exception ignored) {
+      }
+    }
+
     try {
       var method = commandMap.getClass().getMethod("getKnownCommands");
+      method.setAccessible(true);
       @SuppressWarnings("unchecked")
       Map<String, Command> commands = (Map<String, Command>) method.invoke(commandMap);
+      cachedGetKnownCommandsMethod = method;
       return commands;
-    } catch (NoSuchMethodException e) {
+    } catch (NoSuchMethodException ignored) {
     } catch (Exception e) {
       plugin.getLogger().warning("Error calling getKnownCommands(): " + e.getMessage());
     }
 
     String[] fieldNames = {"knownCommands", "commands"};
-    for (String fieldName : fieldNames) {
-      try {
-        Field field = commandMap.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Command> commands = (Map<String, Command>) field.get(commandMap);
-        field.setAccessible(false);
-        return commands;
-      } catch (NoSuchFieldException e) {
-      } catch (Exception e) {
-        plugin.getLogger().warning("Error accessing field " + fieldName + ": " + e.getMessage());
+    Class<?> currentClass = commandMap.getClass();
+    while (currentClass != null && currentClass != Object.class) {
+      for (String fieldName : fieldNames) {
+        try {
+          Field field = currentClass.getDeclaredField(fieldName);
+          field.setAccessible(true);
+          @SuppressWarnings("unchecked")
+          Map<String, Command> commands = (Map<String, Command>) field.get(commandMap);
+          cachedKnownCommandsField = field;
+          return commands;
+        } catch (NoSuchFieldException ignored) {
+        } catch (Exception e) {
+          plugin.getLogger().warning("Error accessing field " + fieldName + ": " + e.getMessage());
+        }
       }
-    }
-
-    try {
-      Class<?> simpleCommandMapClass = Class.forName("org.bukkit.command.SimpleCommandMap");
-      Field field = simpleCommandMapClass.getDeclaredField("knownCommands");
-      field.setAccessible(true);
-      @SuppressWarnings("unchecked")
-      Map<String, Command> commands = (Map<String, Command>) field.get(commandMap);
-      field.setAccessible(false);
-      plugin.getLogger().info("Accessed knownCommands via SimpleCommandMap");
-      return commands;
-    } catch (Exception e) {
-      plugin.getLogger().severe("Failed to access knownCommands: " + e.getMessage());
+      currentClass = currentClass.getSuperclass();
     }
 
     return null;
@@ -361,14 +379,36 @@ public class DynamicCommandRegistry {
     return registeredCommands.containsKey(commandName.toLowerCase());
   }
 
+  private CommandMap cachedCommandMap;
+
   private CommandMap getCommandMap() {
+    if (cachedCommandMap != null) {
+      return cachedCommandMap;
+    }
+
     try {
-      Field commandMapField = Bukkit.getServer().getClass().getDeclaredField("commandMap");
-      commandMapField.setAccessible(true);
-      return (CommandMap) commandMapField.get(Bukkit.getServer());
+      try {
+        var method = Bukkit.getServer().getClass().getMethod("getCommandMap");
+        method.setAccessible(true);
+        cachedCommandMap = (CommandMap) method.invoke(Bukkit.getServer());
+        if (cachedCommandMap != null) return cachedCommandMap;
+      } catch (NoSuchMethodException ignored) {
+      }
+
+      Class<?> serverClass = Bukkit.getServer().getClass();
+      while (serverClass != null && serverClass != Object.class) {
+        try {
+          Field commandMapField = serverClass.getDeclaredField("commandMap");
+          commandMapField.setAccessible(true);
+          cachedCommandMap = (CommandMap) commandMapField.get(Bukkit.getServer());
+          if (cachedCommandMap != null) return cachedCommandMap;
+        } catch (NoSuchFieldException ignored) {
+          serverClass = serverClass.getSuperclass();
+        }
+      }
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to get command map", e);
-      return null;
     }
+    return cachedCommandMap;
   }
 }
