@@ -37,14 +37,21 @@ public class SoundHelper {
     return Key.key(cleaned);
   }
 
+  @SuppressWarnings({"deprecation", "removal"})
   private org.bukkit.Sound parseBukkitSound(String soundKey) {
     if (soundKey == null) return null;
     try {
-      String normalized = soundKey.toUpperCase().replace(".", "_");
-      if (normalized.startsWith("MINECRAFT:")) {
-        normalized = normalized.substring("MINECRAFT:".length());
+      String normalized = soundKey.trim().toLowerCase();
+      if (normalized.startsWith("minecraft:")) {
+        normalized = normalized.substring("minecraft:".length());
       }
-      return org.bukkit.Sound.valueOf(normalized);
+      org.bukkit.NamespacedKey nKey =
+          org.bukkit.NamespacedKey.minecraft(normalized.replace('_', '.'));
+      org.bukkit.Sound registered = org.bukkit.Registry.SOUNDS.get(nKey);
+      if (registered != null) return registered;
+
+      String enumFormat = normalized.toUpperCase().replace(".", "_");
+      return org.bukkit.Sound.valueOf(enumFormat);
     } catch (IllegalArgumentException e) {
       return null;
     }

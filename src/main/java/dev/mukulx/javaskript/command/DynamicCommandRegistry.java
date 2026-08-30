@@ -20,6 +20,7 @@ public class DynamicCommandRegistry {
     this.registeredCommands = new ConcurrentHashMap<>();
   }
 
+  @SuppressWarnings("deprecation")
   public synchronized boolean registerCommand(
       String commandName,
       CommandExecutor executor,
@@ -58,7 +59,7 @@ public class DynamicCommandRegistry {
         command.setPermission(permission);
       }
       if (permissionMessage != null && !permissionMessage.isEmpty()) {
-        command.setPermissionMessage(permissionMessage);
+        command.permissionMessage(net.kyori.adventure.text.Component.text(permissionMessage));
       }
       if (aliases != null && !aliases.isEmpty()) {
         command.setAliases(aliases);

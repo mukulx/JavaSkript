@@ -107,7 +107,7 @@ public class DependencyManager {
 
       tempFile = new File(libsDirectory, jarName + ".tmp." + System.currentTimeMillis());
 
-      URL url = new URL(urlString);
+      URL url = java.net.URI.create(urlString).toURL();
       try (InputStream in = url.openStream()) {
         Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       }
@@ -160,7 +160,7 @@ public class DependencyManager {
       String urlString =
           MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + pomName;
 
-      URL url = new URL(urlString);
+      URL url = java.net.URI.create(urlString).toURL();
       try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
         StringBuilder pomContent = new StringBuilder();
         String line;

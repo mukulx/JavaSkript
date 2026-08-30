@@ -6,6 +6,7 @@ import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.logging.Level;
 
@@ -29,13 +30,13 @@ public class UpdateChecker {
 
   private void check() {
     try {
-      URL url = new URL(MODRINTH_API);
+      URL url = URI.create(MODRINTH_API).toURL();
       HttpURLConnection connection = (HttpURLConnection) url.openConnection();
       connection.setRequestMethod("GET");
       connection.setConnectTimeout(5000);
       connection.setReadTimeout(5000);
       connection.setRequestProperty(
-          "User-Agent", "JavaSkript/" + plugin.getDescription().getVersion());
+          "User-Agent", "JavaSkript/" + plugin.getPluginMeta().getVersion());
 
       int responseCode = connection.getResponseCode();
       if (responseCode != 200) {
@@ -59,7 +60,7 @@ public class UpdateChecker {
       }
 
       latestVersion = versions.get(0).getAsJsonObject().get("version_number").getAsString();
-      String currentVersion = plugin.getDescription().getVersion();
+      String currentVersion = plugin.getPluginMeta().getVersion();
 
       if (!latestVersion.equals(currentVersion)) {
         plugin.getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

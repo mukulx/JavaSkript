@@ -92,6 +92,7 @@ public class ItemBuilder implements Cloneable {
     return this;
   }
 
+  @SuppressWarnings("deprecation")
   public ItemBuilder material(Material material) {
     item.setType(material);
     this.meta = item.getItemMeta();
@@ -269,6 +270,7 @@ public class ItemBuilder implements Cloneable {
     return damage(durability);
   }
 
+  @SuppressWarnings("deprecation")
   public ItemBuilder customModelData(Integer data) {
     if (meta != null) {
       meta.setCustomModelData(data);
@@ -289,7 +291,7 @@ public class ItemBuilder implements Cloneable {
 
   public ItemBuilder skullOwner(String playerName) {
     if (meta instanceof SkullMeta skullMeta && playerName != null) {
-      skullMeta.setOwner(playerName);
+      skullMeta.setOwningPlayer(Bukkit.getOfflinePlayer(playerName));
     }
     return this;
   }

@@ -47,9 +47,13 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         getLogger().info("Debug mode is ENABLED. Enjoy the log pollution.");
       }
 
-      // Anonymous metric collection via bStats
-      int pluginId = 31615;
-      Metrics metrics = new Metrics(this, pluginId);
+      // Anonymous metric collection via bStats (fails gracefully if offline)
+      try {
+        int pluginId = 31615;
+        new Metrics(this, pluginId);
+      } catch (Throwable t) {
+        debug("bStats metrics could not be initialized: " + t.getMessage());
+      }
 
       debug("Running on: " + ServerUtil.getServerType());
       if (ServerUtil.isFolia()) {
@@ -68,7 +72,11 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       this.permissionRegistry = new DynamicPermissionRegistry(this);
 
       // Register listener for dynamic GUI inventory packet clicks
-      getServer().getPluginManager().registerEvents(new GUIManager(), this);
+      try {
+        getServer().getPluginManager().registerEvents(new GUIManager(), this);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to register GUI manager events: " + t.getMessage());
+      }
 
       // Core engine lifecycle manager
       this.scriptManager = new ScriptManager(this);
@@ -94,24 +102,45 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
       // Synchronous boot-time execution of stored scripts
       if (getConfig().getBoolean("scripts.auto-load", true)) {
-        scriptManager.loadAllScripts();
+        try {
+          scriptManager.loadAllScripts();
+        } catch (Throwable t) {
+          getLogger()
+              .severe(
+                  "Error occurred during script auto-load (plugin remains running): "
+                      + t.getMessage());
+        }
       }
 
       // Asynchronous NIO hot-swapper loop for live script edits
       if (getConfig().getBoolean("file-watcher.enabled", true)) {
-        this.fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
-        fileWatcher.start();
-        debug("File watcher enabled");
+        try {
+          this.fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
+          fileWatcher.start();
+          debug("File watcher enabled");
+        } catch (Throwable t) {
+          getLogger()
+              .warning("Failed to start file watcher (live reload disabled): " + t.getMessage());
+        }
       }
 
-      startFolderMonitoring();
+      try {
+        startFolderMonitoring();
+      } catch (Throwable t) {
+        debug("Folder monitoring failed to initialize: " + t.getMessage());
+      }
 
       if (getConfig().getBoolean("update-checker.enabled", true)) {
-        this.updateChecker = new UpdateChecker(this);
-        updateChecker.checkAsync();
+        try {
+          this.updateChecker = new UpdateChecker(this);
+          updateChecker.checkAsync();
+        } catch (Throwable t) {
+          debug("Update checker check failed: " + t.getMessage());
+        }
       }
 
-      getLogger().info("Enabled! Loaded " + scriptManager.getLoadedScripts().size() + " script(s)");
+      int loadedCount = scriptManager != null ? scriptManager.getLoadedScripts().size() : 0;
+      getLogger().info("Enabled! Loaded " + loadedCount + " script(s)");
 
     } catch (Exception e) {
       // Emergency kill switch to prevent data leaks or corrupted state

@@ -207,8 +207,8 @@ public class PlayerHelper {
     // Remove negative potion effects
     for (var effect : player.getActivePotionEffects()) {
       if (effect != null && effect.getType() != null) {
-        String typeName = effect.getType().getName();
-        if (typeName != null && NEGATIVE_POTION_EFFECT_NAMES.contains(typeName)) {
+        String typeName = effect.getType().getKey().getKey().toUpperCase();
+        if (NEGATIVE_POTION_EFFECT_NAMES.contains(typeName)) {
           player.removePotionEffect(effect.getType());
         }
       }

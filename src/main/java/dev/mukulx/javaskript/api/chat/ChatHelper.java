@@ -361,6 +361,7 @@ public class ChatHelper implements Listener {
     }
   }
 
+  @SuppressWarnings("deprecation")
   @EventHandler(priority = EventPriority.LOWEST)
   public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
     Player player = event.getPlayer();
