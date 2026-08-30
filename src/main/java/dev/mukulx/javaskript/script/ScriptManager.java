@@ -774,6 +774,7 @@ public class ScriptManager {
       "WelcomeScript.java",
       "CommandAPIExample.java",
       "ItemBuilderExample.java",
+      "CooldownExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

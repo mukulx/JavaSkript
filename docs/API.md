@@ -8,12 +8,14 @@ Complete reference for all JavaSkript APIs available to scripts.
 2. [ScriptConfig](#scriptconfig)
 3. [DatabaseHelper](#databasehelper)
 4. [GUI Builder](#gui-builder)
-5. [PlaceholderHelper](#placeholderhelper)
-6. [ActionBarHelper](#actionbarhelper)
-7. [DialogHelper](#dialoghelper)
-8. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
-9. [HologramHelper (Display Entities)](#hologramhelper-display-entities)
-10. [Annotations](#annotations)
+5. [ItemBuilder & ItemHelper](#itembuilder--itemhelper)
+6. [PlaceholderHelper](#placeholderhelper)
+7. [ActionBarHelper](#actionbarhelper)
+8. [DialogHelper](#dialoghelper)
+9. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
+10. [HologramHelper (Display Entities)](#hologramhelper-display-entities)
+11. [CooldownHelper (Rate Limiting & Tickers)](#cooldownhelper-rate-limiting--tickers)
+12. [Annotations](#annotations)
 
 ---
 
@@ -1540,6 +1542,58 @@ holo.teleport(newLocation); // Move smoothly
 holo.setLine(0, "<green>New Title</green>");
 holo.remove(); // Despawn specific hologram
 holograms.removeAll(); // Clear all holograms
+```
+
+---
+
+## CooldownHelper (Rate Limiting & Tickers)
+
+Thread-safe, memory-leak-free cooldown engine for player abilities, combat tags, commands, and global server rate limits.
+
+### Auto-Injection
+```java
+private CooldownHelper cooldowns; // Automatically injected!
+```
+
+### Methods & Features
+
+#### 1. Checking & Starting Cooldowns
+```java
+// Check if player is on cooldown
+if (cooldowns.isOnCooldown(player, "fireball")) {
+    long remainingSec = cooldowns.getRemainingSeconds(player, "fireball");
+    player.sendMessage("§cFireball on cooldown: " + remainingSec + "s");
+    return;
+}
+
+// Start 15-second cooldown
+cooldowns.set(player, "fireball", Duration.ofSeconds(15));
+```
+
+#### 2. Animated Action Bar Progress Tickers
+Automatically displays a smooth ticking progress bar on the player's action bar until the cooldown finishes, then confirms readiness!
+```java
+// Displays: "Fireball [■■■■■■□□□□] 4.2s" -> "✔ Fireball Ready to use!"
+cooldowns.startActionBarTicker(player, "fireball", "Fireball");
+```
+
+#### 3. Global Server-Wide Rate Limits
+```java
+// Limit a server command to once every 30 seconds across all players
+if (cooldowns.isGlobalOnCooldown("server_poll")) {
+    long remaining = cooldowns.getGlobalRemainingSeconds("server_poll");
+    sender.sendMessage("§cPoll already active! Wait " + remaining + "s.");
+    return;
+}
+cooldowns.setGlobal("server_poll", Duration.ofSeconds(30));
+```
+
+#### 4. Reset & Cleanup
+```java
+cooldowns.reset(player, "fireball"); // Clear specific ability
+cooldowns.resetAll(player);          // Clear all cooldowns for player
+cooldowns.resetGlobal("server_poll");// Clear specific global cooldown
+cooldowns.purgeExpired();            // Automatically done: purges expired memory
 ```
 
 ---

@@ -44,6 +44,7 @@ public class ScriptInstance {
   private HologramHelper holograms;
   private CommandHelper commands;
   private ItemHelper items;
+  private CooldownHelper cooldowns;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -88,6 +89,7 @@ public class ScriptInstance {
       this.holograms = new HologramHelper(plugin);
       this.commands = new CommandHelper(plugin, scriptKey);
       this.items = new ItemHelper(plugin);
+      this.cooldowns = new CooldownHelper(plugin, scriptKey);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -273,6 +275,8 @@ public class ScriptInstance {
               field.set(instance, commands);
             } else if (type.isAssignableFrom(ItemHelper.class)) {
               field.set(instance, items);
+            } else if (type.isAssignableFrom(CooldownHelper.class)) {
+              field.set(instance, cooldowns);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -320,6 +324,10 @@ public class ScriptInstance {
                 || name.equals("itemhelper")
                 || name.equals("itembuilder")) {
               field.set(instance, items);
+            } else if (name.equals("cooldowns")
+                || name.equals("cooldown")
+                || name.equals("cooldownhelper")) {
+              field.set(instance, cooldowns);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -571,6 +579,15 @@ public class ScriptInstance {
           .warning("Error unregistering fluent commands (continuing): " + e.getMessage());
     }
 
+    // Cleanup cooldowns and active tickers
+    try {
+      if (cooldowns != null) {
+        cooldowns.cleanup();
+      }
+    } catch (Exception e) {
+      plugin.getLogger().warning("Error cleaning up cooldowns (continuing): " + e.getMessage());
+    }
+
     // Clear config reference
     try {
       config = null;
@@ -799,6 +816,14 @@ public class ScriptInstance {
 
   public ItemHelper getItemHelper() {
     return items;
+  }
+
+  public CooldownHelper getCooldowns() {
+    return cooldowns;
+  }
+
+  public CooldownHelper getCooldownHelper() {
+    return cooldowns;
   }
 
   public boolean isFoliaCompatible() {

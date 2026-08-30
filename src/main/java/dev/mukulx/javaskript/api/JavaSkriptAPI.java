@@ -65,6 +65,24 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get a CooldownHelper for managing player and global cooldowns.
+   *
+   * @return A CooldownHelper instance
+   */
+  public CooldownHelper getCooldownHelper() {
+    return new CooldownHelper(plugin, "api");
+  }
+
+  /**
+   * Get a CooldownHelper for managing player and global cooldowns (alias).
+   *
+   * @return A CooldownHelper instance
+   */
+  public CooldownHelper cooldowns() {
+    return getCooldownHelper();
+  }
+
+  /**
    * Get the Hologram helper for creating modern Display Entity holograms
    *
    * @return HologramHelper instance
