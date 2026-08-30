@@ -1675,7 +1675,39 @@ Players.clearInventory(player);
 Players.give(player, sword, shield); // Safely drops leftover items if inventory full
 ```
 
-### 4. Spatial & Lightning
+### 4. Potion Effects (All Vanilla, 1.21 & Paper 26.2 Effects)
+```java
+// 1-line shortcuts with seconds and amplifier:
+Players.speed(player, 10, 1);           // Speed II for 10s
+Players.strength(player, 15, 0);        // Strength I for 15s
+Players.invisibility(player, 30);       // Invisibility for 30s
+Players.glowing(player, 5);             // Glowing for 5s
+Players.fireResistance(player, 60);     // Fire Resistance for 60s
+Players.jumpBoost(player, 10, 2);       // Jump Boost III for 10s
+
+// 1.21 Trial Chambers Effects:
+Players.windCharged(player, 10);        // Wind Charged
+Players.weaving(player, 10);            // Weaving
+Players.oozing(player, 10);             // Oozing
+Players.infested(player, 10);           // Infested
+Players.trialOmen(player, 30, 0);       // Trial Omen
+Players.raidOmen(player, 30, 0);        // Raid Omen
+
+// Paper 26.2 Nautilus Effect:
+Players.breathOfTheNautilus(player, 20); // Breath of the Nautilus
+
+// Flexible string lookup (supports names, namespaces & user aliases):
+Players.addEffect(player, "speed", 10, 1);
+Players.addEffect(player, "minecraft:haste", 20, 0);
+Players.removeEffect(player, "poison");
+
+// Status checks & cleanup:
+if (Players.hasEffect(player, "speed")) { ... }
+Players.clearNegativeEffects(player); // Clears all harmful/negative effects
+Players.clearEffects(player);         // Clears all active effects
+```
+
+### 5. Spatial & Lightning
 ```java
 Players.lightningEffect(player); // Harmless visual lightning (no damage/fire)
 Players.lightning(loc);          // Real lightning strike
