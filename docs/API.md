@@ -1598,6 +1598,96 @@ cooldowns.purgeExpired();            // Automatically done: purges expired memor
 
 ---
 
+## EventHelper (Lambda Events)
+
+Register event listeners in **1 line** using lambdas without creating `Listener` classes or writing `@EventHandler`.
+
+### Auto-Injection
+```java
+private EventHelper events;
+```
+
+### 1. Basic 1-Line Listener
+```java
+events.on(PlayerJoinEvent.class, e -> {
+    e.getPlayer().sendMessage("§aWelcome to the server!");
+});
+```
+
+### 2. Filtered Events
+Execute only when a condition passes (saves CPU and indentation):
+```java
+events.on(BlockBreakEvent.class, e -> e.getBlock().getType() == Material.DIAMOND_ORE, e -> {
+    e.getPlayer().sendMessage("§bYou found Diamonds!");
+});
+```
+
+### 3. Run-Once Listeners (`once`)
+Automatically unregisters itself after 1 execution (great for tutorials, quests, or first clicks):
+```java
+events.once(PlayerInteractEvent.class, e -> {
+    e.getPlayer().sendMessage("§eFirst interaction complete!");
+});
+```
+
+### 4. Advanced Subscriptions (`EventSubscription`)
+```java
+EventSubscription<EntityDamageByEntityEvent> sub = events.on(EntityDamageByEntityEvent.class, e -> {
+    // Combat handler
+})
+.maxExecutions(20)                 // Auto-unsubscribes after 20 hits
+.expireAfter(Duration.ofMinutes(2)) // Auto-unsubscribes after 2 minutes
+.onExpire(() -> {
+    Bukkit.broadcast(Component.text("Combat period ended."));
+});
+
+// Or cancel manually at any time:
+sub.unsubscribe();
+```
+
+---
+
+## PlayerHelper & `Players` (Universal Player Utility)
+
+Streamlines player communication, audio-visual feedback, stats manipulation, and spatial queries.
+Usable via auto-injection (`private PlayerHelper players;`) or statically anywhere via `Players`.
+
+### 1. 1-Line Messaging & Broadcasts
+```java
+// Supports MiniMessage gradients & legacy & codes with default italics stripped:
+Players.msg(player, "<gradient:#ff5555:#ffaa00><bold>Victory!</bold></gradient>");
+Players.broadcast("<yellow>✦ Mukul joined the realm!");
+```
+
+### 2. Audio & Visuals
+```java
+Players.sound(player, Sound.ENTITY_PLAYER_LEVELUP);
+Players.sound(player, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.5f);
+Players.title(player, "<gold>LEVEL UP", "<yellow>You reached level 10!");
+Players.actionBar(player, "<red>⚔ +25 Damage Dealt");
+```
+
+### 3. Stats, Healing & Inventory
+```java
+Players.heal(player);     // Restores full max health, clears fire & negative potions
+Players.feed(player);     // Restores 20 food level & 20 saturation
+Players.clearInventory(player);
+Players.give(player, sword, shield); // Safely drops leftover items if inventory full
+```
+
+### 4. Spatial & Lightning
+```java
+Players.lightningEffect(player); // Harmless visual lightning (no damage/fire)
+Players.lightning(loc);          // Real lightning strike
+
+// Find nearby players within radius:
+for (Player target : Players.nearby(player.getLocation(), 10.0)) {
+    Players.msg(target, "<red>You were caught in the blast radius!");
+}
+```
+
+---
+
 ## Manual API Access
 
 If auto-injection doesn't work, you can create APIs manually:

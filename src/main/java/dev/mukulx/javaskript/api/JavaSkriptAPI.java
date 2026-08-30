@@ -83,6 +83,42 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get an EventHelper for registering functional lambda event listeners.
+   *
+   * @return An EventHelper instance
+   */
+  public dev.mukulx.javaskript.api.event.EventHelper getEventHelper() {
+    return new dev.mukulx.javaskript.api.event.EventHelper(plugin, "api");
+  }
+
+  /**
+   * Get an EventHelper for registering functional lambda event listeners (alias).
+   *
+   * @return An EventHelper instance
+   */
+  public dev.mukulx.javaskript.api.event.EventHelper events() {
+    return getEventHelper();
+  }
+
+  /**
+   * Get the universal PlayerHelper for messaging, titles, sounds, and stats.
+   *
+   * @return PlayerHelper instance
+   */
+  public dev.mukulx.javaskript.api.player.PlayerHelper getPlayerHelper() {
+    return new dev.mukulx.javaskript.api.player.PlayerHelper(plugin);
+  }
+
+  /**
+   * Get the universal PlayerHelper for messaging, titles, sounds, and stats (alias).
+   *
+   * @return PlayerHelper instance
+   */
+  public dev.mukulx.javaskript.api.player.PlayerHelper players() {
+    return getPlayerHelper();
+  }
+
+  /**
    * Get the Hologram helper for creating modern Display Entity holograms
    *
    * @return HologramHelper instance

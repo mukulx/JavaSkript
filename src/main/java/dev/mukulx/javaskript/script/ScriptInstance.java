@@ -3,7 +3,9 @@ package dev.mukulx.javaskript.script;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.*;
 import dev.mukulx.javaskript.api.command.CommandHelper;
+import dev.mukulx.javaskript.api.event.EventHelper;
 import dev.mukulx.javaskript.api.item.ItemHelper;
+import dev.mukulx.javaskript.api.player.PlayerHelper;
 import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
@@ -45,6 +47,8 @@ public class ScriptInstance {
   private CommandHelper commands;
   private ItemHelper items;
   private CooldownHelper cooldowns;
+  private EventHelper events;
+  private PlayerHelper players;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -90,6 +94,8 @@ public class ScriptInstance {
       this.commands = new CommandHelper(plugin, scriptKey);
       this.items = new ItemHelper(plugin);
       this.cooldowns = new CooldownHelper(plugin, scriptKey);
+      this.events = new EventHelper(plugin, scriptKey);
+      this.players = new PlayerHelper(plugin);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -277,6 +283,10 @@ public class ScriptInstance {
               field.set(instance, items);
             } else if (type.isAssignableFrom(CooldownHelper.class)) {
               field.set(instance, cooldowns);
+            } else if (type.isAssignableFrom(EventHelper.class)) {
+              field.set(instance, events);
+            } else if (type.isAssignableFrom(PlayerHelper.class)) {
+              field.set(instance, players);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -328,6 +338,14 @@ public class ScriptInstance {
                 || name.equals("cooldown")
                 || name.equals("cooldownhelper")) {
               field.set(instance, cooldowns);
+            } else if (name.equals("events")
+                || name.equals("eventhelper")
+                || name.equals("eventapi")) {
+              field.set(instance, events);
+            } else if (name.equals("players")
+                || name.equals("playerhelper")
+                || name.equals("playerutil")) {
+              field.set(instance, players);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -588,6 +606,16 @@ public class ScriptInstance {
       plugin.getLogger().warning("Error cleaning up cooldowns (continuing): " + e.getMessage());
     }
 
+    // Unregister lambda event subscriptions
+    try {
+      if (events != null) {
+        events.unregisterAll();
+        events = null;
+      }
+    } catch (Exception e) {
+      plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
+    }
+
     // Clear config reference
     try {
       config = null;
@@ -824,6 +852,22 @@ public class ScriptInstance {
 
   public CooldownHelper getCooldownHelper() {
     return cooldowns;
+  }
+
+  public EventHelper getEvents() {
+    return events;
+  }
+
+  public EventHelper getEventHelper() {
+    return events;
+  }
+
+  public PlayerHelper getPlayers() {
+    return players;
+  }
+
+  public PlayerHelper getPlayerHelper() {
+    return players;
   }
 
   public boolean isFoliaCompatible() {

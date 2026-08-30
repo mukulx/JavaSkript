@@ -75,6 +75,8 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
       // Developer API exposed for cross-plugin hooks
       this.api = new JavaSkriptAPI(this);
+      dev.mukulx.javaskript.api.player.Players.setInstance(
+          new dev.mukulx.javaskript.api.player.PlayerHelper(this));
 
       // Register main command handler
       this.commandRegistry.registerCommand(
