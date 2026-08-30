@@ -381,6 +381,74 @@ public class FlyCommand implements CommandExecutor {
 
 ---
 
+## ⚡ Modern Fluent Command API (`CommandHelper`)
+
+In addition to traditional `implements CommandExecutor`, JavaSkript provides an expressive, fluent Command API injected via `private CommandHelper commands;`.
+
+### Key Features:
+- **Subcommands:** Recursive subcommands with dedicated permissions and execution guards.
+- **Typed Arguments:** Automatic parsing and validation for `player`, `integer`, `doubleNum`, `bool`, `choice`, `greedyString`, and `custom`.
+- **Automatic Tab-Completion:** Context-aware completions without boilerplate streams.
+- **Guarded Callbacks:** `.executesPlayer((player, ctx) -> ...)` and `.executesConsole(...)`.
+- **Automatic Cleanup:** All fluent commands unregister cleanly when the script unloads.
+
+### Example:
+```java
+@FoliaSupport
+public class WarpScript {
+    private CommandHelper commands;
+    private final Map<String, Location> warps = new HashMap<>();
+
+    public void onEnable() {
+        commands.create("warp")
+            .description("Warp system")
+            .permission("server.warp")
+            .aliases("warppoint")
+
+            // Subcommand: /warp set <name>
+            .subcommand("set", sub -> sub
+                .permission("server.warp.admin")
+                .argument(CommandArgs.string("name"))
+                .executesPlayer((player, ctx) -> {
+                    String name = ctx.getString("name");
+                    warps.put(name.toLowerCase(), player.getLocation());
+                    ctx.replySuccess("Warp '" + name + "' set!");
+                })
+            )
+
+            // Subcommand: /warp delete <name>
+            .subcommand("delete", sub -> sub
+                .permission("server.warp.admin")
+                .argument(CommandArgs.choice("name", () -> warps.keySet()))
+                .executes((sender, ctx) -> {
+                    String name = ctx.getString("name");
+                    if (warps.remove(name.toLowerCase()) != null) {
+                        ctx.replySuccess("Warp deleted.");
+                    } else {
+                        ctx.replyError("Warp not found.");
+                    }
+                })
+            )
+
+            // Root command: /warp <name> -> teleport
+            .argument(CommandArgs.choice("name", () -> warps.keySet()))
+            .executesPlayer((player, ctx) -> {
+                String name = ctx.getString("name").toLowerCase();
+                Location loc = warps.get(name);
+                if (loc != null) {
+                    player.teleportAsync(loc);
+                    ctx.replySuccess("Teleported!");
+                } else {
+                    ctx.replyError("Unknown warp: " + name);
+                }
+            })
+            .register();
+    }
+}
+```
+
+---
+
 ## Best Practices
 
 1. **Name your classes clearly**: `FlyCommand`, not `Fly` or `FlyScript`

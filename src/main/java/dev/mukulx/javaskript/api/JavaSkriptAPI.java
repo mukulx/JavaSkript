@@ -29,6 +29,24 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get a CommandHelper for creating and registering fluent commands.
+   *
+   * @return A CommandHelper instance
+   */
+  public dev.mukulx.javaskript.api.command.CommandHelper getCommandHelper() {
+    return new dev.mukulx.javaskript.api.command.CommandHelper(plugin, "api");
+  }
+
+  /**
+   * Get a CommandHelper for creating and registering fluent commands (alias).
+   *
+   * @return A CommandHelper instance
+   */
+  public dev.mukulx.javaskript.api.command.CommandHelper commands() {
+    return getCommandHelper();
+  }
+
+  /**
    * Get the Hologram helper for creating modern Display Entity holograms
    *
    * @return HologramHelper instance

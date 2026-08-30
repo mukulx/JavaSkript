@@ -772,6 +772,7 @@ public class ScriptManager {
       "SoundExample.java",
       "TitleExample.java",
       "WelcomeScript.java",
+      "CommandAPIExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

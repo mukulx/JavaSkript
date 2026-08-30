@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.script;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.*;
+import dev.mukulx.javaskript.api.command.CommandHelper;
 import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
@@ -40,6 +41,7 @@ public class ScriptInstance {
   private DialogHelper dialog;
   private PDCHelper pdc;
   private HologramHelper holograms;
+  private CommandHelper commands;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -82,6 +84,7 @@ public class ScriptInstance {
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
+      this.commands = new CommandHelper(plugin, scriptKey);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -263,6 +266,8 @@ public class ScriptInstance {
               field.set(instance, pdc);
             } else if (type.isAssignableFrom(HologramHelper.class)) {
               field.set(instance, holograms);
+            } else if (type.isAssignableFrom(CommandHelper.class)) {
+              field.set(instance, commands);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -301,6 +306,11 @@ public class ScriptInstance {
                 || name.equals("holo")
                 || name.equals("displays")) {
               field.set(instance, holograms);
+            } else if (name.equals("commands")
+                || name.equals("commandhelper")
+                || name.equals("commandapi")
+                || name.equals("cmd")) {
+              field.set(instance, commands);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -541,6 +551,17 @@ public class ScriptInstance {
     }
     registeredCommands.clear();
 
+    // Unregister fluent commands
+    try {
+      if (commands != null) {
+        commands.unregisterAll();
+      }
+    } catch (Exception e) {
+      plugin
+          .getLogger()
+          .warning("Error unregistering fluent commands (continuing): " + e.getMessage());
+    }
+
     // Clear config reference
     try {
       config = null;
@@ -753,6 +774,14 @@ public class ScriptInstance {
 
   public HologramHelper getHologramHelper() {
     return holograms;
+  }
+
+  public CommandHelper getCommands() {
+    return commands;
+  }
+
+  public CommandHelper getCommandHelper() {
+    return commands;
   }
 
   public boolean isFoliaCompatible() {

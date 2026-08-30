@@ -21,6 +21,76 @@ public class DynamicCommandRegistry {
   }
 
   public synchronized boolean registerCommand(
+      String commandName,
+      CommandExecutor executor,
+      TabCompleter tabCompleter,
+      String description,
+      String usage,
+      String permission,
+      String permissionMessage,
+      List<String> aliases) {
+    if (commandName == null || commandName.isEmpty() || executor == null) {
+      plugin.getLogger().warning("Cannot register command with null name or executor");
+      return false;
+    }
+
+    try {
+      Constructor<PluginCommand> constructor =
+          PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
+      constructor.setAccessible(true);
+
+      PluginCommand command = constructor.newInstance(commandName.toLowerCase(), plugin);
+      command.setExecutor(executor);
+
+      if (tabCompleter != null) {
+        command.setTabCompleter(tabCompleter);
+      } else if (executor instanceof TabCompleter tc) {
+        command.setTabCompleter(tc);
+      }
+
+      if (description != null && !description.isEmpty()) {
+        command.setDescription(description);
+      }
+      if (usage != null && !usage.isEmpty()) {
+        command.setUsage(usage);
+      }
+      if (permission != null && !permission.isEmpty()) {
+        command.setPermission(permission);
+      }
+      if (permissionMessage != null && !permissionMessage.isEmpty()) {
+        command.setPermissionMessage(permissionMessage);
+      }
+      if (aliases != null && !aliases.isEmpty()) {
+        command.setAliases(aliases);
+      }
+
+      CommandMap commandMap = getCommandMap();
+      if (commandMap == null) {
+        plugin.getLogger().severe("Failed to get command map!");
+        return false;
+      }
+
+      unregisterCommandSilent(commandName);
+
+      boolean registered = commandMap.register(plugin.getName().toLowerCase(), command);
+
+      if (registered) {
+        registeredCommands.put(commandName.toLowerCase(), command);
+        plugin.debug("Dynamically registered command: /" + commandName);
+        syncCommands();
+        return true;
+      } else {
+        plugin.getLogger().warning("Failed to register command: /" + commandName);
+        return false;
+      }
+
+    } catch (Exception e) {
+      plugin.getLogger().log(Level.SEVERE, "Error registering command: " + commandName, e);
+      return false;
+    }
+  }
+
+  public synchronized boolean registerCommand(
       String commandName, CommandExecutor executor, String... aliases) {
     if (commandName == null || commandName.isEmpty() || executor == null) {
       plugin.getLogger().warning("Cannot register command with null name or executor");
