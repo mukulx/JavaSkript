@@ -41,12 +41,44 @@ public class DynamicCommandRegistry {
       constructor.setAccessible(true);
 
       PluginCommand command = constructor.newInstance(commandName.toLowerCase(), plugin);
-      command.setExecutor(executor);
 
-      if (tabCompleter != null) {
-        command.setTabCompleter(tabCompleter);
-      } else if (executor instanceof TabCompleter tc) {
-        command.setTabCompleter(tc);
+      // Safe error-isolated command executor
+      CommandExecutor safeExecutor =
+          (sender, cmd, label, args) -> {
+            try {
+              return executor.onCommand(sender, cmd, label, args);
+            } catch (Throwable t) {
+              plugin
+                  .getLogger()
+                  .log(
+                      Level.SEVERE,
+                      "Unhandled exception in command /" + commandName + ": " + t.getMessage(),
+                      t);
+              if (sender != null) {
+                sender.sendMessage(
+                    net.kyori.adventure.text.Component.text(
+                        "§cAn error occurred while executing /" + label + ": " + t.getMessage()));
+              }
+              return true;
+            }
+          };
+      command.setExecutor(safeExecutor);
+
+      // Safe error-isolated tab completer
+      TabCompleter effectiveTabCompleter =
+          (tabCompleter != null) ? tabCompleter : (executor instanceof TabCompleter tc ? tc : null);
+
+      if (effectiveTabCompleter != null) {
+        TabCompleter safeTabCompleter =
+            (sender, cmd, label, args) -> {
+              try {
+                return effectiveTabCompleter.onTabComplete(sender, cmd, label, args);
+              } catch (Throwable t) {
+                plugin.debug("Error in tab completion for /" + commandName + ": " + t.getMessage());
+                return java.util.Collections.emptyList();
+              }
+            };
+        command.setTabCompleter(safeTabCompleter);
       }
 
       if (description != null && !description.isEmpty()) {

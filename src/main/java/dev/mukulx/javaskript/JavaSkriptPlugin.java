@@ -151,36 +151,61 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   @Override
   public void onDisable() {
+    // Terminate background file listeners safely
     try {
-      // Terminate background file listeners safely
       if (folderMonitorThread != null && folderMonitorThread.isAlive()) {
         folderMonitorThread.interrupt();
       }
+    } catch (Throwable t) {
+      debug("Error interrupting folder monitor thread: " + t.getMessage());
+    }
 
-      // Close open NIO watch keys
+    // Close open NIO watch keys
+    try {
       if (fileWatcher != null) {
         fileWatcher.stop();
       }
+    } catch (Throwable t) {
+      debug("Error stopping file watcher: " + t.getMessage());
+    }
 
-      // Cleanup action bar tasks
+    // Cleanup action bar tasks
+    try {
       if (api != null && api.getActionBarHelper() != null) {
         api.getActionBarHelper().shutdown();
       }
+    } catch (Throwable t) {
+      debug("Error shutting down action bar helper: " + t.getMessage());
+    }
 
-      // Unload active maps to clear object references for the Garbage Collector
+    // Unload active scripts
+    try {
       if (scriptManager != null) {
         scriptManager.unloadAllScripts();
       }
+    } catch (Throwable t) {
+      getLogger().log(Level.SEVERE, "Error unloading scripts on disable: " + t.getMessage(), t);
+    }
+
+    // Unregister custom commands
+    try {
       if (commandRegistry != null) {
         commandRegistry.unregisterAll();
       }
+    } catch (Throwable t) {
+      getLogger().warning("Error unregistering commands on disable: " + t.getMessage());
+    }
+
+    // Unregister permissions
+    try {
       if (permissionRegistry != null) {
         permissionRegistry.unregisterAll();
       }
-      getLogger().info("JavaSkript has been disabled!");
-    } catch (Exception e) {
-      getLogger().log(Level.SEVERE, "Error during plugin disable! Even dying failed.", e);
+    } catch (Throwable t) {
+      getLogger().warning("Error unregistering permissions on disable: " + t.getMessage());
     }
+
+    getLogger().info("JavaSkript has been disabled!");
   }
 
   public static JavaSkriptPlugin getInstance() {

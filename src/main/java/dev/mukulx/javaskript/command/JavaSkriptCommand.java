@@ -6,6 +6,7 @@ import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -39,21 +40,29 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     String subCommand = args[0].toLowerCase();
 
-    switch (subCommand) {
-      case "reload" -> handleReload(sender, args);
-      case "restart" -> handleRestart(sender, args);
-      case "configreload" -> handleConfigReload(sender);
-      case "list" -> handleList(sender, args);
-      case "load" -> handleLoad(sender, args);
-      case "unload" -> handleUnload(sender, args);
-      case "enable" -> handleEnable(sender, args);
-      case "disable" -> handleDisable(sender, args);
-      case "info" -> handleInfo(sender, args);
-      case "profile" -> handleProfile(sender, args);
-      case "timings" -> handleProfile(sender, new String[] {"profile", "top"});
-      case "benchmark" -> handleBenchmark(sender, args);
-      case "debug" -> handleDebug(sender);
-      default -> sendHelp(sender);
+    try {
+      switch (subCommand) {
+        case "reload" -> handleReload(sender, args);
+        case "restart" -> handleRestart(sender, args);
+        case "configreload" -> handleConfigReload(sender);
+        case "list" -> handleList(sender, args);
+        case "load" -> handleLoad(sender, args);
+        case "unload" -> handleUnload(sender, args);
+        case "enable" -> handleEnable(sender, args);
+        case "disable" -> handleDisable(sender, args);
+        case "info" -> handleInfo(sender, args);
+        case "profile" -> handleProfile(sender, args);
+        case "timings" -> handleProfile(sender, new String[] {"profile", "top"});
+        case "benchmark" -> handleBenchmark(sender, args);
+        case "debug" -> handleDebug(sender);
+        default -> sendHelp(sender);
+      }
+    } catch (Throwable t) {
+      plugin
+          .getLogger()
+          .log(Level.SEVERE, "Unexpected error executing /js " + String.join(" ", args), t);
+      sender.sendMessage(
+          Component.text("§cAn error occurred executing this command: " + t.getMessage()));
     }
 
     return true;

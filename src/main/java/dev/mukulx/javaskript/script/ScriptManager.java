@@ -534,7 +534,16 @@ public class ScriptManager {
   public void unloadAllScripts() {
     List<String> scriptNames = new ArrayList<>(loadedScripts.keySet());
     for (String scriptName : scriptNames) {
-      unloadScript(scriptName);
+      try {
+        unloadScript(scriptName);
+      } catch (Throwable t) {
+        plugin
+            .getLogger()
+            .log(
+                Level.SEVERE,
+                "Error unloading script " + scriptName + " (continuing): " + t.getMessage(),
+                t);
+      }
     }
   }
 

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.scheduler.BukkitTask;
@@ -41,6 +42,18 @@ public class ScriptScheduler {
       long t0 = System.nanoTime();
       try {
         runnable.run();
+      } catch (Throwable t) {
+        plugin
+            .getLogger()
+            .log(
+                Level.SEVERE,
+                "["
+                    + scriptKey
+                    + "] Uncaught exception in scheduled "
+                    + type
+                    + " task: "
+                    + t.getMessage(),
+                t);
       } finally {
         long elapsed = System.nanoTime() - t0;
         plugin.getProfiler().record(scriptKey, "TASK", type, elapsed);
