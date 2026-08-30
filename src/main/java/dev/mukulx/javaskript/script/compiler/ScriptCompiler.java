@@ -189,8 +189,16 @@ public class ScriptCompiler {
   }
 
   public String getClassName(String scriptName) {
-    // Remove .java extension
     String name = scriptName;
+    if (name.contains("/")) {
+      name = name.substring(name.lastIndexOf('/') + 1);
+    }
+    if (name.contains("\\")) {
+      name = name.substring(name.lastIndexOf('\\') + 1);
+    }
+    while (name.startsWith("-")) {
+      name = name.substring(1);
+    }
     if (name.endsWith(".java")) {
       name = name.substring(0, name.length() - 5);
     }

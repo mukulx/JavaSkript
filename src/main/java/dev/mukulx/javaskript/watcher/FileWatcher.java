@@ -148,12 +148,12 @@ public class FileWatcher implements Runnable {
           }
 
           // Only process .java files
-          String scriptFileName = filename.toString();
-          if (!scriptFileName.endsWith(".java")) {
+          String fileNameStr = filename.toString();
+          if (!fileNameStr.endsWith(".java")) {
             continue;
           }
 
-          scheduleReload(kind, fullPath.toFile(), scriptFileName);
+          scheduleReload(kind, fullPath.toFile());
         }
 
         boolean valid = key.reset();
@@ -178,40 +178,42 @@ public class FileWatcher implements Runnable {
     }
   }
 
-  private void scheduleReload(WatchEvent.Kind<?> kind, File file, String fileName) {
-    String key = fileName + ":" + kind.name();
-    pendingReloads.put(key, System.currentTimeMillis());
+  private void scheduleReload(WatchEvent.Kind<?> kind, File file) {
+    // Use the script key (relative path) for dedup
+    String scriptKey = plugin.getScriptManager().getScriptKey(file);
+    String debounceKey = scriptKey + ":" + kind.name();
+    pendingReloads.put(debounceKey, System.currentTimeMillis());
 
     debounceExecutor.schedule(
         () -> {
-          Long scheduledTime = pendingReloads.get(key);
+          Long scheduledTime = pendingReloads.get(debounceKey);
           if (scheduledTime != null
               && System.currentTimeMillis() - scheduledTime >= reloadDelay - 50) {
-            pendingReloads.remove(key);
-            handleFileEvent(kind, file, fileName);
+            pendingReloads.remove(debounceKey);
+            handleFileEvent(kind, file, scriptKey);
           }
         },
         reloadDelay,
         TimeUnit.MILLISECONDS);
   }
 
-  private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String fileName) {
+  private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String scriptKey) {
     try {
       if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-        plugin.getLogger().info("New script detected: " + fileName);
+        plugin.getLogger().info("New script detected: " + scriptKey);
         plugin.getScriptManager().loadScript(file);
 
       } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
-        plugin.getLogger().info("Script modified: " + fileName);
-        plugin.getScriptManager().unloadScript(fileName);
+        plugin.getLogger().info("Script modified: " + scriptKey);
+        plugin.getScriptManager().unloadScript(scriptKey);
         plugin.getScriptManager().loadScript(file);
 
       } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
-        plugin.getLogger().info("Script deleted: " + fileName);
-        plugin.getScriptManager().unloadScript(fileName);
+        plugin.getLogger().info("Script deleted: " + scriptKey);
+        plugin.getScriptManager().unloadScript(scriptKey);
       }
     } catch (Exception e) {
-      plugin.getLogger().log(Level.SEVERE, "Error handling file event for: " + fileName, e);
+      plugin.getLogger().log(Level.SEVERE, "Error handling file event for: " + scriptKey, e);
     }
   }
 

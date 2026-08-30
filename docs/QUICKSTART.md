@@ -89,19 +89,53 @@ public class MyScript implements Listener {
 
 ## Commands
 
-- `/js reload [script]` - Reload all scripts or specific script
-- `/js list` - List all scripts (loaded and disabled)
-- `/js load <script>` - Load a specific script
-- `/js unload <script>` - Unload a specific script
-- `/js enable <script>` - Enable a disabled script
-- `/js disable <script>` - Disable a script
-- `/js info <script>` - Show script information
+- `/js reload [script|folder|all]` - Reload all scripts, a specific script, or an entire folder
+- `/js list` - Display directory tree of all scripts (loaded and disabled)
+- `/js load <script|folder>` - Load a specific script or entire folder
+- `/js unload <script|folder>` - Unload a specific script or entire folder
+- `/js enable <script|folder>` - Enable a disabled script or folder
+- `/js disable <script|folder>` - Disable a script or folder
+- `/js info <script>` - Show script details & Folia status
 
 **Aliases:** `/javaskript`, `/jskript`
 
+## Folder Organization & Disabling Scripts
+
+### Subfolders
+You can freely organize your scripts into subdirectories inside `plugins/JavaSkript/scripts/`:
+```text
+plugins/JavaSkript/scripts/
+├── pvp/
+│   ├── CombatLog.java
+│   └── KillStreaks.java
+├── admin/
+│   └── Moderation.java
+└── examples/
+    ├── -HealCommand.java
+    ├── -FlyCommand.java
+    └── ...
+```
+
+Run commands using relative paths or simple names:
+- `/js reload pvp/CombatLog` or `/js reload CombatLog`
+- `/js reload pvp/` (reloads all scripts in the `pvp` folder)
+
+### Disabling Scripts
+There are three easy ways to disable scripts:
+1. **Filename / Folder Prefix `-`**:
+   - Prefixing a file with `-` (e.g. `-CombatLog.java`) disables it.
+   - Prefixing a folder with `-` (e.g. `-pvp/`) disables all scripts inside it.
+   - Using `/js disable <script|folder>` will automatically rename it with a `-` prefix.
+2. **In-Code Annotation or Comment**:
+   - Add `@Disabled` or `@Disabled("Under maintenance")` above your class.
+   - Or add `// @disabled` anywhere at the top of the file.
+3. **Default Examples**:
+   - All 26+ built-in examples are extracted into `scripts/examples/` with `-` prefixes (e.g., `-HealCommand.java`), keeping them disabled by default so your server stays clean.
+   - To try an example, enable it with `/js enable examples/HealCommand` or remove the leading `-`!
+
 ## Next Steps
 
-- Check `plugins/JavaSkript/scripts/` for example scripts
+- Explore `plugins/JavaSkript/scripts/examples/` for 26+ ready-to-use examples
 - Read [API.md](API.md) for full API documentation
 - Read [COMMAND_REGISTRATION.md](COMMAND_REGISTRATION.md) to understand dynamic commands
 - Read [DEPENDENCIES.md](DEPENDENCIES.md) to use Maven libraries
