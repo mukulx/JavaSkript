@@ -8,6 +8,7 @@ import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
@@ -75,18 +76,17 @@ public class ScriptInstance {
       plugin.debug("Injecting APIs into script: " + scriptName);
       injectAPIs();
 
-      // Call onEnable method if it exists
-      try {
-        var onEnableMethod = scriptClass.getDeclaredMethod("onEnable");
-        onEnableMethod.setAccessible(true);
-        onEnableMethod.invoke(instance);
-        plugin.debug("Called onEnable for: " + scriptFile.getName());
-      } catch (NoSuchMethodException e) {
-        // No onEnable method, that's fine
-      } catch (Exception e) {
-        plugin
-            .getLogger()
-            .log(Level.WARNING, "Error calling onEnable for: " + scriptFile.getName(), e);
+      // Call onEnable method if it exists across class hierarchy
+      Method onEnableMethod = findLifecycleMethod(scriptClass, "onEnable");
+      if (onEnableMethod != null) {
+        try {
+          onEnableMethod.invoke(instance);
+          plugin.debug("Called onEnable for: " + scriptFile.getName());
+        } catch (Exception e) {
+          plugin
+              .getLogger()
+              .log(Level.WARNING, "Error calling onEnable for: " + scriptFile.getName(), e);
+        }
       }
 
       // Register as event listener if applicable
@@ -209,35 +209,94 @@ public class ScriptInstance {
 
   private void injectAPIs() {
     try {
-      // Try to inject API helpers via fields
-      injectField("api", plugin.getAPI());
-      injectField("scheduler", scheduler);
-      injectField("config", config);
-      injectField("database", database);
-      injectField("db", database); // Alternative name
-      injectField("placeholders", placeholders);
-      injectField("papi", placeholders); // Alternative name
-      injectField("recipes", recipes);
-      injectField("actionBar", plugin.getAPI().getActionBarHelper());
-      injectField("title", plugin.getAPI().getTitleHelper());
-      injectField("bossBar", plugin.getAPI().getBossBarHelper());
-      injectField("sound", plugin.getAPI().getSoundHelper());
+      // Collect and inject into all fields across the entire class hierarchy
+      Class<?> current = scriptClass;
+      while (current != null && current != Object.class) {
+        for (Field field : current.getDeclaredFields()) {
+          try {
+            field.setAccessible(true);
 
+            // Skip if already initialized with non-null value
+            if (field.get(instance) != null) {
+              continue;
+            }
+
+            Class<?> type = field.getType();
+            String name = field.getName().toLowerCase();
+
+            // 1. Match by Type
+            if (type.isAssignableFrom(JavaSkriptPlugin.class)) {
+              field.set(instance, plugin);
+            } else if (type.isAssignableFrom(JavaSkriptAPI.class)) {
+              field.set(instance, plugin.getAPI());
+            } else if (type.isAssignableFrom(ScriptScheduler.class)) {
+              field.set(instance, scheduler);
+            } else if (type.isAssignableFrom(ScriptConfig.class)) {
+              field.set(instance, config);
+            } else if (type.isAssignableFrom(DatabaseHelper.class)) {
+              field.set(instance, database);
+            } else if (type.isAssignableFrom(PlaceholderHelper.class)) {
+              field.set(instance, placeholders);
+            } else if (type.isAssignableFrom(RecipeHelper.class)) {
+              field.set(instance, recipes);
+            } else if (type.isAssignableFrom(ActionBarHelper.class)) {
+              field.set(instance, plugin.getAPI().getActionBarHelper());
+            } else if (type.isAssignableFrom(TitleHelper.class)) {
+              field.set(instance, plugin.getAPI().getTitleHelper());
+            } else if (type.isAssignableFrom(BossBarHelper.class)) {
+              field.set(instance, plugin.getAPI().getBossBarHelper());
+            } else if (type.isAssignableFrom(SoundHelper.class)) {
+              field.set(instance, plugin.getAPI().getSoundHelper());
+            }
+            // 2. Match by Name / Alias
+            else if (name.equals("plugin") || name.equals("javaskript")) {
+              field.set(instance, plugin);
+            } else if (name.equals("api")) {
+              field.set(instance, plugin.getAPI());
+            } else if (name.equals("scheduler") || name.equals("tasks")) {
+              field.set(instance, scheduler);
+            } else if (name.equals("config") || name.equals("cfg")) {
+              field.set(instance, config);
+            } else if (name.equals("database") || name.equals("db")) {
+              field.set(instance, database);
+            } else if (name.equals("placeholders") || name.equals("papi")) {
+              field.set(instance, placeholders);
+            } else if (name.equals("recipes")) {
+              field.set(instance, recipes);
+            } else if (name.equals("actionbar")) {
+              field.set(instance, plugin.getAPI().getActionBarHelper());
+            } else if (name.equals("title")) {
+              field.set(instance, plugin.getAPI().getTitleHelper());
+            } else if (name.equals("bossbar")) {
+              field.set(instance, plugin.getAPI().getBossBarHelper());
+            } else if (name.equals("sound")) {
+              field.set(instance, plugin.getAPI().getSoundHelper());
+            }
+          } catch (Exception e) {
+            plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
+          }
+        }
+        current = current.getSuperclass();
+      }
     } catch (Exception e) {
-      // Injection is optional, scripts can also get APIs manually
+      plugin
+          .getLogger()
+          .log(Level.WARNING, "Error during API injection for " + scriptFile.getName(), e);
     }
   }
 
-  private void injectField(String fieldName, Object value) {
-    try {
-      Field field = scriptClass.getDeclaredField(fieldName);
-      field.setAccessible(true);
-      field.set(instance, value);
-    } catch (NoSuchFieldException e) {
-
-    } catch (Exception e) {
-      plugin.getLogger().log(Level.WARNING, "Failed to inject " + fieldName + " into script", e);
+  private Method findLifecycleMethod(Class<?> clazz, String methodName) {
+    Class<?> current = clazz;
+    while (current != null && current != Object.class) {
+      try {
+        Method method = current.getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        return method;
+      } catch (NoSuchMethodException e) {
+        current = current.getSuperclass();
+      }
     }
+    return null;
   }
 
   private void registerCommand() {
@@ -271,16 +330,17 @@ public class ScriptInstance {
     String scriptName = scriptFile.getName();
     plugin.debug("Starting unload of: " + scriptName);
 
-    // Call onDisable method if it exists (but don't let it stop the unload)
-    try {
-      var onDisableMethod = scriptClass.getDeclaredMethod("onDisable");
-      onDisableMethod.setAccessible(true);
-      onDisableMethod.invoke(instance);
-      plugin.debug("Called onDisable for: " + scriptName);
-    } catch (NoSuchMethodException e) {
-      // No onDisable method, that's fine
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error calling onDisable (continuing unload): " + e.getMessage());
+    // Call onDisable method if it exists across class hierarchy
+    Method onDisableMethod = findLifecycleMethod(scriptClass, "onDisable");
+    if (onDisableMethod != null) {
+      try {
+        onDisableMethod.invoke(instance);
+        plugin.debug("Called onDisable for: " + scriptName);
+      } catch (Exception e) {
+        plugin
+            .getLogger()
+            .warning("Error calling onDisable (continuing unload): " + e.getMessage());
+      }
     }
 
     // Cancel all scheduled tasks (force it)
