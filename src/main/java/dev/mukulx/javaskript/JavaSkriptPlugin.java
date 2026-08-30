@@ -72,34 +72,8 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       this.api = new JavaSkriptAPI(this);
 
       // Register main command handler
-      var command = new JavaSkriptCommand(this);
-      var pluginCmd = getCommand("javaskript");
-      if (pluginCmd != null) {
-        pluginCmd.setExecutor(command);
-        pluginCmd.setTabCompleter(command);
-      } else {
-        getServer()
-            .getCommandMap()
-            .register(
-                "javaskript",
-                new org.bukkit.command.defaults.BukkitCommand(
-                    "javaskript",
-                    "JavaSkript main command",
-                    "/javaskript [reload|restart|configreload|list|load|unload|enable|disable|info] [script]",
-                    java.util.List.of("js", "jskript")) {
-                  @Override
-                  public boolean execute(
-                      org.bukkit.command.CommandSender sender, String label, String[] args) {
-                    return command.onCommand(sender, this, label, args);
-                  }
-
-                  @Override
-                  public java.util.List<String> tabComplete(
-                      org.bukkit.command.CommandSender sender, String alias, String[] args) {
-                    return command.onTabComplete(sender, this, alias, args);
-                  }
-                });
-      }
+      this.commandRegistry.registerCommand(
+          "javaskript", new JavaSkriptCommand(this), "js", "jskript");
 
       // Synchronous boot-time execution of stored scripts
       if (getConfig().getBoolean("scripts.auto-load", true)) {
