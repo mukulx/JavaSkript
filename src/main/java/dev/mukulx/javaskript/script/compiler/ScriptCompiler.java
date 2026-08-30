@@ -58,24 +58,8 @@ public class ScriptCompiler {
 
     String mainClassName = extractPublicClassName(sourceCode);
     if (mainClassName == null) {
-      plugin.getLogger().severe("Could not find public class in script: " + scriptName);
-      return null;
+      mainClassName = getClassName(scriptName);
     }
-
-    // Extract all class names (public and package-private)
-    List<String> allClassNames = extractAllClassNames(sourceCode);
-    if (allClassNames.isEmpty()) {
-      plugin.getLogger().severe("Could not find any classes in script: " + scriptName);
-      return null;
-    }
-
-    plugin.debug(
-        "Found "
-            + allClassNames.size()
-            + " class(es) in "
-            + scriptName
-            + ": "
-            + String.join(", ", allClassNames));
 
     File sourceFile = null;
     File outputDir = null;
@@ -121,38 +105,29 @@ public class ScriptCompiler {
         return null;
       }
 
-      // Read all compiled classes
+      // Read all compiled classes from compiler output directory
       Map<String, byte[]> compiledClasses = new HashMap<>();
 
-      for (String className : allClassNames) {
-        File classFile = new File(outputDir, className + ".class");
-        if (classFile.exists()) {
-          byte[] bytecode = Files.readAllBytes(classFile.toPath());
-          compiledClasses.put(className, bytecode);
-          plugin
-              .getLogger()
-              .fine("Loaded class: " + className + " (" + bytecode.length + " bytes)");
-        } else {
-          plugin.getLogger().warning("Compiled class file not found: " + className);
-        }
-      }
-
-      // Also check for inner classes (ClassName$InnerClass.class)
-      File[] classFiles = outputDir.listFiles((dir, name) -> name.endsWith(".class"));
-      if (classFiles != null) {
-        for (File classFile : classFiles) {
-          String fileName = classFile.getName();
-          String className = fileName.substring(0, fileName.length() - 6); // Remove .class
-
-          if (!compiledClasses.containsKey(className)) {
-            byte[] bytecode = Files.readAllBytes(classFile.toPath());
-            compiledClasses.put(className, bytecode);
-            plugin
-                .getLogger()
-                .fine(
-                    "Loaded inner/nested class: " + className + " (" + bytecode.length + " bytes)");
-          }
-        }
+      final java.nio.file.Path outputPath = outputDir.toPath();
+      try (java.util.stream.Stream<java.nio.file.Path> stream = Files.walk(outputPath)) {
+        stream
+            .filter(Files::isRegularFile)
+            .filter(p -> p.toString().endsWith(".class"))
+            .forEach(
+                p -> {
+                  String relPath = outputPath.relativize(p).toString();
+                  String className =
+                      relPath.replace(File.separatorChar, '.').substring(0, relPath.length() - 6);
+                  try {
+                    byte[] bytecode = Files.readAllBytes(p);
+                    compiledClasses.put(className, bytecode);
+                    plugin
+                        .getLogger()
+                        .fine("Loaded class: " + className + " (" + bytecode.length + " bytes)");
+                  } catch (IOException e) {
+                    plugin.getLogger().warning("Failed to read compiled class file: " + className);
+                  }
+                });
       }
 
       if (compiledClasses.isEmpty()) {

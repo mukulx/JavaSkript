@@ -20,7 +20,8 @@ public class DynamicCommandRegistry {
     this.registeredCommands = new ConcurrentHashMap<>();
   }
 
-  public boolean registerCommand(String commandName, CommandExecutor executor, String... aliases) {
+  public synchronized boolean registerCommand(
+      String commandName, CommandExecutor executor, String... aliases) {
     if (commandName == null || commandName.isEmpty() || executor == null) {
       plugin.getLogger().warning("Cannot register command with null name or executor");
       return false;
@@ -48,7 +49,7 @@ public class DynamicCommandRegistry {
         return false;
       }
 
-      unregisterCommand(commandName);
+      unregisterCommandSilent(commandName);
 
       boolean registered = commandMap.register(plugin.getName().toLowerCase(), command);
 
@@ -68,94 +69,16 @@ public class DynamicCommandRegistry {
     }
   }
 
-  public boolean unregisterCommand(String commandName) {
+  public synchronized boolean unregisterCommand(String commandName) {
     if (commandName == null || commandName.isEmpty()) {
       return false;
     }
 
-    String lowerName = commandName.toLowerCase();
-
-    try {
-      CommandMap commandMap = getCommandMap();
-      if (commandMap == null) {
-        plugin.getLogger().warning("Could not get command map for unregistration");
-        registeredCommands.remove(lowerName);
-        return false;
-      }
-
-      Map<String, Command> knownCommands = getKnownCommandsMap(commandMap);
-      if (knownCommands == null) {
-        plugin
-            .getLogger()
-            .severe("Could not access knownCommands map - commands will remain registered!");
-        registeredCommands.remove(lowerName);
-        return false;
-      }
-
-      Command command = null;
-      List<String> keysToRemove = new ArrayList<>();
-      List<String> keysToTry = new ArrayList<>();
-      keysToTry.add(lowerName);
-      keysToTry.add(plugin.getName().toLowerCase() + ":" + lowerName);
-      keysToTry.add("javaskript:" + lowerName);
-      keysToTry.add("js:" + lowerName);
-
-      for (String key : keysToTry) {
-        Command found = knownCommands.get(key);
-        if (found != null) {
-          command = found;
-          keysToRemove.add(key);
-        }
-      }
-
-      if (command == null) {
-        plugin.debug("Command not found in map: " + commandName);
-        registeredCommands.remove(lowerName);
-        return false;
-      }
-
-      plugin.debug("Found command keys to remove: " + keysToRemove);
-
-      try {
-        command.unregister(commandMap);
-        plugin.debug("Called unregister() for: " + commandName);
-      } catch (Exception e) {
-        plugin.getLogger().warning("Error calling unregister (continuing): " + e.getMessage());
-      }
-
-      for (String key : keysToRemove) {
-        knownCommands.remove(key);
-        plugin.debug("Removed command key: " + key);
-      }
-
-      try {
-        List<String> aliases = command.getAliases();
-        if (aliases != null && !aliases.isEmpty()) {
-          for (String alias : aliases) {
-            String aliasLower = alias.toLowerCase();
-            knownCommands.remove(aliasLower);
-            knownCommands.remove(plugin.getName().toLowerCase() + ":" + aliasLower);
-            knownCommands.remove("javaskript:" + aliasLower);
-            knownCommands.remove("js:" + aliasLower);
-          }
-          plugin.debug("Removed " + aliases.size() + " alias(es)");
-        }
-      } catch (Exception e) {
-        plugin.getLogger().warning("Error removing aliases (continuing): " + e.getMessage());
-      }
-
-      registeredCommands.remove(lowerName);
-
+    boolean result = unregisterCommandSilent(commandName);
+    if (result) {
       syncCommands();
-      plugin.debug("Successfully unregistered command: /" + commandName);
-      return true;
-
-    } catch (Exception e) {
-      plugin.getLogger().log(Level.WARNING, "Error unregistering command: " + commandName, e);
-      registeredCommands.remove(lowerName);
     }
-
-    return false;
+    return result;
   }
 
   private java.lang.reflect.Method cachedGetKnownCommandsMethod;
@@ -218,13 +141,27 @@ public class DynamicCommandRegistry {
     return null;
   }
 
-  private void syncCommands() {
+  private final java.util.concurrent.atomic.AtomicBoolean syncPending =
+      new java.util.concurrent.atomic.AtomicBoolean(false);
+
+  public void syncCommands() {
+    if (syncPending.compareAndSet(false, true)) {
+      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+        Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task -> runSyncCommands(), 5L);
+      } else {
+        Bukkit.getScheduler().runTaskLater(plugin, this::runSyncCommands, 5L);
+      }
+    }
+  }
+
+  private void runSyncCommands() {
+    syncPending.set(false);
     try {
       try {
         var method = Bukkit.getServer().getClass().getMethod("syncCommands");
         method.invoke(Bukkit.getServer());
         plugin.debug("Synced commands via syncCommands()");
-      } catch (NoSuchMethodException e) {
+      } catch (NoSuchMethodException ignored) {
       }
 
       int updated = 0;
@@ -238,7 +175,7 @@ public class DynamicCommandRegistry {
             }
             updated++;
           }
-        } catch (Exception e) {
+        } catch (Exception ignored) {
         }
       }
 
