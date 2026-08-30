@@ -15,6 +15,7 @@ public class ItemHologramLine implements HologramLine {
   private ItemStack item;
   private ItemDisplay.ItemDisplayTransform transform = ItemDisplay.ItemDisplayTransform.GROUND;
   private Display.Billboard billboard = Display.Billboard.CENTER;
+  private boolean customBillboard = false;
   private Vector3f scale = new Vector3f(0.6f, 0.6f, 0.6f);
   private Vector3f translation = new Vector3f(0, 0, 0);
   private boolean glowing = false;
@@ -120,8 +121,23 @@ public class ItemHologramLine implements HologramLine {
 
   public ItemHologramLine billboard(Display.Billboard billboard) {
     this.billboard = billboard;
+    this.customBillboard = true;
     if (entity != null && entity.isValid()) entity.setBillboard(billboard);
     return this;
+  }
+
+  /** Make the item stationary in world space (does NOT rotate with player camera). */
+  public ItemHologramLine fixed() {
+    return billboard(Display.Billboard.FIXED);
+  }
+
+  /** Toggle whether the item rotates to face the player's camera. */
+  public ItemHologramLine followCamera(boolean followCamera) {
+    return billboard(followCamera ? Display.Billboard.CENTER : Display.Billboard.FIXED);
+  }
+
+  public boolean hasCustomBillboard() {
+    return customBillboard;
   }
 
   public ItemHologramLine scale(double scale) {

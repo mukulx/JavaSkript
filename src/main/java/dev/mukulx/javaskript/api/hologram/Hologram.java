@@ -123,6 +123,45 @@ public class Hologram {
     return this;
   }
 
+  public Hologram item(ItemStack item, boolean followCamera) {
+    return item(
+        item,
+        defaultScale * 0.6,
+        followCamera ? Display.Billboard.CENTER : Display.Billboard.FIXED);
+  }
+
+  public Hologram item(ItemStack item, double scale, boolean followCamera) {
+    return item(item, scale, followCamera ? Display.Billboard.CENTER : Display.Billboard.FIXED);
+  }
+
+  public Hologram item(ItemStack item, Display.Billboard billboard) {
+    return item(item, defaultScale * 0.6, billboard);
+  }
+
+  public Hologram item(ItemStack item, double scale, Display.Billboard billboard) {
+    ItemHologramLine line = new ItemHologramLine(item, scale);
+    line.billboard(billboard);
+    line.glowing(defaultGlowing);
+    line.glowColor(defaultGlowColor);
+    line.viewRange(defaultViewRange);
+    lines.add(line);
+    if (spawned) respawn();
+    return this;
+  }
+
+  /**
+   * Add a floating 3D item that stays fixed in world space (does NOT rotate to follow player
+   * camera).
+   */
+  public Hologram itemFixed(ItemStack item) {
+    return item(item, defaultScale * 0.6, Display.Billboard.FIXED);
+  }
+
+  /** Add a floating 3D item with custom scale that stays fixed in world space. */
+  public Hologram itemFixed(ItemStack item, double scale) {
+    return item(item, scale, Display.Billboard.FIXED);
+  }
+
   public Hologram block(Material material) {
     BlockHologramLine line = new BlockHologramLine(material);
     line.billboard(defaultBillboard);
@@ -227,9 +266,33 @@ public class Hologram {
   public Hologram billboard(Display.Billboard billboard) {
     this.defaultBillboard = billboard;
     for (HologramLine line : lines) {
+      if (line instanceof TextHologramLine tl) {
+        tl.billboard(billboard);
+      } else if (line instanceof ItemHologramLine il) {
+        if (!il.hasCustomBillboard()) {
+          il.billboard(billboard);
+        }
+      } else if (line instanceof BlockHologramLine bl) {
+        // Blocks remain fixed unless explicitly overridden
+      }
+    }
+    return this;
+  }
+
+  /** Set billboard mode specifically for text lines (e.g. CENTER so text always faces player). */
+  public Hologram textBillboard(Display.Billboard billboard) {
+    for (HologramLine line : lines) {
       if (line instanceof TextHologramLine tl) tl.billboard(billboard);
-      else if (line instanceof ItemHologramLine il) il.billboard(billboard);
-      else if (line instanceof BlockHologramLine bl) bl.billboard(billboard);
+    }
+    return this;
+  }
+
+  /**
+   * Set billboard mode specifically for 3D item lines (e.g. FIXED so items do not follow camera).
+   */
+  public Hologram itemBillboard(Display.Billboard billboard) {
+    for (HologramLine line : lines) {
+      if (line instanceof ItemHologramLine il) il.billboard(billboard);
     }
     return this;
   }

@@ -513,13 +513,22 @@ public class ItemBuilder implements Cloneable {
 
   private static Component parseComponent(String input) {
     if (input == null || input.isEmpty()) return Component.empty();
+    Component comp;
     if (input.contains("<") && input.contains(">")) {
       try {
-        return MINI_MESSAGE.deserialize(input);
+        comp = MINI_MESSAGE.deserialize(input);
       } catch (Exception ignored) {
+        comp = LEGACY_AMPERSAND.deserialize(input.replace('§', '&'));
       }
+    } else {
+      comp = LEGACY_AMPERSAND.deserialize(input.replace('§', '&'));
     }
-    return LEGACY_AMPERSAND.deserialize(input.replace('§', '&'));
+
+    // Strip default Minecraft item italic styling unless explicitly configured
+    if (!comp.hasDecoration(net.kyori.adventure.text.format.TextDecoration.ITALIC)) {
+      comp = comp.decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false);
+    }
+    return comp;
   }
 
   private static String extractUrlFromBase64(String base64) {

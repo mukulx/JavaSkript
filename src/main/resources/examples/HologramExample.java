@@ -113,8 +113,10 @@ public class HologramExample implements CommandExecutor {
             .create(loc)
             .line("<gradient:#aa00aa:#ff55ff><bold>Excalibur</bold></gradient>")
             .line("<gray>Forged in the Aether</gray>")
-            .item(sword, 1.2)
-            .billboard(Display.Billboard.CENTER)
+            // Floating item that is FIXED in world space (does NOT spin to follow camera!)
+            // Note: Use .item(sword, 1.2, true) if you want it to follow camera
+            .itemFixed(sword, 1.2)
+            .billboard(Display.Billboard.CENTER) // Text faces player, item stays fixed!
             .glowing(true)
             .glowColor(org.bukkit.Color.PURPLE)
             .lineSpacing(0.4)
