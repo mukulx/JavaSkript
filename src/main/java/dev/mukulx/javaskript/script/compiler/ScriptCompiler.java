@@ -222,11 +222,13 @@ public class ScriptCompiler {
     return name;
   }
 
-  private String buildClasspath() {
-    return buildClasspath(Collections.emptyList());
-  }
+  private String cachedBaseClasspath = null;
 
-  private String buildClasspath(List<File> dependencyFiles) {
+  private String getBaseClasspath() {
+    if (cachedBaseClasspath != null) {
+      return cachedBaseClasspath;
+    }
+
     StringBuilder classpath = new StringBuilder();
 
     try {
@@ -297,26 +299,31 @@ public class ScriptCompiler {
         }
       }
 
-      // Add script dependencies
-      for (File depFile : dependencyFiles) {
-        if (depFile.exists()) {
-          if (classpath.length() > 0) {
-            classpath.append(File.pathSeparator);
-          }
-          classpath.append(depFile.getAbsolutePath());
-        }
-      }
-
     } catch (Exception e) {
-      plugin.getLogger().log(Level.SEVERE, "Failed to build classpath", e);
+      plugin.getLogger().log(Level.SEVERE, "Failed to build base classpath", e);
     }
 
-    String result = classpath.toString();
-    if (result.isEmpty()) {
-      plugin.getLogger().severe("Classpath is empty! Scripts will fail to compile.");
+    cachedBaseClasspath = classpath.toString();
+    return cachedBaseClasspath;
+  }
+
+  private String buildClasspath(List<File> dependencyFiles) {
+    String base = getBaseClasspath();
+    if (dependencyFiles == null || dependencyFiles.isEmpty()) {
+      return base;
     }
 
-    return result;
+    StringBuilder classpath = new StringBuilder(base);
+    for (File depFile : dependencyFiles) {
+      if (depFile != null && depFile.exists()) {
+        if (classpath.length() > 0) {
+          classpath.append(File.pathSeparator);
+        }
+        classpath.append(depFile.getAbsolutePath());
+      }
+    }
+
+    return classpath.toString();
   }
 
   private void addToClasspath(StringBuilder classpath, Class<?> clazz) {

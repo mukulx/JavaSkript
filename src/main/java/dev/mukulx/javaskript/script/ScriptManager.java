@@ -183,61 +183,69 @@ public class ScriptManager {
       // Instantiate isolated classloader mapping to assign the raw byte array data into real
       // classes
       ScriptClassLoader classLoader = new ScriptClassLoader(plugin, scriptName, dependencyFiles);
-      Map<String, Class<?>> loadedClasses = classLoader.defineClasses(compiledClasses);
+      try {
+        Map<String, Class<?>> loadedClasses = classLoader.defineClasses(compiledClasses);
 
-      if (loadedClasses.isEmpty()) {
-        plugin.getLogger().severe("Failed to load any classes for script: " + scriptName);
-        return false;
-      }
+        if (loadedClasses.isEmpty()) {
+          plugin.getLogger().severe("Failed to load any classes for script: " + scriptName);
+          classLoader.unloadAll();
+          return false;
+        }
 
-      // Reflective search setup to locate valid public runtime entry points
-      String expectedClassName = compiler.getClassName(scriptName);
-      Class<?> scriptClass = loadedClasses.get(expectedClassName);
+        // Reflective search setup to locate valid public runtime entry points
+        String expectedClassName = compiler.getClassName(scriptName);
+        Class<?> scriptClass = loadedClasses.get(expectedClassName);
 
-      if (scriptClass == null) {
-        for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
-          if (entry.getKey().equalsIgnoreCase(expectedClassName)) {
-            scriptClass = entry.getValue();
-            plugin.getLogger().info("Found main class with different case: " + entry.getKey());
-            break;
+        if (scriptClass == null) {
+          for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(expectedClassName)) {
+              scriptClass = entry.getValue();
+              plugin.getLogger().info("Found main class with different case: " + entry.getKey());
+              break;
+            }
           }
         }
-      }
 
-      if (scriptClass == null) {
-        for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
-          Class<?> clazz = entry.getValue();
-          if (java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
-            scriptClass = clazz;
-            plugin
-                .getLogger()
-                .info(
-                    "Using public class '"
-                        + entry.getKey()
-                        + "' as main class (filename was: "
-                        + scriptName
-                        + ")");
-            break;
+        if (scriptClass == null) {
+          for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
+            Class<?> clazz = entry.getValue();
+            if (java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
+              scriptClass = clazz;
+              plugin
+                  .getLogger()
+                  .info(
+                      "Using public class '"
+                          + entry.getKey()
+                          + "' as main class (filename was: "
+                          + scriptName
+                          + ")");
+              break;
+            }
           }
         }
+
+        if (scriptClass == null) {
+          plugin.getLogger().severe("No suitable main class found for: " + scriptName);
+          plugin.getLogger().severe("Available classes: " + loadedClasses.keySet());
+          classLoader.unloadAll();
+          return false;
+        }
+
+        ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
+
+        if (!instance.initialize()) {
+          plugin.getLogger().severe("Failed to initialize script: " + scriptName);
+          classLoader.unloadAll();
+          return false;
+        }
+
+        loadedScripts.put(scriptName, instance);
+        plugin.getLogger().info("Loaded: " + scriptName);
+        return true;
+      } catch (Exception e) {
+        classLoader.unloadAll();
+        throw e;
       }
-
-      if (scriptClass == null) {
-        plugin.getLogger().severe("No suitable main class found for: " + scriptName);
-        plugin.getLogger().severe("Available classes: " + loadedClasses.keySet());
-        return false;
-      }
-
-      ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
-
-      if (!instance.initialize()) {
-        plugin.getLogger().severe("Failed to initialize script: " + scriptName);
-        return false;
-      }
-
-      loadedScripts.put(scriptName, instance);
-      plugin.getLogger().info("Loaded: " + scriptName);
-      return true;
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error loading script: " + scriptName, e);
