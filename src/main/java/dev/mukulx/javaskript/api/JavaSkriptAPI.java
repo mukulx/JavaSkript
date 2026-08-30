@@ -13,6 +13,8 @@ public class JavaSkriptAPI {
   private final TitleHelper titleHelper;
   private final BossBarHelper bossBarHelper;
   private final SoundHelper soundHelper;
+  private final DialogHelper dialogHelper;
+  private final PDCHelper pdcHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -20,6 +22,35 @@ public class JavaSkriptAPI {
     this.titleHelper = new TitleHelper();
     this.bossBarHelper = new BossBarHelper(plugin);
     this.soundHelper = new SoundHelper();
+    this.dialogHelper = new DialogHelper(plugin);
+    this.pdcHelper = new PDCHelper(plugin);
+  }
+
+  /**
+   * Get the PersistentData (PDC) helper for items, entities, and blocks
+   *
+   * @return PDCHelper instance
+   */
+  public PDCHelper getPDCHelper() {
+    return pdcHelper;
+  }
+
+  /**
+   * Get the PersistentData (PDC) helper alias
+   *
+   * @return PDCHelper instance
+   */
+  public PDCHelper getPdcHelper() {
+    return pdcHelper;
+  }
+
+  /**
+   * Get the Dialog helper for creating Paper dialogs
+   *
+   * @return DialogHelper instance
+   */
+  public DialogHelper getDialogHelper() {
+    return dialogHelper;
   }
 
   /**

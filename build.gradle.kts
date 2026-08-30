@@ -21,7 +21,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("org.eclipse.jdt:org.eclipse.jdt.core:3.45.0")
     compileOnly("org.ow2.asm:asm:9.10.1")
     implementation("org.bstats:bstats-bukkit:3.2.1")

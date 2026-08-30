@@ -10,7 +10,9 @@ Complete reference for all JavaSkript APIs available to scripts.
 4. [GUI Builder](#gui-builder)
 5. [PlaceholderHelper](#placeholderhelper)
 6. [ActionBarHelper](#actionbarhelper)
-7. [Annotations](#annotations)
+7. [DialogHelper](#dialoghelper)
+8. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
+9. [Annotations](#annotations)
 
 ---
 
@@ -1346,6 +1348,109 @@ import com.zaxxer.hikari.HikariDataSource;
 - Cached dependencies are reused across reloads
 - Use exact versions for reproducibility
 - Check Maven Central for available versions
+
+---
+
+## DialogHelper
+
+Modern Paper Dialog API for creating zero-boilerplate native Minecraft dialogs.
+
+### Auto-Injection
+```java
+private DialogHelper dialog; // Automatically injected!
+```
+
+### Methods
+
+#### Quick Dialogs
+```java
+// Alert notice
+dialog.alert(player, "<gold>Alert</gold>", "This is an alert message!");
+
+// Confirmation with callbacks
+dialog.confirm(player, "<red>Reset?</red>", "Are you sure?", 
+    p -> p.sendMessage("Reset!"), 
+    p -> p.sendMessage("Cancelled.")
+);
+
+// Form prompt input
+dialog.input(player, "Enter Nickname", "Type your new name:", (val, p) -> {
+    p.sendMessage("New nickname: " + val);
+});
+```
+
+#### Fluent Custom Dialogs
+```java
+dialog.multiAction("<gold>Custom Menu</gold>")
+    .body("<gray>Choose an option below:</gray>")
+    .columns(2)
+    .button("Heal Me", p -> p.setHealth(p.getMaxHealth()))
+    .button("Website", DialogActions.openUrl("https://papermc.io"))
+    .button("Run Command", DialogActions.runCommand("/spawn"))
+    .exitAction("Close")
+    .send(player);
+```
+
+---
+
+## PDCHelper (PersistentData / NBT)
+
+Zero-boilerplate PersistentDataContainer manipulation on `ItemStack`, `Entity`, `LivingEntity`, `Player`, `BlockState`, `Chunk`, and `World`.
+
+### Auto-Injection
+```java
+private PDCHelper pdc; // Automatically injected!
+```
+
+### Methods
+
+#### Storing Data on Items
+```java
+pdc.set(item, "custom_id", "hyperion_blade");
+pdc.set(item, "bonus_damage", 25.0);
+pdc.set(item, "level_required", 10);
+pdc.set(item, "soulbound", player.getUniqueId());
+pdc.set(item, "untradeable", true);
+```
+
+#### Storing Data via ItemBuilder
+```java
+ItemStack sword = new ItemBuilder(Material.NETHERITE_SWORD)
+    .name("<gold>Hyperion Blade</gold>")
+    .pdc("custom_id", "hyperion_blade")
+    .pdc("bonus_damage", 25.0)
+    .pdc("soulbound", true)
+    .build();
+```
+
+#### Reading Data from Items
+```java
+if (pdc.has(item, "custom_id")) {
+    String id = pdc.getString(item, "custom_id");
+    double bonus = pdc.getDouble(item, "bonus_damage", 0.0);
+    int level = pdc.getInt(item, "level_required", 1);
+    boolean isSoulbound = pdc.getBoolean(item, "soulbound", false);
+    UUID owner = pdc.getUUID(item, "soulbound_uuid");
+}
+```
+
+#### Storing & Reading Data on Entities / Mobs
+```java
+// Tagging a mob
+pdc.set(zombie, "boss_type", "inferno_titan");
+pdc.set(zombie, "drop_multiplier", 3);
+
+// Reading in an event
+@EventHandler
+public void onBossDeath(EntityDeathEvent event) {
+    LivingEntity entity = event.getEntity();
+    if (pdc.has(entity, "boss_type")) {
+        String type = pdc.getString(entity, "boss_type");
+        int multiplier = pdc.getInt(entity, "drop_multiplier", 1);
+        // Custom loot logic
+    }
+}
+```
 
 ---
 

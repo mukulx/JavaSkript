@@ -195,6 +195,98 @@ public class ItemBuilder {
   }
 
   /**
+   * Set custom PersistentData (PDC) string
+   *
+   * @param key The key
+   * @param value The value
+   * @return This builder
+   */
+  public ItemBuilder pdc(String key, String value) {
+    if (meta != null && key != null && value != null) {
+      meta.getPersistentDataContainer()
+          .set(
+              new org.bukkit.NamespacedKey("javaskript", key.toLowerCase().replace(" ", "_")),
+              org.bukkit.persistence.PersistentDataType.STRING,
+              value);
+    }
+    return this;
+  }
+
+  /**
+   * Set custom PersistentData (PDC) integer
+   *
+   * @param key The key
+   * @param value The value
+   * @return This builder
+   */
+  public ItemBuilder pdc(String key, int value) {
+    if (meta != null && key != null) {
+      meta.getPersistentDataContainer()
+          .set(
+              new org.bukkit.NamespacedKey("javaskript", key.toLowerCase().replace(" ", "_")),
+              org.bukkit.persistence.PersistentDataType.INTEGER,
+              value);
+    }
+    return this;
+  }
+
+  /**
+   * Set custom PersistentData (PDC) double
+   *
+   * @param key The key
+   * @param value The value
+   * @return This builder
+   */
+  public ItemBuilder pdc(String key, double value) {
+    if (meta != null && key != null) {
+      meta.getPersistentDataContainer()
+          .set(
+              new org.bukkit.NamespacedKey("javaskript", key.toLowerCase().replace(" ", "_")),
+              org.bukkit.persistence.PersistentDataType.DOUBLE,
+              value);
+    }
+    return this;
+  }
+
+  /**
+   * Set custom PersistentData (PDC) boolean
+   *
+   * @param key The key
+   * @param value The value
+   * @return This builder
+   */
+  public ItemBuilder pdc(String key, boolean value) {
+    if (meta != null && key != null) {
+      meta.getPersistentDataContainer()
+          .set(
+              new org.bukkit.NamespacedKey("javaskript", key.toLowerCase().replace(" ", "_")),
+              org.bukkit.persistence.PersistentDataType.BYTE,
+              (byte) (value ? 1 : 0));
+    }
+    return this;
+  }
+
+  /**
+   * Set custom PersistentData (PDC) with custom type
+   *
+   * @param key The key
+   * @param type The PersistentDataType
+   * @param value The value
+   * @return This builder
+   */
+  public <T, Z> ItemBuilder pdc(
+      String key, org.bukkit.persistence.PersistentDataType<T, Z> type, Z value) {
+    if (meta != null && key != null && type != null && value != null) {
+      meta.getPersistentDataContainer()
+          .set(
+              new org.bukkit.NamespacedKey("javaskript", key.toLowerCase().replace(" ", "_")),
+              type,
+              value);
+    }
+    return this;
+  }
+
+  /**
    * Build the item
    *
    * @return The built ItemStack

@@ -20,6 +20,8 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 - **DatabaseExample.java** - SQLite database with player tracking
 - **SchedulerExample.java** - Delayed and repeating tasks
 - **GUIExample.java** - Interactive inventory GUIs (small, large, shop examples)
+- **DialogExample.java** - Native Minecraft dialogs (alerts, confirmations, multi-action menus, forms)
+- **PDCExample.java** - PersistentDataContainer (PDC / NBT) on items and entities
 - **PlaceholderExample.java** - Custom PlaceholderAPI placeholders
 - **PermissionExample.java** - Dynamic permission registration
 
@@ -70,6 +72,8 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 | Database (HikariCP) | ExtraInventory |
 | Scheduler | SchedulerExample |
 | GUI Builder | GUIExample (small, large, shop examples), ExtraInventory |
+| Paper Dialogs | DialogExample |
+| PersistentData (PDC) | PDCExample |
 | PlaceholderAPI | PlaceholderExample |
 | Multiple Classes | MultiClassExample (managers, utilities, data classes) |
 | Maven Dependencies | ExtraInventory (HikariCP) |

@@ -32,6 +32,8 @@ public class ScriptInstance {
   private DatabaseHelper database;
   private PlaceholderHelper placeholders;
   private RecipeHelper recipes;
+  private DialogHelper dialog;
+  private PDCHelper pdc;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -71,6 +73,8 @@ public class ScriptInstance {
       this.database = new DatabaseHelper(plugin, scriptName);
       this.placeholders = new PlaceholderHelper(plugin, scriptName);
       this.recipes = new RecipeHelper(plugin, scriptName);
+      this.dialog = plugin.getAPI().getDialogHelper();
+      this.pdc = plugin.getAPI().getPDCHelper();
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -247,6 +251,10 @@ public class ScriptInstance {
               field.set(instance, plugin.getAPI().getBossBarHelper());
             } else if (type.isAssignableFrom(SoundHelper.class)) {
               field.set(instance, plugin.getAPI().getSoundHelper());
+            } else if (type.isAssignableFrom(DialogHelper.class)) {
+              field.set(instance, dialog);
+            } else if (type.isAssignableFrom(PDCHelper.class)) {
+              field.set(instance, pdc);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -271,6 +279,15 @@ public class ScriptInstance {
               field.set(instance, plugin.getAPI().getBossBarHelper());
             } else if (name.equals("sound")) {
               field.set(instance, plugin.getAPI().getSoundHelper());
+            } else if (name.equals("dialog")
+                || name.equals("dialogs")
+                || name.equals("dialoghelper")) {
+              field.set(instance, dialog);
+            } else if (name.equals("pdc")
+                || name.equals("pdchelper")
+                || name.equals("persistentdata")
+                || name.equals("nbt")) {
+              field.set(instance, pdc);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -612,6 +629,18 @@ public class ScriptInstance {
 
   public PlaceholderHelper getPlaceholders() {
     return placeholders;
+  }
+
+  public DialogHelper getDialog() {
+    return dialog;
+  }
+
+  public PDCHelper getPDC() {
+    return pdc;
+  }
+
+  public PDCHelper getPdc() {
+    return pdc;
   }
 
   public boolean isFoliaCompatible() {
