@@ -1820,6 +1820,84 @@ public class MyScript {
 
 ---
 
+## EconomyHelper & `Economy` (Universal Economy Engine)
+
+A complete, zero-compromise Economy engine that bridges **Vault** (EssentialsX, CMI, UltraEconomy, etc.), JavaSkript's **Built-in SQLite Persistent Storage**, and **Custom Multi-Currencies** (Gems, Tokens, Credits).
+
+### Auto-Injection & Static Facade
+```java
+// Option A: Auto-injected in any script
+private EconomyHelper economy;
+
+// Option B: Static 1-line facade anywhere
+Economy.getBalance(player);
+```
+
+### 1. Balance Checks & Formatted Strings
+```java
+double bal = Economy.getBalance(player);
+
+// Full formatted currency with commas:
+String formatted = Economy.format(1500.50);      // "$1,500.50"
+
+// Compact suffix format:
+String compact = Economy.formatShort(1500000);   // "$1.5M"
+```
+
+### 2. Transactions (Withdraw, Deposit, Set)
+```java
+// Check balance:
+if (Economy.has(player, 250.0)) {
+    EconomyResult result = Economy.withdraw(player, 250.0);
+    if (result.isSuccess()) {
+        Players.msg(player, "<green>Paid " + Economy.format(250.0));
+    }
+}
+
+// Deposit:
+Economy.deposit(player, 500.0);
+
+// Set absolute balance:
+Economy.set(player, 1000.0);
+```
+
+### 3. Safe Atomic Player Payments (`Economy.transfer`)
+Transfers money between two players with transactional rollback protection:
+```java
+EconomyResult result = Economy.transfer(sender, receiver, 100.0);
+if (result.isSuccess()) {
+    Players.msg(sender, "<green>Sent $100 to " + receiver.getName());
+    Players.msg(receiver, "<green>Received $100 from " + sender.getName());
+} else {
+    Players.msg(sender, "<red>Payment failed: " + result.getErrorMessage());
+}
+```
+
+### 4. Leaderboard (`Economy.getTopBalances`)
+```java
+// Get top 10 richest players on the server (when using built-in engine):
+List<Map.Entry<UUID, Double>> top = Economy.getTopBalances(10);
+for (Map.Entry<UUID, Double> entry : top) {
+    OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
+    String line = p.getName() + ": " + Economy.format(entry.getValue());
+}
+```
+
+### 5. Multi-Currency Support (Gems, Tokens, Credits)
+```java
+// Register custom currency provider:
+economy.registerCurrency("gems", new CustomGemsEconomy());
+
+// Access anytime:
+Economy.currency("gems").ifPresent(gems -> {
+    if (gems.has(player, 50)) {
+        gems.withdraw(player, 50);
+    }
+});
+```
+
+---
+
 ## Best Practices
 
 1. **Always check for null** - Especially in event handlers

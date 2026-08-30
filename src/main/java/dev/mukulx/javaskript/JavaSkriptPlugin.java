@@ -29,6 +29,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private UpdateChecker updateChecker;
   private Thread folderMonitorThread;
   private ScriptProfiler profiler;
+  private dev.mukulx.javaskript.api.economy.EconomyHelper economyHelper;
   private boolean debugMode;
 
   @Override
@@ -85,6 +86,14 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       this.api = new JavaSkriptAPI(this);
       dev.mukulx.javaskript.api.player.Players.setInstance(
           new dev.mukulx.javaskript.api.player.PlayerHelper(this));
+
+      // Economy subsystem (Vault & Built-in SQLite)
+      try {
+        this.economyHelper = new dev.mukulx.javaskript.api.economy.EconomyHelper(this);
+        dev.mukulx.javaskript.api.economy.Economy.setInstance(economyHelper);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to initialize Economy subsystem: " + t.getMessage());
+      }
 
       // Register main command handler
       this.commandRegistry.registerCommand(
@@ -205,6 +214,15 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       getLogger().warning("Error unregistering permissions on disable: " + t.getMessage());
     }
 
+    // Shutdown economy subsystem
+    try {
+      if (economyHelper != null) {
+        economyHelper.shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down economy helper: " + t.getMessage());
+    }
+
     getLogger().info("JavaSkript has been disabled!");
   }
 
@@ -214,6 +232,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public ScriptManager getScriptManager() {
     return scriptManager;
+  }
+
+  public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
+    return economyHelper;
   }
 
   public JavaSkriptAPI getAPI() {

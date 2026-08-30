@@ -51,6 +51,7 @@ public class ScriptInstance {
   private EventHelper events;
   private PlayerHelper players;
   private ChatHelper chat;
+  private dev.mukulx.javaskript.api.economy.EconomyHelper economy;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -99,6 +100,7 @@ public class ScriptInstance {
       this.events = new EventHelper(plugin, scriptKey);
       this.players = new PlayerHelper(plugin);
       this.chat = new ChatHelper(plugin, scriptKey);
+      this.economy = plugin.getEconomyHelper();
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -292,6 +294,9 @@ public class ScriptInstance {
               field.set(instance, players);
             } else if (type.isAssignableFrom(ChatHelper.class)) {
               field.set(instance, chat);
+            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyHelper.class)
+                || type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyProvider.class)) {
+              field.set(instance, economy);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -353,6 +358,11 @@ public class ScriptInstance {
               field.set(instance, players);
             } else if (name.equals("chat") || name.equals("chathelper") || name.equals("chatapi")) {
               field.set(instance, chat);
+            } else if (name.equals("economy")
+                || name.equals("eco")
+                || name.equals("economyhelper")
+                || name.equals("vault")) {
+              field.set(instance, economy);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -893,6 +903,14 @@ public class ScriptInstance {
 
   public ChatHelper getChatHelper() {
     return chat;
+  }
+
+  public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomy() {
+    return economy;
+  }
+
+  public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
+    return economy;
   }
 
   public boolean isFoliaCompatible() {

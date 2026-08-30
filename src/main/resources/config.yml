@@ -38,3 +38,24 @@ dependencies:
   # Cache directory for downloaded Maven dependencies
   # Relative to the plugin folder
   cache-folder: "libs"
+
+# Economy Settings
+# Supports Vault (EssentialsX, CMI, UltraEconomy, etc.) and Built-in SQLite Persistent Economy
+economy:
+  # Mode: 'auto', 'vault', 'builtin', or 'disabled'
+  # - auto: Use Vault if available, otherwise automatically fallback to built-in SQLite engine
+  # - vault: Force Vault provider (e.g. EssentialsX, CMI)
+  # - builtin: Always use JavaSkript's built-in SQLite persistent economy
+  # - disabled: Disable economy features
+  mode: "auto"
+
+  # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
+  # Allows other plugins (ChestShop, AuctionHouse, ShopGUI+, etc.) to use JavaSkript's economy
+  register-vault-service: true
+
+  # Default Currency Settings
+  currency:
+    symbol: "$"
+    name-singular: "Coin"
+    name-plural: "Coins"
+    starting-balance: 0.0

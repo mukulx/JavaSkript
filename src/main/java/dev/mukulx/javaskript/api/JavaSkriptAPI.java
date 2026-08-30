@@ -282,4 +282,22 @@ public class JavaSkriptAPI {
     }
     return plugin.getScriptManager().getScript(scriptName) != null;
   }
+
+  /**
+   * Get the EconomyHelper for managing balances, Vault, built-in economy, and custom currencies.
+   *
+   * @return The EconomyHelper instance
+   */
+  public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
+    return plugin.getEconomyHelper();
+  }
+
+  /**
+   * Get the EconomyHelper (alias).
+   *
+   * @return The EconomyHelper instance
+   */
+  public dev.mukulx.javaskript.api.economy.EconomyHelper economy() {
+    return getEconomyHelper();
+  }
 }
