@@ -7,7 +7,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.bukkit.Sound;
-import org.bukkit.entity.Player;
 
 /**
  * Modern Interactive Chat API Example for JavaSkript.
@@ -38,8 +37,7 @@ public class ChatAPIExample {
             "buttons",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 1. Rich Interactive Clickable Buttons
                       chat.builder()
@@ -88,8 +86,7 @@ public class ChatAPIExample {
             "confirm",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 2. Interactive Confirm/Deny Workflow
                       chat.confirm(player)
@@ -117,8 +114,7 @@ public class ChatAPIExample {
             "prompt",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 3. Private Chat Input Prompt
                       // Captures player's next chat message, hides it from everyone else!
@@ -135,8 +131,7 @@ public class ChatAPIExample {
             "number",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 4. Validated Numeric Prompt (1 - 1,000)
                       chat.promptInteger(
@@ -157,8 +152,7 @@ public class ChatAPIExample {
             "pager",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 5. Paginated Interactive List with Clickable [◀ Previous] & [Next ▶]
                       List<String> items = new ArrayList<>();
@@ -176,8 +170,7 @@ public class ChatAPIExample {
             "banner",
             sub ->
                 sub.executesPlayer(
-                    ctx -> {
-                      Player player = ctx.sender();
+                    (player, ctx) -> {
 
                       // 6. Pixel-Perfect Centered Chat Banners
                       chat.sendCentered(

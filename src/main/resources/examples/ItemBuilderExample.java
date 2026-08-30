@@ -109,7 +109,7 @@ public class ItemBuilderExample {
     return ItemBuilder.of(Material.POTION)
         .name("<aqua><bold>ELIXIR OF THE WIND</bold></aqua>")
         .lore("&7Grants supernatural agility for a short time.", "", "&eDuration: &f30 Seconds")
-        .potionType(PotionType.SPEED)
+        .potionType(PotionType.SWIFTNESS)
         .potionColor(Color.fromRGB(0, 255, 230))
         .addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 30, 2))
         .addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 20 * 30, 1))
