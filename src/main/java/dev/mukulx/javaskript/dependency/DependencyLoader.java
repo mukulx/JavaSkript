@@ -28,15 +28,9 @@ public class DependencyLoader implements PluginLoader {
                 "paper", "default", "https://repo.papermc.io/repository/maven-public/")
             .build());
 
-    // Declare plugin dependencies
+    // Declare plugin dependencies (only essential external libraries not provided by Paper)
     String[] dependencies = {
-      "org.eclipse.jdt:org.eclipse.jdt.core:3.45.0",
-      "org.ow2.asm:asm:9.10.1",
-      "org.ow2.asm:asm-commons:9.10.1",
-      "org.xerial:sqlite-jdbc:3.53.1.0",
-      "com.google.code.gson:gson:2.11.0",
-      "net.kyori:examination-api:1.3.0",
-      "net.kyori:examination-string:1.3.0"
+      "org.eclipse.jdt:org.eclipse.jdt.core:3.45.0", "org.ow2.asm:asm:9.10.1"
     };
 
     for (String dep : dependencies) {

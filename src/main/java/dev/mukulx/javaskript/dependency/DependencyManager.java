@@ -1,6 +1,5 @@
 package dev.mukulx.javaskript.dependency;
 
-import com.google.gson.Gson;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.*;
 import java.net.URL;
@@ -13,13 +12,11 @@ public class DependencyManager {
 
   private static final String MAVEN_CENTRAL = "https://repo1.maven.org/maven2/";
   private final JavaSkriptPlugin plugin;
-  private final Gson gson;
   private final File libsDirectory;
   private final Map<String, List<File>> resolvedDependencies;
 
   public DependencyManager(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
-    this.gson = new Gson();
     String cacheFolderName = plugin.getConfig().getString("dependencies.cache-folder", "libs");
     this.libsDirectory = new File(plugin.getDataFolder(), cacheFolderName);
     this.resolvedDependencies = new ConcurrentHashMap<>();
