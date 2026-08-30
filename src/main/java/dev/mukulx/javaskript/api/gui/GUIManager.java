@@ -1,8 +1,8 @@
 package dev.mukulx.javaskript.api.gui;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -12,7 +12,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 /** Manages all GUIs for scripts */
 public class GUIManager implements Listener {
 
-  private static final Map<UUID, GUI> openGUIs = new HashMap<>();
+  private static final Map<UUID, GUI> openGUIs = new ConcurrentHashMap<>();
 
   /** Register a GUI for a player */
   public static void registerGUI(Player player, GUI gui) {

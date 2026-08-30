@@ -260,22 +260,26 @@ public class DynamicPermissionRegistry {
   /** Recalculate permissions for all online players */
   private void recalculatePermissions() {
     try {
-      plugin
-          .getServer()
-          .getScheduler()
-          .runTask(
-              plugin,
-              () -> {
-                plugin
-                    .getServer()
-                    .getOnlinePlayers()
-                    .forEach(
-                        player -> {
-                          if (player != null) {
-                            player.recalculatePermissions();
-                          }
-                        });
-              });
+      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+        for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+          if (player != null && player.isOnline()) {
+            player.getScheduler().run(plugin, task -> player.recalculatePermissions(), null);
+          }
+        }
+      } else {
+        plugin
+            .getServer()
+            .getScheduler()
+            .runTask(
+                plugin,
+                () -> {
+                  for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                    if (player != null && player.isOnline()) {
+                      player.recalculatePermissions();
+                    }
+                  }
+                });
+      }
     } catch (Exception e) {
       // Ignore - not critical
     }

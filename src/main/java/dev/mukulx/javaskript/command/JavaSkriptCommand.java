@@ -140,16 +140,20 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("All scripts unloaded").color(NamedTextColor.GRAY));
 
         // Small delay to ensure cleanup (Folia-safe via global region scheduler)
-        Runnable loadTask = () -> {
-          plugin.getScriptManager().loadAllScripts();
-          int count = plugin.getScriptManager().getLoadedScripts().size();
-          sender.sendMessage(
-              Component.text("Successfully restarted " + count + " script(s)!")
-                  .color(NamedTextColor.GREEN));
-        };
+        Runnable loadTask =
+            () -> {
+              plugin.getScriptManager().loadAllScripts();
+              int count = plugin.getScriptManager().getLoadedScripts().size();
+              sender.sendMessage(
+                  Component.text("Successfully restarted " + count + " script(s)!")
+                      .color(NamedTextColor.GREEN));
+            };
 
         if (ServerUtil.isFolia()) {
-          plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task -> loadTask.run(), 20L);
+          plugin
+              .getServer()
+              .getGlobalRegionScheduler()
+              .runDelayed(plugin, task -> loadTask.run(), 20L);
         } else {
           plugin.getServer().getScheduler().runTaskLater(plugin, loadTask, 20L);
         }
@@ -183,22 +187,26 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
       // Reload after delay (Folia-safe)
       String finalScriptName = scriptName;
-      Runnable reloadTask = () -> {
-        boolean success = plugin.getScriptManager().loadScript(scriptFile);
+      Runnable reloadTask =
+          () -> {
+            boolean success = plugin.getScriptManager().loadScript(scriptFile);
 
-        if (success) {
-          sender.sendMessage(
-              Component.text("Successfully restarted: " + finalScriptName)
-                  .color(NamedTextColor.GREEN));
-        } else {
-          sender.sendMessage(
-              Component.text("Failed to restart: " + finalScriptName)
-                  .color(NamedTextColor.RED));
-        }
-      };
+            if (success) {
+              sender.sendMessage(
+                  Component.text("Successfully restarted: " + finalScriptName)
+                      .color(NamedTextColor.GREEN));
+            } else {
+              sender.sendMessage(
+                  Component.text("Failed to restart: " + finalScriptName)
+                      .color(NamedTextColor.RED));
+            }
+          };
 
       if (ServerUtil.isFolia()) {
-        plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, task -> reloadTask.run(), 20L);
+        plugin
+            .getServer()
+            .getGlobalRegionScheduler()
+            .runDelayed(plugin, task -> reloadTask.run(), 20L);
       } else {
         plugin.getServer().getScheduler().runTaskLater(plugin, reloadTask, 20L);
       }

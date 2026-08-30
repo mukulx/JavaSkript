@@ -20,7 +20,11 @@ public class UpdateChecker {
   }
 
   public void checkAsync() {
-    plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::check);
+    if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+      plugin.getServer().getAsyncScheduler().runNow(plugin, task -> check());
+    } else {
+      plugin.getServer().getScheduler().runTaskAsynchronously(plugin, this::check);
+    }
   }
 
   private void check() {
@@ -58,19 +62,12 @@ public class UpdateChecker {
       String currentVersion = plugin.getDescription().getVersion();
 
       if (!latestVersion.equals(currentVersion)) {
-        plugin
-            .getServer()
-            .getScheduler()
-            .runTask(
-                plugin,
-                () -> {
-                  plugin.getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                  plugin.getLogger().warning("Update available!");
-                  plugin.getLogger().warning("Current: " + currentVersion);
-                  plugin.getLogger().warning("Latest: " + latestVersion);
-                  plugin.getLogger().warning("Download: https://modrinth.com/plugin/javaskript");
-                  plugin.getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                });
+        plugin.getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        plugin.getLogger().warning("Update available!");
+        plugin.getLogger().warning("Current: " + currentVersion);
+        plugin.getLogger().warning("Latest: " + latestVersion);
+        plugin.getLogger().warning("Download: https://modrinth.com/plugin/javaskript");
+        plugin.getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       } else {
         plugin.debug("Plugin is up to date");
       }

@@ -69,22 +69,43 @@ public class RecipeHelper {
   private boolean register(Recipe recipe, NamespacedKey key) {
     // If not on main thread, schedule to main thread and wait
     if (!Bukkit.isPrimaryThread()) {
-      final boolean[] result = {false};
-      try {
-        Bukkit.getScheduler()
-            .callSyncMethod(
-                plugin,
-                () -> {
-                  result[0] = registerSync(recipe, key);
-                  return result[0];
-                })
-            .get();
-        return result[0];
-      } catch (Exception e) {
+      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+        java.util.concurrent.CompletableFuture<Boolean> future =
+            new java.util.concurrent.CompletableFuture<>();
         plugin
-            .getLogger()
-            .warning("Failed to register recipe " + key + " (async): " + e.getMessage());
-        return false;
+            .getServer()
+            .getGlobalRegionScheduler()
+            .run(
+                plugin,
+                task -> {
+                  future.complete(registerSync(recipe, key));
+                });
+        try {
+          return future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+          plugin
+              .getLogger()
+              .warning("Failed to register recipe " + key + " (Folia async): " + e.getMessage());
+          return false;
+        }
+      } else {
+        final boolean[] result = {false};
+        try {
+          Bukkit.getScheduler()
+              .callSyncMethod(
+                  plugin,
+                  () -> {
+                    result[0] = registerSync(recipe, key);
+                    return result[0];
+                  })
+              .get();
+          return result[0];
+        } catch (Exception e) {
+          plugin
+              .getLogger()
+              .warning("Failed to register recipe " + key + " (async): " + e.getMessage());
+          return false;
+        }
       }
     }
 

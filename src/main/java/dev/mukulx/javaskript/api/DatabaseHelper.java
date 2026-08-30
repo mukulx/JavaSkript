@@ -32,7 +32,7 @@ public class DatabaseHelper {
    *
    * @return true if successful
    */
-  public boolean connect() {
+  public synchronized boolean connect() {
     try {
       if (connection != null && !connection.isClosed()) {
         return true;
@@ -57,7 +57,7 @@ public class DatabaseHelper {
   }
 
   /** Close the database connection */
-  public void disconnect() {
+  public synchronized void disconnect() {
     try {
       if (connection != null && !connection.isClosed()) {
         connection.close();
@@ -75,7 +75,7 @@ public class DatabaseHelper {
    * @param params Parameters for the query
    * @return Number of rows affected
    */
-  public int executeUpdate(String sql, Object... params) {
+  public synchronized int executeUpdate(String sql, Object... params) {
     connect();
 
     try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -96,7 +96,7 @@ public class DatabaseHelper {
    * @param params Parameters for the query
    * @return List of rows (each row is a Map of column name to value)
    */
-  public List<Map<String, Object>> executeQuery(String sql, Object... params) {
+  public synchronized List<Map<String, Object>> executeQuery(String sql, Object... params) {
     connect();
     List<Map<String, Object>> results = new ArrayList<>();
 
@@ -145,7 +145,7 @@ public class DatabaseHelper {
    * @param tableName The table name
    * @return true if exists
    */
-  public boolean tableExists(String tableName) {
+  public synchronized boolean tableExists(String tableName) {
     connect();
 
     try (ResultSet rs = connection.getMetaData().getTables(null, null, tableName, null)) {

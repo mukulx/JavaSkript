@@ -375,6 +375,15 @@ public class ScriptInstance {
       plugin.getLogger().warning("Error during automatic cleanup (continuing): " + e.getMessage());
     }
 
+    // Close and unload classloader resources
+    try {
+      if (classLoader != null) {
+        classLoader.unloadAll();
+      }
+    } catch (Exception e) {
+      // Ignore
+    }
+
     // Clear instance
     try {
       instance = null;

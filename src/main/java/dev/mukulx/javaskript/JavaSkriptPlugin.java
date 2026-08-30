@@ -71,32 +71,35 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       // Developer API exposed for cross-plugin hooks
       this.api = new JavaSkriptAPI(this);
 
-      // Manual command injection via Paper's CommandMap to bypass plugin.yml requirements
+      // Register main command handler
       var command = new JavaSkriptCommand(this);
-      getServer()
-          .getCommandMap()
-          .register(
-              "javaskript",
-              new org.bukkit.command.defaults.BukkitCommand(
-                  "javaskript",
-                  "JavaSkript main command",
-                  "/javaskript [reload|list|load|unload|enable|disable|info] [script]",
-                  java.util.List.of("js", "jskript")) {
-                @Override
-                public boolean execute(
-                    org.bukkit.command.CommandSender sender, String label, String[] args) {
-                  // Direct delegation to sub-command system before the main thread suffers an
-                  // existential crisis
-                  return command.onCommand(sender, this, label, args);
-                }
+      var pluginCmd = getCommand("javaskript");
+      if (pluginCmd != null) {
+        pluginCmd.setExecutor(command);
+        pluginCmd.setTabCompleter(command);
+      } else {
+        getServer()
+            .getCommandMap()
+            .register(
+                "javaskript",
+                new org.bukkit.command.defaults.BukkitCommand(
+                    "javaskript",
+                    "JavaSkript main command",
+                    "/javaskript [reload|restart|configreload|list|load|unload|enable|disable|info] [script]",
+                    java.util.List.of("js", "jskript")) {
+                  @Override
+                  public boolean execute(
+                      org.bukkit.command.CommandSender sender, String label, String[] args) {
+                    return command.onCommand(sender, this, label, args);
+                  }
 
-                @Override
-                public java.util.List<String> tabComplete(
-                    org.bukkit.command.CommandSender sender, String alias, String[] args) {
-                  // Dynamic completions because expecting users to type correctly is a myth
-                  return command.onTabComplete(sender, this, alias, args);
-                }
-              });
+                  @Override
+                  public java.util.List<String> tabComplete(
+                      org.bukkit.command.CommandSender sender, String alias, String[] args) {
+                    return command.onTabComplete(sender, this, alias, args);
+                  }
+                });
+      }
 
       // Synchronous boot-time execution of stored scripts
       if (getConfig().getBoolean("scripts.auto-load", true)) {

@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 public class ScriptManager {
 
   private static final Pattern DEPENDENCY_ANNOTATION_PATTERN =
-      Pattern.compile("@ScriptDependenc(?:y|ies)\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)");
+      Pattern.compile("@ScriptDependenc(?:y|ies)\\s*\\(([^)]+)\\)");
   private static final Pattern DEPENDENCY_QUOTE_PATTERN = Pattern.compile("\"([^\"]+)\"");
   private static final Pattern DEPENDENCY_COMMENT_PATTERN =
       Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
@@ -449,13 +449,13 @@ public class ScriptManager {
     List<String> dependencies = new ArrayList<>();
 
     Matcher annotationMatcher = DEPENDENCY_ANNOTATION_PATTERN.matcher(sourceCode);
-    if (annotationMatcher.find()) {
+    while (annotationMatcher.find()) {
       String dependenciesStr = annotationMatcher.group(1);
       Matcher quoteMatcher = DEPENDENCY_QUOTE_PATTERN.matcher(dependenciesStr);
 
       while (quoteMatcher.find()) {
         String dep = quoteMatcher.group(1).trim();
-        if (!dep.isEmpty()) {
+        if (!dep.isEmpty() && !dependencies.contains(dep)) {
           dependencies.add(dep);
         }
       }

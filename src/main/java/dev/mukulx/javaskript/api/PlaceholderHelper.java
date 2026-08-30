@@ -1,14 +1,19 @@
 package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.logging.Level;
 import org.bukkit.OfflinePlayer;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 /** Easy PlaceholderAPI integration for scripts Allows scripts to register custom placeholders */
 public class PlaceholderHelper {
+
+  private static final Map<String, PlaceholderHelper> ACTIVE_HELPERS = new ConcurrentHashMap<>();
 
   private final JavaSkriptPlugin plugin;
   private final String scriptName;
@@ -19,7 +24,8 @@ public class PlaceholderHelper {
   public PlaceholderHelper(JavaSkriptPlugin plugin, String scriptName) {
     this.plugin = plugin;
     this.scriptName = scriptName.replace(".java", "");
-    this.placeholders = new HashMap<>();
+    this.placeholders = new ConcurrentHashMap<>();
+    ACTIVE_HELPERS.put(this.scriptName, this);
 
     // Check if PlaceholderAPI is available
     try {
@@ -28,6 +34,14 @@ public class PlaceholderHelper {
     } catch (ClassNotFoundException e) {
       // PlaceholderAPI not installed
     }
+  }
+
+  public static String handlePlaceholder(String scriptName, OfflinePlayer player, String params) {
+    PlaceholderHelper helper = ACTIVE_HELPERS.get(scriptName);
+    if (helper != null) {
+      return helper.getPlaceholder(params, player, params);
+    }
+    return null;
   }
 
   /**
@@ -96,6 +110,7 @@ public class PlaceholderHelper {
   /** Unregister all placeholders */
   public void unregisterAll() {
     placeholders.clear();
+    ACTIVE_HELPERS.remove(scriptName);
 
     if (expansion != null && papiAvailable) {
       try {
@@ -172,41 +187,184 @@ public class PlaceholderHelper {
 
   private void registerExpansion() {
     try {
-      Class<?> expansionClass =
-          Class.forName("me.clip.placeholderapi.expansion.PlaceholderExpansion");
+      Class<?> expansionClass = createDynamicExpansionClass();
+      if (expansionClass == null) {
+        return;
+      }
 
-      // Create anonymous expansion class
-      expansion =
-          java.lang.reflect.Proxy.newProxyInstance(
-              getClass().getClassLoader(),
-              new Class[] {expansionClass},
-              (proxy, method, args) -> {
-                String methodName = method.getName();
-
-                return switch (methodName) {
-                  case "getIdentifier" -> scriptName.toLowerCase();
-                  case "getAuthor" -> "JavaSkript";
-                  case "getVersion" -> "1.0.0";
-                  case "persist" -> true;
-                  case "onPlaceholderRequest" -> {
-                    if (args != null && args.length >= 2) {
-                      OfflinePlayer player = (OfflinePlayer) args[0];
-                      String params = (String) args[1];
-                      yield getPlaceholder(params, player, params);
-                    }
-                    yield null;
-                  }
-                  default -> null;
-                };
-              });
-
-      // Register the expansion
+      expansion = expansionClass.getDeclaredConstructor().newInstance();
       expansionClass.getMethod("register").invoke(expansion);
-
+      plugin.debug("[" + scriptName + "] Registered PlaceholderExpansion successfully");
     } catch (Exception e) {
       plugin
           .getLogger()
           .log(Level.SEVERE, "[" + scriptName + "] Failed to register PlaceholderAPI expansion", e);
+    }
+  }
+
+  private Class<?> createDynamicExpansionClass() {
+    try {
+      String safeName = scriptName.replaceAll("[^a-zA-Z0-9_]", "_");
+      String internalName =
+          "dev/mukulx/javaskript/api/papi/DynamicExpansion_"
+              + safeName
+              + "_"
+              + System.currentTimeMillis();
+
+      ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+      cw.visit(
+          Opcodes.V21,
+          Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER,
+          internalName,
+          null,
+          "me/clip/placeholderapi/expansion/PlaceholderExpansion",
+          null);
+
+      // Constructor
+      {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        mv.visitCode();
+        mv.visitVarInsn(Opcodes.ALOAD, 0);
+        mv.visitMethodInsn(
+            Opcodes.INVOKESPECIAL,
+            "me/clip/placeholderapi/expansion/PlaceholderExpansion",
+            "<init>",
+            "()V",
+            false);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // getIdentifier()
+      {
+        MethodVisitor mv =
+            cw.visitMethod(Opcodes.ACC_PUBLIC, "getIdentifier", "()Ljava/lang/String;", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn(scriptName.toLowerCase());
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // getAuthor()
+      {
+        MethodVisitor mv =
+            cw.visitMethod(Opcodes.ACC_PUBLIC, "getAuthor", "()Ljava/lang/String;", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn("JavaSkript");
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // getVersion()
+      {
+        MethodVisitor mv =
+            cw.visitMethod(Opcodes.ACC_PUBLIC, "getVersion", "()Ljava/lang/String;", null, null);
+        mv.visitCode();
+        mv.visitLdcInsn("1.0.0");
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // persist()
+      {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "persist", "()Z", null, null);
+        mv.visitCode();
+        mv.visitInsn(Opcodes.ICONST_1);
+        mv.visitInsn(Opcodes.IRETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // canRegister()
+      {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "canRegister", "()Z", null, null);
+        mv.visitCode();
+        mv.visitInsn(Opcodes.ICONST_1);
+        mv.visitInsn(Opcodes.IRETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+      }
+
+      // onRequest(OfflinePlayer, String)
+      {
+        MethodVisitor mv =
+            cw.visitMethod(
+                Opcodes.ACC_PUBLIC,
+                "onRequest",
+                "(Lorg/bukkit/OfflinePlayer;Ljava/lang/String;)Ljava/lang/String;",
+                null,
+                null);
+        mv.visitCode();
+        mv.visitLdcInsn(scriptName);
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        mv.visitVarInsn(Opcodes.ALOAD, 2);
+        mv.visitMethodInsn(
+            Opcodes.INVOKESTATIC,
+            "dev/mukulx/javaskript/api/PlaceholderHelper",
+            "handlePlaceholder",
+            "(Ljava/lang/String;Lorg/bukkit/OfflinePlayer;Ljava/lang/String;)Ljava/lang/String;",
+            false);
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(3, 3);
+        mv.visitEnd();
+      }
+
+      // onPlaceholderRequest(Player, String)
+      {
+        MethodVisitor mv =
+            cw.visitMethod(
+                Opcodes.ACC_PUBLIC,
+                "onPlaceholderRequest",
+                "(Lorg/bukkit/entity/Player;Ljava/lang/String;)Ljava/lang/String;",
+                null,
+                null);
+        mv.visitCode();
+        mv.visitLdcInsn(scriptName);
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        mv.visitVarInsn(Opcodes.ALOAD, 2);
+        mv.visitMethodInsn(
+            Opcodes.INVOKESTATIC,
+            "dev/mukulx/javaskript/api/PlaceholderHelper",
+            "handlePlaceholder",
+            "(Ljava/lang/String;Lorg/bukkit/OfflinePlayer;Ljava/lang/String;)Ljava/lang/String;",
+            false);
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(3, 3);
+        mv.visitEnd();
+      }
+
+      cw.visitEnd();
+      byte[] bytecode = cw.toByteArray();
+
+      ClassLoader loader =
+          new ClassLoader(plugin.getClass().getClassLoader()) {
+            public Class<?> define(String name, byte[] b) {
+              return defineClass(name, b, 0, b.length);
+            }
+          };
+
+      return ((ByteArrayClassLoader)
+              (Object) new ByteArrayClassLoader(plugin.getClass().getClassLoader()))
+          .define(internalName.replace('/', '.'), bytecode);
+    } catch (Exception e) {
+      plugin
+          .getLogger()
+          .log(Level.SEVERE, "[" + scriptName + "] Failed to generate expansion class", e);
+      return null;
+    }
+  }
+
+  private static class ByteArrayClassLoader extends ClassLoader {
+    public ByteArrayClassLoader(ClassLoader parent) {
+      super(parent);
+    }
+
+    public Class<?> define(String name, byte[] b) {
+      return defineClass(name, b, 0, b.length);
     }
   }
 }

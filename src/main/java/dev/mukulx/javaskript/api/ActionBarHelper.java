@@ -17,8 +17,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Comprehensive ActionBar API with full Adventure API support. Supports gradients, animations,
- * MiniMessage, and all text formatting.
- * ponytail: Folia-safe via runtime scheduler dispatch
+ * MiniMessage, and all text formatting. ponytail: Folia-safe via runtime scheduler dispatch
  */
 public class ActionBarHelper {
 
@@ -72,25 +71,35 @@ public class ActionBarHelper {
   // Persistent (stays until manually cleared, refreshes every second)
   public void sendPersistent(Player player, String text) {
     cancelTask(player);
-    Object task = scheduleRepeating(player, () -> {
-      if (!player.isOnline()) {
-        cancelTask(player);
-        return;
-      }
-      send(player, text);
-    }, 0L, 20L);
+    Object task =
+        scheduleRepeating(
+            player,
+            () -> {
+              if (!player.isOnline()) {
+                cancelTask(player);
+                return;
+              }
+              send(player, text);
+            },
+            0L,
+            20L);
     activeTasks.put(player.getUniqueId(), task);
   }
 
   public void sendPersistentMini(Player player, String miniMessageText) {
     cancelTask(player);
-    Object task = scheduleRepeating(player, () -> {
-      if (!player.isOnline()) {
-        cancelTask(player);
-        return;
-      }
-      sendMini(player, miniMessageText);
-    }, 0L, 20L);
+    Object task =
+        scheduleRepeating(
+            player,
+            () -> {
+              if (!player.isOnline()) {
+                cancelTask(player);
+                return;
+              }
+              sendMini(player, miniMessageText);
+            },
+            0L,
+            20L);
     activeTasks.put(player.getUniqueId(), task);
   }
 
@@ -100,14 +109,19 @@ public class ActionBarHelper {
     if (frames.isEmpty()) return;
 
     final int[] index = {0};
-    Object task = scheduleRepeating(player, () -> {
-      if (!player.isOnline()) {
-        cancelTask(player);
-        return;
-      }
-      sendMini(player, frames.get(index[0]));
-      index[0] = (index[0] + 1) % frames.size();
-    }, 0L, interval);
+    Object task =
+        scheduleRepeating(
+            player,
+            () -> {
+              if (!player.isOnline()) {
+                cancelTask(player);
+                return;
+              }
+              sendMini(player, frames.get(index[0]));
+              index[0] = (index[0] + 1) % frames.size();
+            },
+            0L,
+            interval);
     activeTasks.put(player.getUniqueId(), task);
   }
 
@@ -144,13 +158,16 @@ public class ActionBarHelper {
 
   // Cleanup
   public void shutdown() {
-    activeTasks.values().forEach(task -> {
-      if (task instanceof BukkitTask) {
-        ((BukkitTask) task).cancel();
-      } else if (task instanceof ScheduledTask) {
-        ((ScheduledTask) task).cancel();
-      }
-    });
+    activeTasks
+        .values()
+        .forEach(
+            task -> {
+              if (task instanceof BukkitTask) {
+                ((BukkitTask) task).cancel();
+              } else if (task instanceof ScheduledTask) {
+                ((ScheduledTask) task).cancel();
+              }
+            });
     activeTasks.clear();
   }
 
@@ -164,7 +181,9 @@ public class ActionBarHelper {
 
   private Object scheduleRepeating(Player player, Runnable task, long delay, long period) {
     if (ServerUtil.isFolia()) {
-      return player.getScheduler().runAtFixedRate(plugin, scheduledTask -> task.run(), null, delay, period);
+      return player
+          .getScheduler()
+          .runAtFixedRate(plugin, scheduledTask -> task.run(), null, delay, period);
     } else {
       return Bukkit.getScheduler().runTaskTimer(plugin, task, delay, period);
     }

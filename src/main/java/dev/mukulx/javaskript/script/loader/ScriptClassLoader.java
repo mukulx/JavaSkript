@@ -137,5 +137,13 @@ public class ScriptClassLoader extends URLClassLoader {
 
   public void unloadAll() {
     loadedClasses.clear();
+    try {
+      close();
+    } catch (Exception e) {
+      plugin
+          .getLogger()
+          .log(
+              java.util.logging.Level.WARNING, "[" + scriptName + "] Error closing ClassLoader", e);
+    }
   }
 }
