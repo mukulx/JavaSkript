@@ -34,6 +34,7 @@ public class ScriptInstance {
   private RecipeHelper recipes;
   private DialogHelper dialog;
   private PDCHelper pdc;
+  private HologramHelper holograms;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -75,6 +76,7 @@ public class ScriptInstance {
       this.recipes = new RecipeHelper(plugin, scriptName);
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
+      this.holograms = new HologramHelper(plugin);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -255,6 +257,8 @@ public class ScriptInstance {
               field.set(instance, dialog);
             } else if (type.isAssignableFrom(PDCHelper.class)) {
               field.set(instance, pdc);
+            } else if (type.isAssignableFrom(HologramHelper.class)) {
+              field.set(instance, holograms);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -288,6 +292,11 @@ public class ScriptInstance {
                 || name.equals("persistentdata")
                 || name.equals("nbt")) {
               field.set(instance, pdc);
+            } else if (name.equals("hologram")
+                || name.equals("holograms")
+                || name.equals("holo")
+                || name.equals("displays")) {
+              field.set(instance, holograms);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -404,6 +413,17 @@ public class ScriptInstance {
       }
     } catch (Exception e) {
       plugin.getLogger().warning("Error unregistering recipes (continuing): " + e.getMessage());
+    }
+
+    // Despawn holograms (force it)
+    try {
+      if (holograms != null) {
+        holograms.removeAll();
+        holograms = null;
+        plugin.debug("Removed holograms for: " + scriptName);
+      }
+    } catch (Exception e) {
+      plugin.getLogger().warning("Error removing holograms (continuing): " + e.getMessage());
     }
 
     // Unregister events if listener (force it)
@@ -641,6 +661,14 @@ public class ScriptInstance {
 
   public PDCHelper getPdc() {
     return pdc;
+  }
+
+  public HologramHelper getHolograms() {
+    return holograms;
+  }
+
+  public HologramHelper getHologramHelper() {
+    return holograms;
   }
 
   public boolean isFoliaCompatible() {

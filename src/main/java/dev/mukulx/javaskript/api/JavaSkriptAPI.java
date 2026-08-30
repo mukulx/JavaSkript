@@ -15,6 +15,7 @@ public class JavaSkriptAPI {
   private final SoundHelper soundHelper;
   private final DialogHelper dialogHelper;
   private final PDCHelper pdcHelper;
+  private final HologramHelper hologramHelper;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -24,6 +25,16 @@ public class JavaSkriptAPI {
     this.soundHelper = new SoundHelper();
     this.dialogHelper = new DialogHelper(plugin);
     this.pdcHelper = new PDCHelper(plugin);
+    this.hologramHelper = new HologramHelper(plugin);
+  }
+
+  /**
+   * Get the Hologram helper for creating modern Display Entity holograms
+   *
+   * @return HologramHelper instance
+   */
+  public HologramHelper getHologramHelper() {
+    return hologramHelper;
   }
 
   /**

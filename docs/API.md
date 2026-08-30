@@ -12,7 +12,8 @@ Complete reference for all JavaSkript APIs available to scripts.
 6. [ActionBarHelper](#actionbarhelper)
 7. [DialogHelper](#dialoghelper)
 8. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
-9. [Annotations](#annotations)
+9. [HologramHelper (Display Entities)](#hologramhelper-display-entities)
+10. [Annotations](#annotations)
 
 ---
 
@@ -1450,6 +1451,62 @@ public void onBossDeath(EntityDeathEvent event) {
         // Custom loot logic
     }
 }
+```
+
+---
+
+## HologramHelper (Display Entities)
+
+Modern Paper Display Entity system for creating zero-lag floating text, 3D items, and 3D blocks without armor stands or external plugins.
+
+### Auto-Injection
+```java
+private HologramHelper holograms; // Automatically injected!
+```
+
+### Methods
+
+#### 1. Dynamic Auto-Refreshing Leaderboard
+```java
+Hologram holo = holograms.create(location)
+    .line("<gradient:#ff5555:#ffaa00><bold>✦ LEADERBOARD ✦</bold></gradient>")
+    .line("<yellow>#1 Mukul - 1,450 Kills</yellow>")
+    .line("")
+    .line(() -> "<gray>Online: <green>" + Bukkit.getOnlinePlayers().size() + "</green></gray>")
+    .billboard(Display.Billboard.CENTER)
+    .shadow(true)
+    .lineSpacing(0.28)
+    .updateInterval(20) // Updates dynamic lines every second
+    .spawn();
+```
+
+#### 2. Floating 3D Item Showcase
+```java
+ItemStack sword = new ItemStack(Material.NETHERITE_SWORD);
+
+holograms.create(location)
+    .line("<gradient:#aa00aa:#ff55ff><bold>Excalibur</bold></gradient>")
+    .item(sword, 1.2)
+    .glowing(true)
+    .glowColor(Color.PURPLE)
+    .spawn();
+```
+
+#### 3. Floating 3D Block Showcase
+```java
+holograms.create(location)
+    .line("<aqua><bold>Enchantment Altar</bold></aqua>")
+    .block(Material.ENCHANTING_TABLE)
+    .scale(0.8)
+    .spawn();
+```
+
+#### 4. Hologram Management
+```java
+holo.teleport(newLocation); // Move smoothly
+holo.setLine(0, "<green>New Title</green>");
+holo.remove(); // Despawn specific hologram
+holograms.removeAll(); // Clear all holograms
 ```
 
 ---

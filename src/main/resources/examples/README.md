@@ -22,6 +22,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 - **GUIExample.java** - Interactive inventory GUIs (small, large, shop examples)
 - **DialogExample.java** - Native Minecraft dialogs (alerts, confirmations, multi-action menus, forms)
 - **PDCExample.java** - PersistentDataContainer (PDC / NBT) on items and entities
+- **HologramExample.java** - Modern Display Entity holograms (floating text, 3D items, blocks)
 - **PlaceholderExample.java** - Custom PlaceholderAPI placeholders
 - **PermissionExample.java** - Dynamic permission registration
 
@@ -74,6 +75,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 | GUI Builder | GUIExample (small, large, shop examples), ExtraInventory |
 | Paper Dialogs | DialogExample |
 | PersistentData (PDC) | PDCExample |
+| Modern Holograms | HologramExample |
 | PlaceholderAPI | PlaceholderExample |
 | Multiple Classes | MultiClassExample (managers, utilities, data classes) |
 | Maven Dependencies | ExtraInventory (HikariCP) |
