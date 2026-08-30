@@ -3,6 +3,7 @@ package dev.mukulx.javaskript.script;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.*;
 import dev.mukulx.javaskript.api.command.CommandHelper;
+import dev.mukulx.javaskript.api.item.ItemHelper;
 import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
@@ -42,6 +43,7 @@ public class ScriptInstance {
   private PDCHelper pdc;
   private HologramHelper holograms;
   private CommandHelper commands;
+  private ItemHelper items;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -85,6 +87,7 @@ public class ScriptInstance {
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
       this.commands = new CommandHelper(plugin, scriptKey);
+      this.items = new ItemHelper(plugin);
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -268,6 +271,8 @@ public class ScriptInstance {
               field.set(instance, holograms);
             } else if (type.isAssignableFrom(CommandHelper.class)) {
               field.set(instance, commands);
+            } else if (type.isAssignableFrom(ItemHelper.class)) {
+              field.set(instance, items);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -311,6 +316,10 @@ public class ScriptInstance {
                 || name.equals("commandapi")
                 || name.equals("cmd")) {
               field.set(instance, commands);
+            } else if (name.equals("items")
+                || name.equals("itemhelper")
+                || name.equals("itembuilder")) {
+              field.set(instance, items);
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
@@ -782,6 +791,14 @@ public class ScriptInstance {
 
   public CommandHelper getCommandHelper() {
     return commands;
+  }
+
+  public ItemHelper getItems() {
+    return items;
+  }
+
+  public ItemHelper getItemHelper() {
+    return items;
   }
 
   public boolean isFoliaCompatible() {

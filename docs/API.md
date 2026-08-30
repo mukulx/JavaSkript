@@ -302,43 +302,76 @@ Row 5: 36 37 38 39 40 41 42 43 44
 Row 6: 45 46 47 48 49 50 51 52 53
 ```
 
-#### `ItemBuilder`
-Easy item creation with method chaining.
+#### `ItemBuilder` & `ItemHelper`
+Easy, fluent item creation with MiniMessage formatting, specialized meta, and full Bukkit extensibility.
+
+**Script Auto-Injection:**
+```java
+private ItemHelper items; // Automatically injected!
+```
+
+**Static & Instance Factories:**
+- `ItemBuilder.of(Material material)`
+- `ItemBuilder.of(Material material, int amount)`
+- `ItemBuilder.from(ItemStack item)` - clone & edit existing item
+- `ItemBuilder.skull(String playerNameOrBase64)` - custom heads & textures
+- `items.create(Material.NETHERITE_SWORD)`
 
 ```java
-import dev.mukulx.javaskript.api.gui.ItemBuilder;
-
-var item = new ItemBuilder(Material.DIAMOND)
-    .name("Diamond")
-    .lore("Line 1", "Line 2")
-    .amount(5)
+ItemStack sword = items.create(Material.NETHERITE_SWORD)
+    .name("<gradient:#ff5555:#ffaa00><bold>EXCALIBUR</bold></gradient>")
+    .lore(
+        "&7An ancient blade pulled from stone.",
+        "",
+        "&c+25 Attack Damage",
+        "&4&lLEGENDARY ARTIFACT"
+    )
+    .enchant(Enchantment.SHARPNESS, 6)
+    .unbreakable()
+    .pdc("ability", "lightning_strike")
+    .customModelData(1042)
     .glow()
     .build();
 ```
 
-**Constructor:**
-- `ItemBuilder(Material material)` - Create builder with material
+**Display & Formatting:**
+- `name(String name)` - Auto-parses MiniMessage (`<gradient:...>`, `<bold>`, `<rainbow>`) and legacy (`&a`, `&l`)
+- `name(Component name)` - Kyori Adventure Component
+- `lore(String... lines)` / `lore(List<String> lines)` - Auto-parses MiniMessage & legacy
+- `appendLore(String... lines)` - Append extra lines
+- `clearLore()` - Clear lore
 
-**Display:**
-- `name(String name)` - Set display name (plain text)
-- `name(Component name)` - Set display name (Component)
-- `lore(String... lines)` - Set lore (plain text)
-- `lore(Component... lines)` - Set lore (Components)
-- `lore(List<String> lines)` - Set lore (List)
+**Properties & Flags:**
+- `amount(int amount)` - Set stack count
+- `glow()` / `glow(boolean glow)` - Add/remove shimmer glow
+- `enchant(Enchantment ench)` / `enchant(Enchantment ench, int level)` - Add enchantment
+- `removeEnchant(Enchantment ench)` / `clearEnchants()`
+- `unbreakable()` / `unbreakable(boolean unbreakable)`
+- `damage(int damage)` / `durability(int durability)`
+- `customModelData(Integer data)`
+- `flags(ItemFlag... flags)` / `hideAll()`
 
-**Properties:**
-- `amount(int amount)` - Set item amount (1-64)
-- `glow()` - Make item glow (adds fake enchantment)
-- `enchant(Enchantment ench, int level)` - Add enchantment
-- `unbreakable(boolean unbreakable)` - Set unbreakable
-- `customModelData(int data)` - Set custom model data
+**Specialized Item Meta:**
+- **Player Skulls:** `skullOwner(OfflinePlayer player)`, `skullOwner(String name)`, `skullTexture(String base64OrUrl)`
+- **Leather Armor:** `color(Color color)`, `color(int r, int g, int b)`, `color(int rgbHex)`
+- **Potions:** `potionType(PotionType type)`, `potionColor(Color color)`, `addPotionEffect(PotionEffect effect)`
 
-**Flags:**
-- `flags(ItemFlag... flags)` - Add item flags
-- `hideAll()` - Hide all attributes/enchantments/etc
+**PersistentDataContainer (PDC):**
+- `pdc(String key, String value)`
+- `pdc(String key, int value)`
+- `pdc(String key, double value)`
+- `pdc(String key, boolean value)`
+- `pdc(NamespacedKey key, PersistentDataType type, Object value)`
+- `hasPdc(String key)`
 
-**Build:**
-- `build()` - Build the ItemStack
+**Open Meta Mutator (100% Extensible):**
+- `meta(Consumer<ItemMeta> consumer)` - Directly mutate raw `ItemMeta`
+- `<M extends ItemMeta> meta(Class<M> metaClass, Consumer<M> consumer)` - Mutate specialized meta (`BookMeta`, `BannerMeta`, `FireworkMeta`, `EnchantmentStorageMeta`)
+
+**Give & Clone:**
+- `give(Player player)` - Directly give item to player (drops on ground if inventory full)
+- `clone()` - Duplicate builder state
+- `build()` - Build final `ItemStack`
 
 ### Example
 

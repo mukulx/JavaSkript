@@ -47,6 +47,24 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get an ItemHelper for creating and manipulating custom items.
+   *
+   * @return An ItemHelper instance
+   */
+  public dev.mukulx.javaskript.api.item.ItemHelper getItemHelper() {
+    return new dev.mukulx.javaskript.api.item.ItemHelper(plugin);
+  }
+
+  /**
+   * Get an ItemHelper for creating and manipulating custom items (alias).
+   *
+   * @return An ItemHelper instance
+   */
+  public dev.mukulx.javaskript.api.item.ItemHelper items() {
+    return getItemHelper();
+  }
+
+  /**
    * Get the Hologram helper for creating modern Display Entity holograms
    *
    * @return HologramHelper instance
