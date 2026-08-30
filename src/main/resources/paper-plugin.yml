@@ -13,7 +13,7 @@ commands:
   javaskript:
     description: JavaSkript main command
     aliases: [js, jskript]
-    usage: /<command> [reload|restart|configreload|list|load|unload|enable|disable|info] <script|all>
+    usage: /<command> [reload|restart|configreload|list|load|unload|enable|disable|info|profile|benchmark] <script|all>
     permission: javaskript.admin
 
 permissions:

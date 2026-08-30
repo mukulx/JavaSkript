@@ -22,11 +22,12 @@ If you already know Java, JavaSkript makes rapid prototyping and testing much fa
 - Write Java in `.java` files - no IDE or build tools required
 - Hot-reload - scripts auto-reload when files change
 - Dynamic Maven dependencies - use any library from Maven Central
-- Full Paper and Folia support
-- Built-in APIs: Scheduler, Config, Database (SQLite), GUI, PlaceholderAPI
+- Full Paper and Folia support with automatic thread scheduling
+- Built-in Modern APIs: Lambda Events, Players Utility, Interactive Chat API, Command Builder, Item Builder, Cooldowns, Display Entity Holograms, GUI Menus, Database (SQLite), Config, Scheduler
+- Real-time nanosecond profiler and benchmark engine (`/js profile`, `/js benchmark`)
 - Dynamic commands and permissions - no plugin.yml needed
 - Multiple classes per file
-- High performance - compiles to native bytecode
+- High performance - compiles to native bytecode with in-memory caching
 
 ## Quick Start
 
@@ -76,27 +77,31 @@ Save the file - it loads automatically!
 
 All commands require `javaskript.admin` permission (default: op). Aliases: `/js`, `/jskript`
 
-- `/js reload [script]` - Reload scripts
-- `/js list` - List all scripts
+- `/js reload [script|all]` - Reload scripts
+- `/js list` - List all loaded scripts
 - `/js load <script>` - Load a script
 - `/js unload <script>` - Unload a script
 - `/js enable/disable <script>` - Enable/disable scripts
 - `/js info <script>` - Show script info
+- `/js profile [start|stop|top]` - Real-time nanosecond CPU performance profiler
+- `/js benchmark <script>` - Benchmark script methods with execution metrics
 - `/js debug` - Toggle debug mode
 
 ## Example Scripts
 
 Ready-to-use examples in [src/main/resources/examples](src/main/resources/examples/):
 
-- Commands: HealCommand, FlyCommand
-- Events: WelcomeScript, Example
-- Config: ConfigExample
-- Database: DatabaseExample, ExtraInventory (HikariCP)
-- GUI: GUIExample
-- Scheduler: SchedulerExample
-- PlaceholderAPI: PlaceholderExample
-- Permissions: PermissionExample
-- Multi-class: MultiClassExample
+- **ChatAPI**: ChatAPIExample (interactive buttons, confirms, prompts, pagers)
+- **Commands**: CommandAPIExample, HealCommand, FlyCommand
+- **Events & Players**: EventAndPlayerExample, WelcomeScript, Example
+- **Items & Cooldowns**: ItemBuilderExample, CooldownExample
+- **Display Holograms**: HologramExample
+- **Config & Storage**: ConfigExample, DatabaseExample, ExtraInventory (HikariCP)
+- **GUI & Display**: GUIExample, BossBarExample, TitleExample, ActionBarExample
+- **Scheduler**: SchedulerExample, RestartTimerCommand
+- **PlaceholderAPI**: PlaceholderExample
+- **Permissions**: PermissionExample
+- **Multi-class**: MultiClassExample
 
 ## API for Other Plugins
 
