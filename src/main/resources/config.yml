@@ -18,6 +18,13 @@ debug:
   # Can be toggled with /js debug command while server is running
   enabled: false
 
+# Error & Diagnostic Settings
+errors:
+  # Enable clean, smart script stack traces in console
+  # If true, isolates the exact script file and line number while stripping out 60+ internal Paper/Folia reflection frames
+  # If false, prints the full standard Java stack trace
+  clean-stack-traces: true
+
 # Update Checker
 update-checker:
   # Check for updates on Modrinth when server starts

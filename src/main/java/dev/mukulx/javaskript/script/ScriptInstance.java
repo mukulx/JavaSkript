@@ -117,9 +117,7 @@ public class ScriptInstance {
           onEnableMethod.invoke(instance);
           plugin.debug("Called onEnable for: " + scriptFile.getName());
         } catch (Exception e) {
-          plugin
-              .getLogger()
-              .log(Level.WARNING, "Error calling onEnable for: " + scriptFile.getName(), e);
+          dev.mukulx.javaskript.util.ScriptErrorFormatter.log(plugin, scriptKey, "onEnable()", e);
         }
       }
 
@@ -453,16 +451,11 @@ public class ScriptInstance {
               method.invoke(l, event);
             } catch (InvocationTargetException ite) {
               Throwable cause = ite.getCause() != null ? ite.getCause() : ite;
-              plugin
-                  .getLogger()
-                  .log(
-                      Level.SEVERE,
-                      "Error in event handler " + method.getName() + " of script " + scriptKey,
-                      cause);
+              dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
+                  plugin, scriptKey, "event handler " + method.getName(), cause);
             } catch (Exception ex) {
-              plugin
-                  .getLogger()
-                  .log(Level.SEVERE, "Error dispatching event to script " + scriptKey, ex);
+              dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
+                  plugin, scriptKey, "event dispatching " + eventClass.getSimpleName(), ex);
             } finally {
               long elapsed = System.nanoTime() - t0;
               plugin.getProfiler().record(scriptKey, "EVENT", eventClass.getSimpleName(), elapsed);
@@ -540,9 +533,7 @@ public class ScriptInstance {
         onDisableMethod.invoke(instance);
         plugin.debug("Called onDisable for: " + scriptName);
       } catch (Exception e) {
-        plugin
-            .getLogger()
-            .warning("Error calling onDisable (continuing unload): " + e.getMessage());
+        dev.mukulx.javaskript.util.ScriptErrorFormatter.log(plugin, scriptName, "onDisable()", e);
       }
     }
 

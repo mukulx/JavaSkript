@@ -338,15 +338,8 @@ public class EventHelper {
         if (errorHandler != null) {
           errorHandler.accept(t);
         } else {
-          plugin
-              .getLogger()
-              .severe(
-                  "["
-                      + scriptName
-                      + "] Error handling event "
-                      + eventClass.getSimpleName()
-                      + ": "
-                      + t.getMessage());
+          dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
+              plugin, scriptName, "event handler " + eventClass.getSimpleName(), t);
         }
       } finally {
         long duration = System.nanoTime() - start;

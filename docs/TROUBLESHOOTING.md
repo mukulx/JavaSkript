@@ -205,6 +205,25 @@ public void onPluginEnable(PluginEnableEvent event) {
 
 ---
 
+### Clean Script Stack Traces
+
+By default, JavaSkript intercepts script exceptions and formats them cleanly in the console, highlighting the exact script line:
+
+```text
+[Script Error] pvp/CombatLog.java:42 (in onAttack)
+   ↳ NullPointerException: Cannot invoke "Player.getName()" because "target" is null
+```
+
+If you ever need the full unformatted 60-line Java stack trace for advanced debugging:
+1. Run `/js debug` in-game or console.
+2. Or change the setting in `plugins/JavaSkript/config.yml`:
+   ```yaml
+   errors:
+     clean-stack-traces: false
+   ```
+
+---
+
 ## Getting Help
 
 1. Check console for error messages

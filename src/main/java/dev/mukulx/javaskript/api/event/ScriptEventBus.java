@@ -78,15 +78,8 @@ public class ScriptEventBus {
       try {
         sub.getHandler().accept(ctx);
       } catch (Throwable t) {
-        plugin
-            .getLogger()
-            .severe(
-                "[EventBus] Error executing listener in "
-                    + sub.getScriptKey()
-                    + " for event '"
-                    + eventName
-                    + "': "
-                    + t.getMessage());
+        dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
+            plugin, sub.getScriptKey(), "event listener for '" + eventName + "'", t);
       }
       if (sub.isOnce()) {
         if (toRemove == null) {
