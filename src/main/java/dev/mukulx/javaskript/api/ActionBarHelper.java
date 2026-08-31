@@ -31,9 +31,11 @@ public class ActionBarHelper {
     this.activeTasks = new ConcurrentHashMap<>();
   }
 
-  // Simple text
+  // Simple text (supports MiniMessage and legacy codes with plain-text fast path)
   public void send(Player player, String text) {
-    player.sendActionBar(Component.text(text));
+    if (player != null && text != null) {
+      player.sendActionBar(dev.mukulx.javaskript.util.TextUtil.parse(text));
+    }
   }
 
   // Colored text

@@ -1550,9 +1550,19 @@ holograms.removeAll(); // Clear all holograms
 
 Thread-safe, memory-leak-free cooldown engine for player abilities, combat tags, commands, and global server rate limits.
 
-### Auto-Injection
+### Usage: Injection or Static Facade
 ```java
-private CooldownHelper cooldowns; // Automatically injected!
+// Option A: Auto-injected field
+private CooldownHelper cooldowns;
+
+// Option B: 1-line static facade anywhere (no injection needed!)
+if (Cooldowns.has(player, "fireball")) {
+    double sec = Cooldowns.remainingSeconds(player, "fireball");
+    Players.msg(player, "<red>Wait " + sec + "s!");
+    return;
+}
+Cooldowns.set(player, "fireball", Duration.ofSeconds(15));
+Cooldowns.showTicker(player, "fireball", "Fireball");
 ```
 
 ### Methods & Features
@@ -1665,6 +1675,14 @@ Players.sound(player, Sound.ENTITY_PLAYER_LEVELUP);
 Players.sound(player, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.5f);
 Players.title(player, "<gold>LEVEL UP", "<yellow>You reached level 10!");
 Players.actionBar(player, "<red>⚔ +25 Damage Dealt");
+
+// Dedicated 1-line audio fanfares & feedback chords via Sounds facade:
+Sounds.success(player);  // High-pitch chime for completed actions
+Sounds.fail(player);     // Low bass note for errors / denied actions
+Sounds.click(player);    // UI button click
+Sounds.levelup(player);  // Grand level up fanfare
+Sounds.chime(player);    // Notification bell chime
+Sounds.play(loc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER);
 ```
 
 ### 3. Stats, Healing & Inventory

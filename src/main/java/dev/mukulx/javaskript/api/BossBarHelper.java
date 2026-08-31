@@ -35,7 +35,7 @@ public class BossBarHelper {
 
   public void show(
       Player player, String text, float progress, BossBar.Color color, BossBar.Overlay style) {
-    Component message = Component.text(text);
+    Component message = dev.mukulx.javaskript.util.TextUtil.parse(text);
     showComponent(player, message, progress, color, style);
   }
 

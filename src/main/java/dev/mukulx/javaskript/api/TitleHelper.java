@@ -18,11 +18,11 @@ public class TitleHelper {
   }
 
   private Component toComponent(String text) {
-    return text != null ? Component.text(text) : Component.empty();
+    return dev.mukulx.javaskript.util.TextUtil.parse(text);
   }
 
   private Component toMiniComponent(String text) {
-    return text != null ? miniMessage.deserialize(text) : Component.empty();
+    return toComponent(text);
   }
 
   public void send(Player player, String title) {
