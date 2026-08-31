@@ -72,14 +72,14 @@ JavaSkript scripts go through several stages:
 
 ```java
 public MyScript() {
-    // ✓ GOOD: Initialize simple fields
+    // Good: Initialize simple fields
     this.playerData = new HashMap<>();
     this.enabled = false;
     
-    // ✗ BAD: Don't use APIs (they're null!)
+    // Avoid: Don't use APIs (they're null!)
     // scheduler.runLater(() -> {}, 20L); // NullPointerException!
     
-    // ✗ BAD: Don't do heavy work
+    // Avoid: Don't do heavy work
     // loadAllDataFromDatabase(); // Too early!
 }
 ```
@@ -92,21 +92,21 @@ public MyScript() {
 
 ```java
 public void onEnable() {
-    // ✓ GOOD: Now APIs are available
+    // Good: Now APIs are available
     scheduler.everyMinute(() -> {
         Bukkit.broadcast(Component.text("Tick!"));
     });
     
-    // ✓ GOOD: Load configuration
+    // Good: Load configuration
     boolean enabled = config.getBoolean("config.yml", "enabled", true);
     
-    // ✓ GOOD: Initialize database
+    // Good: Initialize database
     database.createTable("players", 
         "uuid TEXT PRIMARY KEY",
         "name TEXT NOT NULL"
     );
     
-    // ✓ GOOD: Start background tasks
+    // Good: Start background tasks
     loadDataAsync();
     
     Bukkit.getLogger().info("[MyScript] Enabled!");
@@ -121,18 +121,18 @@ public void onEnable() {
 
 ```java
 public void onDisable() {
-    // ✓ GOOD: Save important data
+    // Good: Save important data
     saveAllPlayerData();
     
-    // ✓ GOOD: Close connections
+    // Good: Close connections
     if (hikariDataSource != null) {
         hikariDataSource.close();
     }
     
-    // ✓ GOOD: Clear caches
+    // Good: Clear caches
     playerCache.clear();
     
-    // ✓ GOOD: Cancel custom tasks
+    // Good: Cancel custom tasks
     if (customTask != null) {
         customTask.cancel();
     }
@@ -304,17 +304,17 @@ JavaSkript automatically cleans up:
 
 | Resource | Automatic Cleanup | Manual Cleanup Needed |
 |----------|-------------------|----------------------|
-| Event Listeners | ✓ Yes | No |
-| Commands | ✓ Yes | No |
-| Scheduler Tasks | ✓ Yes | No |
-| Database (DatabaseHelper) | ✓ Yes | No |
-| Placeholders | ✓ Yes | No |
-| Config Files | ✓ Yes | No |
-| Custom Threads | ✗ No | **Yes** |
-| Custom Executors | ✗ No | **Yes** |
-| File Handles | ✗ No | **Yes** |
-| Network Connections | ✗ No | **Yes** |
-| Custom Database Pools | ✗ No | **Yes** |
+| Event Listeners | Yes | No |
+| Commands | Yes | No |
+| Scheduler Tasks | Yes | No |
+| Database (DatabaseHelper) | Yes | No |
+| Placeholders | Yes | No |
+| Config Files | Yes | No |
+| Custom Threads | No | **Yes** |
+| Custom Executors | No | **Yes** |
+| File Handles | No | **Yes** |
+| Network Connections | No | **Yes** |
+| Custom Database Pools | No | **Yes** |
 
 ### Manual Cleanup Required
 

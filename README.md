@@ -10,7 +10,7 @@ JavaSkript is a scripting engine for Paper and Folia which allows developers to 
 
 If you already know Java, JavaSkript makes rapid prototyping and testing much faster. If you're learning Java, JavaSkript provides an easy way to experiment with the Paper API without the complexity of traditional plugin development.
 
-> **🔒 SECURITY WARNING** - Scripts run with plugin-level access. Review scripts before loading them.
+> **SECURITY WARNING** - Scripts run with plugin-level access. Review scripts before loading them.
 
 ## Requirements
 
@@ -31,8 +31,8 @@ If you already know Java, JavaSkript makes rapid prototyping and testing much fa
 
 ## Quick Start
 
-1. Build: `./gradlew clean build`
-2. Place `build/libs/JavaSkript-1.0.0.jar` in `plugins/` folder
+1. Build: `./gradlew clean build shadowJar`
+2. Place `build/libs/JavaSkript-1.1.0.jar` in `plugins/` folder
 3. Restart server
 4. Write scripts in `plugins/JavaSkript/scripts/`
 

@@ -46,7 +46,7 @@ class Utils {
 Only ONE class can be `public` - this is the main class that JavaSkript registers:
 
 ```java
-// ✅ Good - one public class
+// Good: one public class
 public class MyScript implements Listener {
     // main logic
 }
@@ -55,7 +55,7 @@ class Helper {
     // helper logic
 }
 
-// ❌ Bad - multiple public classes (Java doesn't allow this)
+// Avoid: multiple public classes (Java doesn't allow this)
 public class MyScript implements Listener { }
 public class MyOtherScript implements Listener { } // ERROR
 ```
@@ -64,7 +64,7 @@ public class MyOtherScript implements Listener { } // ERROR
 
 ```java
 // File: MyScript.java
-public class MyScript implements Listener {  // ✅ Matches file name
+public class MyScript implements Listener {  // Matches file name
     // ...
 }
 ```
@@ -248,22 +248,22 @@ class PlayerStats {
 
 ## Benefits
 
-### ✅ Better Organization
+### Better Organization
 Keep related code together instead of scattered across multiple files.
 
-### ✅ Easier to Manage
+### Easier to Manage
 One file per feature instead of many small files.
 
-### ✅ Cleaner Scripts Folder
+### Cleaner Scripts Folder
 Fewer files to navigate.
 
-### ✅ Standard Java
+### Standard Java
 This is how Java normally works - no special syntax to learn.
 
-### ✅ IDE Support
+### IDE Support
 IDEs understand this pattern perfectly - auto-completion, refactoring, etc. all work.
 
-### ✅ No Class Name Conflicts
+### No Class Name Conflicts
 Each script has its own isolated ClassLoader, so you can use common names like `Utils`, `Manager`, `Config` without worrying about conflicts with other scripts.
 
 **Example:** Both `EconomyScript.java` and `ShopScript.java` can have their own `Manager` class - they won't conflict because each script is isolated.
@@ -278,7 +278,7 @@ See [MultiClassExample.java](../src/main/resources/examples/MultiClassExample.ja
 
 ## Common Mistakes
 
-### ❌ Using APIs in Package-Private Class Constructors
+### Using APIs in Package-Private Class Constructors
 
 ```java
 public class MyScript implements Listener {
@@ -288,7 +288,7 @@ public class MyScript implements Listener {
 
 class Manager {
     Manager() {
-        // ❌ Can't access MyScript's scheduler here
+        // Cannot access MyScript's scheduler here
         // scheduler is not accessible from this class
     }
 }
@@ -305,7 +305,7 @@ public class MyScript implements Listener {
     public void onPluginEnable(PluginEnableEvent event) {
         if (!event.getPlugin().getName().equals("JavaSkript")) return;
         
-        // ✅ Create manager after APIs are injected
+        // Create manager after APIs are injected
         this.manager = new Manager(scheduler);
     }
 }
@@ -319,12 +319,12 @@ class Manager {
 }
 ```
 
-### ❌ Trying to Register Package-Private Classes
+### Trying to Register Package-Private Classes
 
 ```java
 public class MyScript implements Listener { }
 
-// ❌ This won't be registered as a listener
+// This won't be registered as a listener
 class MyOtherListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
@@ -341,7 +341,7 @@ public class MyScript implements Listener {
     
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        handler.process(event);  // ✅ Delegate to helper
+        handler.process(event);  // Delegate to helper
     }
 }
 
@@ -433,9 +433,9 @@ class Data {
 
 | Class Type | Registered as Listener? | Registered as Command? |
 |------------|------------------------|------------------------|
-| Public class | ✅ Yes (if implements Listener) | ✅ Yes (if implements CommandExecutor) |
-| Package-private class | ❌ No | ❌ No |
-| Inner class | ❌ No | ❌ No |
+| Public class | Yes (if implements Listener) | Yes (if implements CommandExecutor) |
+| Package-private class | No | No |
+| Inner class | No | No |
 
 **Only the public class is registered!** Other classes are helpers.
 
@@ -448,10 +448,10 @@ class Data {
 **Solution:** Ensure you have exactly one public class:
 
 ```java
-// ✅ Good
+// Good
 public class MyScript implements Listener { }
 
-// ❌ Bad - no public class
+// Avoid: no public class
 class MyScript implements Listener { }
 ```
 
@@ -463,7 +463,7 @@ class MyScript implements Listener { }
 
 ```java
 // File: MyScript.java
-public class MyScript implements Listener { }  // ✅ Names match
+public class MyScript implements Listener { }  // Names match
 ```
 
 ### Error: "Failed to define class"
@@ -485,7 +485,7 @@ public class MyScript implements Listener { }  // ✅ Names match
 **Solution:** Only the public class can have event handlers. Delegate from public class:
 
 ```java
-// ✅ Good
+// Good
 public class MyScript implements Listener {
     private Handler handler = new Handler();
     
@@ -537,11 +537,11 @@ class Manager {
 ```java
 // File: EconomyScript.java
 public class EconomyScript implements Listener { }
-class Utils { }  // ✅ OK
+class Utils { }  // OK
 
 // File: ShopScript.java  
 public class ShopScript implements Listener { }
-class Utils { }  // ✅ Also OK - different ClassLoader
+class Utils { }  // Also OK - different ClassLoader
 ```
 
 Both scripts can have a `Utils` class without any conflicts. JavaSkript automatically isolates each script's classes.

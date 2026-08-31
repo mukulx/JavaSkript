@@ -649,12 +649,12 @@ public void onEvent(SomeEvent event) {
 ### Null Checks
 
 ```java
-// ✅ Good - Always check for null
+// Good: Always check for null
 if (player != null && player.getInventory() != null) {
     player.getInventory().addItem(item);
 }
 
-// ❌ Bad - Can cause NullPointerException
+// Avoid: Can cause NullPointerException
 player.getInventory().addItem(item);
 ```
 
@@ -667,7 +667,7 @@ player.getInventory().addItem(item);
 ```java
 @EventHandler
 public void onEvent(PlayerEvent event) {
-    // ✅ Always do this
+    // Always do this
     if (event == null || event.getPlayer() == null) return;
     
     var player = event.getPlayer();
@@ -678,23 +678,23 @@ public void onEvent(PlayerEvent event) {
 ### 2. Use Modern Java Syntax
 
 ```java
-// ✅ Use var for local variables
+// Use var for local variables
 var player = event.getPlayer();
 var location = player.getLocation();
 
-// ✅ Use instanceof with pattern matching
+// Use instanceof with pattern matching
 if (sender instanceof Player player) {
     player.sendMessage("Hello!");
 }
 
-// ✅ Use List.of() for immutable lists
+// Use List.of() for immutable lists
 return List.of("option1", "option2", "option3");
 ```
 
 ### 3. Descriptive Names
 
 ```java
-// ✅ Good names
+// Good names
 public class WelcomeMessageScript implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -702,7 +702,7 @@ public class WelcomeMessageScript implements Listener {
     }
 }
 
-// ❌ Bad names
+// Avoid names
 public class Script1 implements Listener {
     @EventHandler
     public void a(PlayerJoinEvent e) {
@@ -734,12 +734,12 @@ public void onJoin(PlayerJoinEvent event) {
 
 Each script should do one thing well. Don't create massive scripts that do everything.
 
-✅ Good:
+ Good:
 - `WelcomeMessages.java` - Handles join/quit messages
 - `AntiSpam.java` - Prevents chat spam
 - `StarterKit.java` - Gives items to new players
 
-❌ Bad:
+ Bad:
 - `Everything.java` - Does all of the above
 
 ---
@@ -752,4 +752,4 @@ Now that you understand the basics, check out:
 - [README.md](README.md) - Full documentation
 - [Bukkit API Docs](https://hub.spigotmc.org/javadocs/bukkit/) - Complete API reference
 
-Happy scripting! 🎉
+Happy scripting! 

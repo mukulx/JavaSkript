@@ -16,7 +16,7 @@ public class MyScript implements Listener {
     private ScriptScheduler scheduler;
     
     public MyScript() {
-        scheduler.runLater(() -> {  // ❌ scheduler is null here!
+        scheduler.runLater(() -> {  // scheduler is null here!
             // code
         }, 100L);
     }
@@ -33,7 +33,7 @@ public class MyScript implements Listener {
     public void onPluginEnable(PluginEnableEvent event) {
         if (!event.getPlugin().getName().equals("JavaSkript")) return;
         
-        scheduler.runLater(() -> {  // ✅ scheduler is injected now!
+        scheduler.runLater(() -> {  // scheduler is injected now!
             // code
         }, 100L);
     }
@@ -159,7 +159,7 @@ public class MyScript implements Listener {
 
 ### Script Disabled Accidentally
 
-**Check:** `/js list` shows disabled scripts in red with ✗
+**Check:** `/js list` shows disabled scripts in red with [Disabled]
 
 **Solution:** `/js enable <script>`
 

@@ -7,11 +7,11 @@ This document explains how JavaSkript automatically registers commands for scrip
 ## Overview
 
 JavaSkript uses **dynamic command registration** to automatically register commands from scripts at runtime. This means:
-- ✅ No `plugin.yml` entries needed
-- ✅ Commands are registered when scripts load
-- ✅ Commands are unregistered when scripts unload
-- ✅ Tab completion works automatically
-- ✅ Works on Paper 1.19.4+
+- No `plugin.yml` entries needed
+- Commands are registered when scripts load
+- Commands are unregistered when scripts unload
+- Tab completion works automatically
+- Works on Paper 1.19.4+
 
 ---
 
@@ -232,19 +232,19 @@ commands:
 ```
 
 **Problems with this approach:**
-- ❌ Static - can't add commands at runtime
-- ❌ Requires plugin reload to add new commands
-- ❌ Scripts would need their own plugin.yml entries
-- ❌ Not flexible for dynamic scripting
+- Static - can't add commands at runtime
+- Requires plugin reload to add new commands
+- Scripts would need their own plugin.yml entries
+- Not flexible for dynamic scripting
 
 **JavaSkript's solution:**
-- ✅ Uses Paper's modern `paper-plugin.yml` format
-- ✅ Uses reflection to create `PluginCommand` instances
-- ✅ Registers directly with Bukkit's `CommandMap`
-- ✅ Fully dynamic - commands appear/disappear with scripts
-- ✅ No command declarations needed in YAML
+- Uses Paper's modern `paper-plugin.yml` format
+- Uses reflection to create `PluginCommand` instances
+- Registers directly with Bukkit's `CommandMap`
+- Fully dynamic - commands appear/disappear with scripts
+- No command declarations needed in YAML
 
-### Reflection Magic
+### Reflection Implementation
 
 JavaSkript uses reflection to access internal Bukkit APIs:
 
@@ -373,15 +373,15 @@ public class FlyCommand implements CommandExecutor {
 ```
 
 **Advantages:**
-- ✅ Full Java language features
-- ✅ Type safety
-- ✅ IDE autocomplete
-- ✅ Compile-time error checking
-- ✅ Access to all Bukkit APIs
+- Full Java language features
+- Type safety
+- IDE autocomplete
+- Compile-time error checking
+- Access to all Bukkit APIs
 
 ---
 
-## ⚡ Modern Fluent Command API (`CommandHelper`)
+## Modern Fluent Command API (`CommandHelper`)
 
 In addition to traditional `implements CommandExecutor`, JavaSkript provides an expressive, fluent Command API injected via `private CommandHelper commands;`.
 

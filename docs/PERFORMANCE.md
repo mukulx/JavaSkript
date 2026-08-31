@@ -6,7 +6,7 @@ This document outlines optimizations to ensure JavaSkript can handle many script
 
 ## Current Performance Characteristics
 
-### What's Already Optimized ✅
+### What's Already Optimized 
 
 1. **Concurrent Data Structures**
    - `ConcurrentHashMap` for loaded scripts
@@ -39,7 +39,7 @@ This document outlines optimizations to ensure JavaSkript can handle many script
 
 ---
 
-## ⏱️ Built-in Script Profiler & Benchmarking
+## Built-in Script Profiler & Benchmarking
 
 JavaSkript includes an enterprise-grade profiler to pinpoint lag causes without installing external plugins like Spark.
 
@@ -538,9 +538,9 @@ Add these commands for server owners:
 ## Summary
 
 **Implement These First (High Impact):**
-1. ✅ Parallel script loading
-2. ✅ Compilation caching
-3. ✅ Config-based limits
+1. Parallel script loading
+2. Compilation caching
+3. Config-based limits
 
 **Implement Later (Medium Impact):**
 4. Lazy dependency resolution

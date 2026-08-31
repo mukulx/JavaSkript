@@ -550,9 +550,9 @@ If you use `hasPermission("some.permission")` but never register that permission
 
 | Player Type | Has Permission? | Why? |
 |-------------|----------------|------|
-| **Non-op player** | ❌ No | Undefined permissions default to `false` |
-| **Op player** | ✅ Yes | Ops have all permissions by default |
-| **Player with permission granted via LuckPerms** | ✅ Yes | Permission plugins can grant any permission, even unregistered ones |
+| **Non-op player** | No | Undefined permissions default to `false` |
+| **Op player** | Yes | Ops have all permissions by default |
+| **Player with permission granted via LuckPerms** | Yes | Permission plugins can grant any permission, even unregistered ones |
 
 **Example:**
 ```java
@@ -887,11 +887,11 @@ If you don't have a permission plugin, only `PermissionDefault.TRUE` and `Permis
 
 | Scenario | Register? | Why? |
 |----------|-----------|------|
-| Op-only command | ❌ No | Undefined permissions are op-only by default |
-| Everyone should have access | ✅ Yes | Use `PermissionDefault.TRUE` |
-| Want it in LuckPerms list | ✅ Yes | Makes it visible in `/lp` commands |
-| Want permission hierarchy | ✅ Yes | Need to define parent/child relationships |
-| Just checking permission | ❌ No | `hasPermission()` works with unregistered permissions |
+| Op-only command | No | Undefined permissions are op-only by default |
+| Everyone should have access | Yes | Use `PermissionDefault.TRUE` |
+| Want it in LuckPerms list | Yes | Makes it visible in `/lp` commands |
+| Want permission hierarchy | Yes | Need to define parent/child relationships |
+| Just checking permission | No | `hasPermission()` works with unregistered permissions |
 
 **Permission behavior summary:**
 
@@ -926,11 +926,11 @@ if (!sender.hasPermission("registered.op")) {
 ```
 
 **Best practices:**
-- ✅ Don't register permissions for op-only commands (simpler)
-- ✅ Register permissions if you want them visible in permission plugins
-- ✅ Use `PermissionDefault.TRUE` for features everyone should access
-- ✅ Use `PermissionDefault.OP` for admin features (or don't register at all)
-- ✅ Always check permissions in commands, even if not registered
+- Don't register permissions for op-only commands (simpler)
+- Register permissions if you want them visible in permission plugins
+- Use `PermissionDefault.TRUE` for features everyone should access
+- Use `PermissionDefault.OP` for admin features (or don't register at all)
+- Always check permissions in commands, even if not registered
 
 ---
 
@@ -1071,7 +1071,7 @@ actionBar.send(player, "Hello!");
 Send with MiniMessage formatting.
 ```java
 actionBar.sendMini(player, "<gradient:gold:yellow><bold>Fancy Text!</bold></gradient>");
-actionBar.sendMini(player, "<red>❤</red> <aqua>Health</aqua>");
+actionBar.sendMini(player, "<red>HP</red> <aqua>Health</aqua>");
 ```
 
 #### `send(Player player, String text, Duration duration)`
@@ -1106,7 +1106,7 @@ actionBar.progressBar()
     .current(75)
     .max(100)
     .length(20)
-    .prefix("<gold>⚡ Power: </gold>")
+    .prefix("<gold> Power: </gold>")
     .showPercentage(true)
     .filledColor(NamedTextColor.YELLOW)
     .emptyColor(NamedTextColor.DARK_GRAY)
@@ -1311,22 +1311,22 @@ Understanding how scripts are loaded and unloaded:
 ```java
 public class MyScript implements Listener {
     
-    // ✅ GOOD - Declare fields
+    // Good: Declare fields
     private ScriptScheduler scheduler;
     private Map<UUID, Integer> playerData = new HashMap<>();
     
     public MyScript() {
-        // ✅ GOOD - Initialize simple data structures
-        // ✅ GOOD - Set up variables
+        // Good: Initialize simple data structures
+        // Good: Set up variables
         
-        // ❌ BAD - Don't use APIs here (not injected yet!)
+        // Avoid: Don't use APIs here (not injected yet!)
         // scheduler.runLater(...); // Will be null!
         
-        // ❌ BAD - Don't register events/commands (done automatically)
-        // ❌ BAD - Don't do heavy operations
+        // Avoid: Don't register events/commands (done automatically)
+        // Avoid: Don't do heavy operations
     }
     
-    // ✅ GOOD - Use APIs in event handlers
+    // Good: Use APIs in event handlers
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         scheduler.runLater(() -> {
@@ -1389,7 +1389,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 ## DialogHelper
 
-Modern Paper Dialog API for creating zero-boilerplate native Minecraft dialogs.
+Modern Paper Dialog API for creating minimal native Minecraft dialogs.
 
 ### Auto-Injection
 ```java
@@ -1431,7 +1431,7 @@ dialog.multiAction("<gold>Custom Menu</gold>")
 
 ## PDCHelper (PersistentData / NBT)
 
-Zero-boilerplate PersistentDataContainer manipulation on `ItemStack`, `Entity`, `LivingEntity`, `Player`, `BlockState`, `Chunk`, and `World`.
+Minimal PersistentDataContainer manipulation on `ItemStack`, `Entity`, `LivingEntity`, `Player`, `BlockState`, `Chunk`, and `World`.
 
 ### Auto-Injection
 ```java
@@ -1510,7 +1510,7 @@ Holograms.create(loc, "<yellow>Line 1", "<gold>Line 2").spawn();
 #### 1. Dynamic Auto-Refreshing Leaderboard
 ```java
 Hologram holo = holograms.create(location)
-    .line("<gradient:#ff5555:#ffaa00><bold>✦ LEADERBOARD ✦</bold></gradient>")
+    .line("<gradient:#ff5555:#ffaa00><bold> LEADERBOARD </bold></gradient>")
     .line("<yellow>#1 Mukul - 1,450 Kills</yellow>")
     .line("")
     .line(() -> "<gray>Online: <green>" + Bukkit.getOnlinePlayers().size() + "</green></gray>")
@@ -1589,7 +1589,7 @@ cooldowns.set(player, "fireball", Duration.ofSeconds(15));
 #### 2. Animated Action Bar Progress Tickers
 Automatically displays a smooth ticking progress bar on the player's action bar until the cooldown finishes, then confirms readiness!
 ```java
-// Displays: "Fireball [■■■■■■□□□□] 4.2s" -> "✔ Fireball Ready to use!"
+// Displays: "Fireball [■■■■■■□□□□] 4.2s" -> " Fireball Ready to use!"
 cooldowns.startActionBarTicker(player, "fireball", "Fireball");
 ```
 
@@ -1672,7 +1672,7 @@ Usable via auto-injection (`private PlayerHelper players;`) or statically anywhe
 ```java
 // Supports MiniMessage gradients & legacy & codes with default italics stripped:
 Players.msg(player, "<gradient:#ff5555:#ffaa00><bold>Victory!</bold></gradient>");
-Players.broadcast("<yellow>✦ Mukul joined the realm!");
+Players.broadcast("<yellow> Mukul joined the realm!");
 ```
 
 ### 2. Audio & Visuals
@@ -1680,7 +1680,7 @@ Players.broadcast("<yellow>✦ Mukul joined the realm!");
 Players.sound(player, Sound.ENTITY_PLAYER_LEVELUP);
 Players.sound(player, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.5f);
 Players.title(player, "<gold>LEVEL UP", "<yellow>You reached level 10!");
-Players.actionBar(player, "<red>⚔ +25 Damage Dealt");
+Players.actionBar(player, "<red> +25 Damage Dealt");
 
 // Dedicated 1-line audio fanfares & feedback chords via Sounds facade:
 Sounds.success(player);  // High-pitch chime for completed actions
@@ -1770,9 +1770,9 @@ chat.builder()
     .clickUrl("<gold>[Discord]</gold>", "https://discord.gg/minecraft", "<gray>Open Discord")
     .space()
     // Click to execute an in-memory Java lambda callback directly!
-    .clickAction("<yellow>[⚡ Mystery Box]</yellow>", p -> {
+    .clickAction("<yellow>[ Mystery Box]</yellow>", p -> {
         Players.sound(p, Sound.ENTITY_PLAYER_LEVELUP);
-        Players.msg(p, "<green>✔ You triggered a live Java lambda action!");
+        Players.msg(p, "<green> You triggered a live Java lambda action!");
     }, "<gray>Click for surprise")
     .send(player);
 ```
@@ -1810,14 +1810,14 @@ chat.promptInteger(player, "<yellow>Enter deposit amount (1 - 1000):", 1, 1000, 
 ```java
 chat.pager(player, "Server Warps", warpList)
     .pageSize(7)
-    .header("<gold>✦ %title% <gray>(Page %page%/%max%)</gray> ✦")
+    .header("<gold> %title% <gray>(Page %page%/%max%)</gray> ")
     .formatter((index, warp) -> "<yellow>#" + index + " <white>" + warp)
     .send(1); // Clickable [◀ Previous] & [Next ▶] buttons automatically work!
 ```
 
 ### 5. Pixel-Perfect Centered Text
 ```java
-chat.sendCentered(player, "<gradient:#ff5555:#ffaa00><bold>✦ MYTHIC EVENT ✦</bold></gradient>");
+chat.sendCentered(player, "<gradient:#ff5555:#ffaa00><bold> MYTHIC EVENT </bold></gradient>");
 chat.sendCentered(player, "<gray>Double EXP is now live!</gray>");
 ```
 
@@ -1918,7 +1918,7 @@ public class GemsCurrencyProvider implements EconomyProvider {
     private final Map<UUID, Double> gems = new ConcurrentHashMap<>();
 
     @Override public String getName() { return "Gems"; }
-    @Override public String getCurrencySymbol() { return "💎"; }
+    @Override public String getCurrencySymbol() { return "GEMS"; }
     @Override public String getCurrencySingular() { return "Gem"; }
     @Override public String getCurrencyPlural() { return "Gems"; }
 
@@ -1946,7 +1946,7 @@ public class GemsCurrencyProvider implements EconomyProvider {
         return EconomyResult.success(amount, amount);
     }
 
-    @Override public String format(double amount) { return "💎" + (int) amount; }
+    @Override public String format(double amount) { return "GEMS" + (int) amount; }
     @Override public String formatShort(double amount) { return format(amount); }
 }
 ```
@@ -1976,14 +1976,14 @@ EconomyResult resCoins = Economy.withdraw(player, costCoins);
 EconomyResult resGems = gems.withdraw(player, costGems);
 
 if (resCoins.isSuccess() && resGems.isSuccess()) {
-    Players.msg(player, "<green>✔ Purchased Mythic Relic with Coins & Gems!");
+    Players.msg(player, "<green> Purchased Mythic Relic with Coins & Gems!");
     Players.sound(player, Sound.UI_TOAST_CHALLENGE_COMPLETE);
     // Give item...
 } else {
     // Transaction failed - rollback whichever was charged
     if (resCoins.isSuccess()) Economy.deposit(player, costCoins);
     if (resGems.isSuccess()) gems.deposit(player, costGems);
-    Players.msg(player, "<red>✖ Transaction failed. Funds refunded.");
+    Players.msg(player, "<red> Transaction failed. Funds refunded.");
 }
 ```
 

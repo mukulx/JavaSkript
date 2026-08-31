@@ -41,7 +41,7 @@ public class WelcomeMessages implements Listener {
         
         // Custom join message
         event.joinMessage(
-            Component.text("✦ ", NamedTextColor.GOLD)
+            Component.text(" ", NamedTextColor.GOLD)
                 .append(Component.text(player.getName(), NamedTextColor.YELLOW, TextDecoration.BOLD))
                 .append(Component.text(" has joined the server!", NamedTextColor.GOLD))
         );
@@ -71,7 +71,7 @@ public class WelcomeMessages implements Listener {
         var player = event.getPlayer();
         
         event.quitMessage(
-            Component.text("✦ ", NamedTextColor.RED)
+            Component.text(" ", NamedTextColor.RED)
                 .append(Component.text(player.getName(), NamedTextColor.YELLOW, TextDecoration.BOLD))
                 .append(Component.text(" has left the server!", NamedTextColor.RED))
         );
@@ -311,7 +311,7 @@ public class AntiDupeScript implements Listener {
             event.getView().close();
             
             event.getView().getPlayer().sendMessage(
-                Component.text("⚠ Suspicious item detected and removed!")
+                Component.text("Warning: Suspicious item detected and removed!")
                     .color(NamedTextColor.RED)
             );
             
@@ -369,7 +369,7 @@ public class AntiSpamScript implements Listener {
             if (timeSince < COOLDOWN_MS) {
                 event.setCancelled(true);
                 player.sendMessage(
-                    Component.text("⚠ Please wait before sending another message!")
+                    Component.text("Warning: Please wait before sending another message!")
                         .color(NamedTextColor.RED)
                 );
                 return;
@@ -381,7 +381,7 @@ public class AntiSpamScript implements Listener {
             if (message.equals(previousMessage.get(uuid))) {
                 event.setCancelled(true);
                 player.sendMessage(
-                    Component.text("⚠ Please don't send the same message twice!")
+                    Component.text("Warning: Please don't send the same message twice!")
                         .color(NamedTextColor.RED)
                 );
                 return;
