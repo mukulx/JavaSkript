@@ -83,13 +83,13 @@ To benchmark any script immediately without waiting for real players:
 ```text
 /js benchmark pvp/CombatLog 50000
 ```
-Outputs a graded report card:
-- **Grade:** A+ / A / B / C / F
+Outputs clean color-coded benchmark metrics:
+- **Grade:** A+ / A (Green), B (Yellow), C (Gold), F (Red)
 - **Throughput:** Operations / second (e.g. 3,200,000 ops/sec)
-- **Latency:** Average execution duration (microseconds and milliseconds)
-- **Spikes:** Min and max execution jitter
-- **Memory:** Heap allocation delta during execution
-- **Optimization Suggestions:** Automatically identifies synchronous I/O or excessive latency.
+- **Avg Latency:** Average execution duration in microseconds and milliseconds
+- **P99 Latency:** 99th percentile latency spike measurement
+- **Min / Max:** Minimum and maximum latency recorded
+- **Footprint:** Bytecode size in RAM and source code size on disk
 
 ---
 

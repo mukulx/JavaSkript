@@ -259,7 +259,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     Map<String, ScriptInstance> scripts = plugin.getScriptManager().getLoadedScripts();
     Set<String> disabledScripts = plugin.getScriptManager().getDisabledScripts();
 
-    sender.sendMessage(Component.text("✦ JavaSkript Scripts").color(NamedTextColor.GOLD));
+    sender.sendMessage(Component.text("JavaSkript Scripts").color(NamedTextColor.GOLD));
 
     if (scripts.isEmpty() && disabledScripts.isEmpty()) {
       sender.sendMessage(Component.text("No scripts found.").color(NamedTextColor.YELLOW));
@@ -600,7 +600,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     if (args.length == 1) {
       sender.sendMessage(
-          Component.text("✦ JavaSkript Performance Profiler").color(NamedTextColor.GOLD));
+          Component.text("JavaSkript Performance Profiler").color(NamedTextColor.GOLD));
       boolean active = profiler.isProfilingActive();
       long elapsedSec = profiler.getSessionDurationMillis() / 1000;
       sender.sendMessage(
@@ -717,7 +717,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       }
 
       var topRecords = profiler.getTopRecords(null, limit);
-      sender.sendMessage(Component.text("✦ Top Slowest Handlers").color(NamedTextColor.GOLD));
+      sender.sendMessage(Component.text("Top Slowest Handlers").color(NamedTextColor.GOLD));
 
       if (topRecords.isEmpty()) {
         sender.sendMessage(
@@ -757,7 +757,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     String displayKey = matchedKey != null ? matchedKey : rawTarget;
 
     sender.sendMessage(
-        Component.text("✦ Performance Profile: " + displayKey).color(NamedTextColor.GOLD));
+        Component.text("Performance Profile: " + displayKey).color(NamedTextColor.GOLD));
 
     if (records.isEmpty()) {
       File scriptFile = plugin.getScriptManager().resolveScriptFile(rawTarget);
@@ -833,44 +833,70 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
           }
 
           sender.sendMessage(
-              Component.text("✦ Script Benchmark: " + result.getScriptKey())
+              Component.text("Script Benchmark: " + result.getScriptKey())
                   .color(NamedTextColor.GOLD));
           sender.sendMessage(
-              Component.text("  Grade: " + result.getGradeColor() + result.getGrade()));
+              Component.text("  Grade: ")
+                  .color(NamedTextColor.GRAY)
+                  .append(Component.text(result.getGrade()).color(result.getGradeTextColor())));
           sender.sendMessage(
-              Component.text(String.format("  Throughput: %,.0f ops/sec", result.getOpsPerSecond()))
-                  .color(NamedTextColor.AQUA));
+              Component.text("  Throughput: ")
+                  .color(NamedTextColor.GRAY)
+                  .append(
+                      Component.text(String.format("%,.0f ops/sec", result.getOpsPerSecond()))
+                          .color(
+                              result.getOpsPerSecond() >= 500_000
+                                  ? NamedTextColor.GREEN
+                                  : (result.getOpsPerSecond() >= 100_000
+                                      ? NamedTextColor.YELLOW
+                                      : NamedTextColor.RED))));
           sender.sendMessage(
-              Component.text(
-                      String.format(
-                          "  Avg Latency: %.2f µs (%.4f ms)",
-                          result.getAvgLatencyMicros(), result.getAvgLatencyMicros() / 1000.0))
-                  .color(NamedTextColor.AQUA));
+              Component.text("  Avg Latency: ")
+                  .color(NamedTextColor.GRAY)
+                  .append(
+                      Component.text(
+                              String.format(
+                                  "%.2f µs (%.4f ms)",
+                                  result.getAvgLatencyMicros(),
+                                  result.getAvgLatencyMicros() / 1000.0))
+                          .color(
+                              result.getAvgLatencyMicros() <= 25.0
+                                  ? NamedTextColor.GREEN
+                                  : (result.getAvgLatencyMicros() <= 150.0
+                                      ? NamedTextColor.YELLOW
+                                      : NamedTextColor.RED))));
           sender.sendMessage(
-              Component.text(
-                      String.format(
-                          "  99th Percentile (P99): %.2f µs", result.getP99LatencyMicros()))
-                  .color(NamedTextColor.YELLOW));
+              Component.text("  99th Percentile (P99): ")
+                  .color(NamedTextColor.GRAY)
+                  .append(
+                      Component.text(String.format("%.2f µs", result.getP99LatencyMicros()))
+                          .color(
+                              result.getP99LatencyMicros() <= 100.0
+                                  ? NamedTextColor.GREEN
+                                  : (result.getP99LatencyMicros() <= 500.0
+                                      ? NamedTextColor.YELLOW
+                                      : NamedTextColor.RED))));
           sender.sendMessage(
-              Component.text(
-                      String.format(
-                          "  Min / Max: %.2f µs / %.2f µs",
-                          result.getMinLatencyMicros(), result.getMaxLatencyMicros()))
-                  .color(NamedTextColor.GRAY));
+              Component.text("  Min / Max: ")
+                  .color(NamedTextColor.GRAY)
+                  .append(
+                      Component.text(
+                              String.format(
+                                  "%.2f µs / %.2f µs",
+                                  result.getMinLatencyMicros(), result.getMaxLatencyMicros()))
+                          .color(NamedTextColor.GRAY)));
           sender.sendMessage(
-              Component.text(
-                      String.format(
-                          "  Footprint: Bytecode: %,.1f KB | Source: %,.1f KB (%d class%s)",
-                          result.getBytecodeSizeBytes() / 1024.0,
-                          result.getSourceSizeBytes() / 1024.0,
-                          result.getClassesCount(),
-                          result.getClassesCount() > 1 ? "es" : ""))
-                  .color(NamedTextColor.GRAY));
-          if (!result.getSuggestions().isEmpty()) {
-            for (String suggestion : result.getSuggestions()) {
-              sender.sendMessage(Component.text("  * " + suggestion).color(NamedTextColor.GREEN));
-            }
-          }
+              Component.text("  Footprint: ")
+                  .color(NamedTextColor.GRAY)
+                  .append(
+                      Component.text(
+                              String.format(
+                                  "Bytecode: %,.1f KB | Source: %,.1f KB (%d class%s)",
+                                  result.getBytecodeSizeBytes() / 1024.0,
+                                  result.getSourceSizeBytes() / 1024.0,
+                                  result.getClassesCount(),
+                                  result.getClassesCount() > 1 ? "es" : ""))
+                          .color(NamedTextColor.GRAY)));
         };
 
     if (ServerUtil.isFolia()) {

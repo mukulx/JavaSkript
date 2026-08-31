@@ -1,9 +1,8 @@
 package dev.mukulx.javaskript.profiler;
 
-import java.util.ArrayList;
-import java.util.List;
+import net.kyori.adventure.text.format.NamedTextColor;
 
-/** Holds truthful benchmark execution results and performance analysis. */
+/** Holds benchmark execution results and performance metrics. */
 public class BenchmarkResult {
 
   private final String scriptKey;
@@ -18,7 +17,6 @@ public class BenchmarkResult {
   private final long sourceSizeBytes;
   private final int classesCount;
   private final String grade;
-  private final List<String> suggestions = new ArrayList<>();
 
   public BenchmarkResult(
       String scriptKey,
@@ -49,7 +47,6 @@ public class BenchmarkResult {
     }
 
     this.grade = calculateGrade();
-    generateSuggestions();
   }
 
   private String calculateGrade() {
@@ -63,25 +60,6 @@ public class BenchmarkResult {
       return "C";
     } else {
       return "F";
-    }
-  }
-
-  private void generateSuggestions() {
-    if (avgLatencyMicros >= 500.0) {
-      suggestions.add(
-          "Average execution time is high (>0.5ms). Consider moving heavy operations to async tasks.");
-    } else if (p99LatencyMicros >= 2000.0) {
-      suggestions.add(
-          "Occasional latency spikes detected in 99th percentile (>2ms). Check for synchronous I/O or large iterations.");
-    }
-
-    if (bytecodeSizeBytes > 500 * 1024) {
-      suggestions.add(
-          "Compiled bytecode is over 500KB. Consider splitting into multiple modular scripts.");
-    }
-
-    if (suggestions.isEmpty()) {
-      suggestions.add("Performance is optimal! Ready for high-concurrency production servers.");
     }
   }
 
@@ -133,8 +111,13 @@ public class BenchmarkResult {
     return grade;
   }
 
-  public List<String> getSuggestions() {
-    return suggestions;
+  public NamedTextColor getGradeTextColor() {
+    return switch (grade) {
+      case "A+", "A" -> NamedTextColor.GREEN;
+      case "B" -> NamedTextColor.YELLOW;
+      case "C" -> NamedTextColor.GOLD;
+      default -> NamedTextColor.RED;
+    };
   }
 
   public String getGradeColor() {

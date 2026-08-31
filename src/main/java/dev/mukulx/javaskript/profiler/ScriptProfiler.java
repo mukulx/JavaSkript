@@ -60,7 +60,7 @@ public class ScriptProfiler {
 
     if (sender != null) {
       sender.sendMessage(
-          Component.text("✦ Profiling capture window STARTED.").color(NamedTextColor.GREEN));
+          Component.text("Profiling capture window started.").color(NamedTextColor.GREEN));
       if (durationSeconds > 0) {
         sender.sendMessage(
             Component.text(
@@ -110,7 +110,7 @@ public class ScriptProfiler {
     if (sender != null) {
       sender.sendMessage(
           Component.text(
-                  "✦ Profiling capture window concluded ("
+                  "Profiling capture window concluded ("
                       + String.format("%.1f", elapsedMs / 1000.0)
                       + "s).")
               .color(NamedTextColor.GOLD));
