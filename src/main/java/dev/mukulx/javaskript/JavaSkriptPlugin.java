@@ -11,8 +11,6 @@ import dev.mukulx.javaskript.script.ScriptManager;
 import dev.mukulx.javaskript.update.UpdateChecker;
 import dev.mukulx.javaskript.util.ServerUtil;
 import dev.mukulx.javaskript.watcher.FileWatcher;
-import java.io.File;
-import java.util.Set;
 import java.util.logging.Level;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -27,7 +25,6 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private FileWatcher fileWatcher;
   private DependencyManager dependencyManager;
   private UpdateChecker updateChecker;
-  private Thread folderMonitorThread;
   private ScriptProfiler profiler;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economyHelper;
   private boolean debugMode;
@@ -133,12 +130,6 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         }
       }
 
-      try {
-        startFolderMonitoring();
-      } catch (Throwable t) {
-        debug("Folder monitoring failed to initialize: " + t.getMessage());
-      }
-
       if (getConfig().getBoolean("update-checker.enabled", true)) {
         try {
           this.updateChecker = new UpdateChecker(this);
@@ -160,15 +151,6 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   @Override
   public void onDisable() {
-    // Terminate background file listeners safely
-    try {
-      if (folderMonitorThread != null && folderMonitorThread.isAlive()) {
-        folderMonitorThread.interrupt();
-      }
-    } catch (Throwable t) {
-      debug("Error interrupting folder monitor thread: " + t.getMessage());
-    }
-
     // Close open NIO watch keys
     try {
       if (fileWatcher != null) {
@@ -260,88 +242,6 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public ScriptProfiler getProfiler() {
     return profiler;
-  }
-
-  private void startFolderMonitoring() {
-    // Separate thread lifecycle because Folia will panic if you block regional tickers
-    folderMonitorThread =
-        new Thread(
-            () -> {
-              while (!Thread.currentThread().isInterrupted()) {
-                try {
-                  Thread.sleep(300000); // 5-minute file safety checks
-                  checkForMisplacedFolders();
-                } catch (InterruptedException e) {
-                  break;
-                }
-              }
-            },
-            "JavaSkript-FolderMonitor");
-    folderMonitorThread.setDaemon(true); // Allow the JVM to shut down without getting stuck
-    folderMonitorThread.start();
-  }
-
-  private void checkForMisplacedFolders() {
-    // Escape hatch for layout anarchy
-    if (getConfig().getBoolean("scripts.allow-unrestricted-folders", false)) {
-      return;
-    }
-
-    File dataFolder = getDataFolder();
-    if (!dataFolder.exists()) {
-      return;
-    }
-
-    // Whitelisted core layout folders managed by the engine
-    Set<String> systemFolders = Set.of("scripts", "libs", "temp", ".git", ".github");
-
-    File[] files = dataFolder.listFiles();
-    if (files == null) {
-      return;
-    }
-
-    for (File file : files) {
-      if (!file.isDirectory()) {
-        continue;
-      }
-
-      String folderName = file.getName();
-
-      if (systemFolders.contains(folderName)) {
-        continue;
-      }
-
-      if (folderName.equals("script-data")) {
-        continue;
-      }
-
-      // Spit out massive warning frames to scold devs who cannot organize files
-      getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      getLogger().warning("MISPLACED FOLDER DETECTED! ANARCHY!");
-      getLogger().warning("");
-      getLogger().warning("Folder: " + folderName);
-      getLogger().warning("Location: plugins/JavaSkript/" + folderName);
-      getLogger().warning("");
-      getLogger().warning("Scripts should NOT create folders directly in the JavaSkript folder!");
-      getLogger().warning("ALL script data must go in the script-data folder:");
-      getLogger().warning("");
-      getLogger()
-          .warning(
-              "  File scriptData = new File(JavaSkriptPlugin.getInstance().getDataFolder(),"
-                  + " \"script-data\");");
-      getLogger().warning("  File myFolder = new File(scriptData, \"MyScriptName\");");
-      getLogger().warning("  myFolder.mkdirs();");
-      getLogger().warning("");
-      getLogger()
-          .warning("This keeps all script data organized in: plugins/JavaSkript/script-data/");
-      getLogger().warning("");
-      getLogger()
-          .warning(
-              "To disable this check, set 'scripts.allow-unrestricted-folders: true' in"
-                  + " config.yml");
-      getLogger().warning("(Not recommended - keeping things messy is a skill issue.)");
-      getLogger().warning("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
   }
 
   private void displayLogo() {

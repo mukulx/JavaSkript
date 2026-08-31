@@ -1027,14 +1027,7 @@ scripts:
   
   # Show detailed compilation errors in console
   verbose-errors: true
-  
-  # Allow scripts to create folders anywhere in the JavaSkript directory
-  # When false (recommended), scripts must use the script-data folder
-  # When true, scripts can create folders anywhere (not recommended)
-  allow-unrestricted-folders: false
 ```
-
-**Important:** Scripts should always store data in `plugins/JavaSkript/script-data/YourScriptName/` to keep things organized.
 
 ### Dependency Settings
 

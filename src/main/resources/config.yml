@@ -27,11 +27,6 @@ update-checker:
 scripts:
   # Automatically load all scripts on server startup
   auto-load: true
-  
-  # Allow scripts to create folders anywhere in the JavaSkript directory
-  # When false (recommended), scripts must use the script-data folder
-  # When true, scripts can create folders anywhere
-  allow-unrestricted-folders: false
 
 # Dependency Settings
 dependencies:

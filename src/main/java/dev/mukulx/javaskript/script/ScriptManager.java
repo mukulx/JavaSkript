@@ -22,9 +22,6 @@ public class ScriptManager {
   private static final Pattern DEPENDENCY_QUOTE_PATTERN = Pattern.compile("\"([^\"]+)\"");
   private static final Pattern DEPENDENCY_COMMENT_PATTERN =
       Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
-  private static final Pattern BAD_FOLDER_PATTERN =
-      Pattern.compile(
-          "new\\s+File\\s*\\(\\s*(?:[^,]+\\.)?getDataFolder\\(\\)\\s*,\\s*\"([^\"]+)\"\\s*\\)");
 
   private final JavaSkriptPlugin plugin;
   private final File scriptsFolder;
@@ -346,15 +343,10 @@ public class ScriptManager {
 
       // Early check for @Disabled annotation or // @disabled comment before compiling/resolving
       if (scriptContent.contains("@Disabled")
+          || scriptContent.contains("@disabled")
           || scriptContent.contains("// @disabled")
           || scriptContent.contains("/* @disabled */")) {
         plugin.debug("Script marked as disabled in file, skipping: " + scriptKey);
-        return false;
-      }
-
-      // Regex validation scanner to prevent target scripts from breaking directory layouts
-      if (!checkScriptFolderUsage(scriptKey, scriptContent)) {
-        plugin.getLogger().severe("Script rejected due to improper folder usage: " + scriptKey);
         return false;
       }
 
@@ -943,73 +935,6 @@ public class ScriptManager {
     }
 
     return dependencies;
-  }
-
-  /**
-   * Check if script uses folders properly (script-data folder only)
-   *
-   * @param scriptKey The script key
-   * @param sourceCode The script source code
-   * @return true if script is safe to load, false if it violates folder rules
-   */
-  private boolean checkScriptFolderUsage(String scriptKey, String sourceCode) {
-    if (plugin.getConfig().getBoolean("scripts.allow-unrestricted-folders", false)) {
-      return true;
-    }
-
-    Matcher matcher = BAD_FOLDER_PATTERN.matcher(sourceCode);
-    List<String> violations = new ArrayList<>();
-
-    while (matcher.find()) {
-      String folderName = matcher.group(1);
-
-      if (folderName.equals("script-data")) {
-        continue;
-      }
-
-      if (folderName.equals("scripts") || folderName.equals("libs") || folderName.equals("temp")) {
-        continue;
-      }
-
-      violations.add(folderName);
-    }
-
-    if (!violations.isEmpty()) {
-      plugin.getLogger().severe("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      plugin.getLogger().severe("SCRIPT REJECTED: Improper folder usage detected!");
-      plugin.getLogger().severe("");
-      plugin.getLogger().severe("Script: " + scriptKey);
-      plugin.getLogger().severe("Attempted to create folder(s): " + String.join(", ", violations));
-      plugin.getLogger().severe("");
-      plugin.getLogger().severe("Scripts MUST use the script-data folder for all data storage!");
-      plugin.getLogger().severe("");
-      plugin.getLogger().severe("WRONG:");
-      plugin
-          .getLogger()
-          .severe(
-              "  new File(JavaSkriptPlugin.getInstance().getDataFolder(), \""
-                  + violations.get(0)
-                  + "\")");
-      plugin.getLogger().severe("");
-      plugin.getLogger().severe("CORRECT:");
-      plugin
-          .getLogger()
-          .severe(
-              "  File scriptData = new File(JavaSkriptPlugin.getInstance().getDataFolder(),"
-                  + " \"script-data\");");
-      plugin.getLogger().severe("  File myFolder = new File(scriptData, \"MyScriptName\");");
-      plugin.getLogger().severe("  File subFolder = new File(myFolder, \"subfolder\"); // OK!");
-      plugin.getLogger().severe("");
-      plugin
-          .getLogger()
-          .severe(
-              "To disable this check, set 'scripts.allow-unrestricted-folders: true' in"
-                  + " config.yml");
-      plugin.getLogger().severe("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      return false;
-    }
-
-    return true;
   }
 
   private String computeHash(String content) {
