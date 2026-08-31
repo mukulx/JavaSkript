@@ -85,12 +85,13 @@ src/main/resources/examples/ (on GitHub)
 - **Full Paper/Folia support** - Works on both platforms with automatic detection
 - **Dynamic commands** - Commands register automatically, no plugin.yml needed
 - **Dynamic permissions** - LuckPerms-style permission registration
-- **Built-in APIs** - Scheduler, Config, Database (SQLite), GUI Builder, PlaceholderAPI
-- **Auto-injection** - APIs automatically injected into scripts
-- **Compilation caching** - 10-50x faster reloads for unchanged scripts
-- **Parallel loading** - Fast startup with many scripts
-- **Folder validation** - Enforces proper data storage in script-data folder
-- **Null-safe** - Built-in error handling and helpful error messages
+- **Built-in APIs** - Scheduler, Config (with comment preservation & schema migrations), Database (SQLite), Economy (Vault & multi-currency), Players, Sounds, ChatBuilder, Lambda Events, CommandBuilder, GUI Menus, ItemBuilder, Display Holograms, Cooldowns, RecipeHelper, and PlaceholderAPI
+- **Auto-injection** - APIs automatically injected into declared script fields
+- **Real-time Profiler** - Built-in nanosecond profiling and synthetic benchmarks (`/js profile`, `/js benchmark`, `/js timings`)
+- **Compilation caching** - Instant reloads for unchanged scripts via bytecode caching
+- **Parallel loading** - Fast startup with async Maven dependency resolution
+- **Crash-safe Storage** - Atomic disk writes prevent 0-byte file corruption on crashes
+- **Null-safe** - Comprehensive error isolation preventing script failures from crashing the server
 
 ## Example Script
 

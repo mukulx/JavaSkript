@@ -11,7 +11,7 @@ JavaSkript uses **dynamic command registration** to automatically register comma
 - Commands are registered when scripts load
 - Commands are unregistered when scripts unload
 - Tab completion works automatically
-- Works on Paper 1.19.4+
+- Works on Paper and Folia 1.21.1+ (including 1.21.11)
 
 ---
 

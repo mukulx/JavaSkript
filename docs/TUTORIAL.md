@@ -36,7 +36,7 @@ Let's create a simple script that sends a message when a player joins.
 
 ### Step 1: Create the File
 
-Navigate to `plugins/JavaSkript/scripts/` and create a file called `myfirst.java`.
+Navigate to `plugins/JavaSkript/scripts/` and create a file called `MyFirstScript.java`.
 
 ### Step 2: Write the Code
 

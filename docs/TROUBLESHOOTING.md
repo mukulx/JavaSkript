@@ -29,12 +29,10 @@ public class MyScript implements Listener {
 public class MyScript implements Listener {
     private ScriptScheduler scheduler;
     
-    @EventHandler
-    public void onPluginEnable(PluginEnableEvent event) {
-        if (!event.getPlugin().getName().equals("JavaSkript")) return;
-        
-        scheduler.runLater(() -> {  // scheduler is injected now!
-            // code
+    // Called immediately after all APIs are injected!
+    public void onEnable() {
+        scheduler.runLater(() -> {
+            // APIs are fully available here
         }, 100L);
     }
 }

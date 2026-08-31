@@ -304,17 +304,21 @@ JavaSkript automatically cleans up:
 
 | Resource | Automatic Cleanup | Manual Cleanup Needed |
 |----------|-------------------|----------------------|
-| Event Listeners | Yes | No |
-| Commands | Yes | No |
-| Scheduler Tasks | Yes | No |
-| Database (DatabaseHelper) | Yes | No |
-| Placeholders | Yes | No |
-| Config Files | Yes | No |
-| Custom Threads | No | **Yes** |
-| Custom Executors | No | **Yes** |
-| File Handles | No | **Yes** |
-| Network Connections | No | **Yes** |
-| Custom Database Pools | No | **Yes** |
+| Event Listeners (@EventHandler & Lambda) | Yes | No |
+| Commands (CommandExecutor & CommandHelper) | Yes | No |
+| Scheduler Tasks (Paper & Folia) | Yes | No |
+| Database (DatabaseHelper SQLite) | Yes | No |
+| Display Holograms & Showcases | Yes | No |
+| Custom Crafting Recipes | Yes | No |
+| Cooldowns & Action Bar Tickers | Yes | No |
+| ActionBars & BossBars | Yes | No |
+| Open GUIs & Inventory Listeners | Yes | No |
+| Placeholders (PlaceholderHelper) | Yes | No |
+| Config Files (ScriptConfig) | Yes | No |
+| Script ClassLoader (Bytecode Memory) | Yes | No |
+| Custom Threads (unmanaged Thread/ThreadFactory) | No | **Yes** |
+| Custom Executors (ExecutorService) | No | **Yes** |
+| Raw Socket / Network Connections | No | **Yes** |
 
 ### Manual Cleanup Required
 

@@ -41,7 +41,7 @@ This document outlines optimizations to ensure JavaSkript can handle many script
 
 ## Built-in Script Profiler & Benchmarking
 
-JavaSkript includes an enterprise-grade profiler to pinpoint lag causes without installing external plugins like Spark.
+JavaSkript includes a built-in profiler to pinpoint performance bottlenecks without external plugins.
 
 ### Live Session Profiling
 Start a profiling session for 60 seconds (or custom duration):

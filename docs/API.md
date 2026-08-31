@@ -4,18 +4,27 @@ Complete reference for all JavaSkript APIs available to scripts.
 
 ## Table of Contents
 
-1. [ScriptScheduler](#scriptscheduler)
-2. [ScriptConfig](#scriptconfig)
-3. [DatabaseHelper](#databasehelper)
-4. [GUI Builder](#gui-builder)
-5. [ItemBuilder & ItemHelper](#itembuilder--itemhelper)
-6. [PlaceholderHelper](#placeholderhelper)
-7. [ActionBarHelper](#actionbarhelper)
-8. [DialogHelper](#dialoghelper)
-9. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
-10. [HologramHelper (Display Entities)](#hologramhelper-display-entities)
-11. [CooldownHelper (Rate Limiting & Tickers)](#cooldownhelper-rate-limiting--tickers)
-12. [Annotations](#annotations)
+1. [ScriptScheduler & Tasks](#scriptscheduler)
+2. [ScriptConfig & Storage](#scriptconfig)
+3. [DatabaseHelper (SQLite)](#databasehelper)
+4. [GUI Builder & Menus](#gui-builder)
+5. [ItemBuilder & Items Utility](#itembuilder--itemhelper)
+6. [CommandHelper (Fluent Commands)](#commandhelper-fluent-commands)
+7. [RecipeHelper (Custom Recipes)](#recipehelper-custom-recipes)
+8. [PlayerHelper & Players Utility](#playerhelper--players-universal-player-utility)
+9. [Sounds & Audio Chords](#audio--visuals)
+10. [ChatHelper (Interactive Chat API)](#chathelper-interactive-chat-api)
+11. [EventHelper (Lambda Events)](#eventhelper-lambda-events)
+12. [CooldownHelper & Cooldowns](#cooldownhelper-rate-limiting--tickers)
+13. [HologramHelper & Holograms](#hologramhelper-display-entities)
+14. [ActionBarHelper, TitleHelper, & BossBarHelper](#actionbarhelper)
+15. [EconomyHelper & Economy Engine](#economyhelper--economy-universal-economy-engine)
+16. [PDCHelper (PersistentData / NBT)](#pdchelper-persistentdata--nbt)
+17. [DialogHelper](#dialoghelper)
+18. [PlaceholderHelper](#placeholderhelper)
+19. [Permissions Management](#permissions)
+20. [Script Annotations & Lifecycle](#annotations)
+21. [External Maven Dependencies](#external-dependencies)
 
 ---
 
@@ -1220,6 +1229,61 @@ actionBar.clear(player);
 
 ---
 
+## TitleHelper & `Titles`
+
+Send full-screen title and subtitle messages with fade timings, MiniMessage formatting, and automatic cleanup.
+
+### Auto-Injection
+```java
+private TitleHelper titles; // Automatically injected!
+// Alias: private TitleHelper title;
+```
+
+### Methods
+```java
+// Basic Title & Subtitle (supports MiniMessage and legacy color formatting)
+titles.send(player, "<gold><bold>VICTORY!</bold></gold>", "<yellow>You completed the trial</yellow>");
+
+// Title with Custom Fade Timings (in ticks: fadeIn, stay, fadeOut)
+titles.send(player, "<gradient:#ff5555:#ffaa00>LEVEL UP</gradient>", "<gray>Reached Level 50</gray>", 10, 60, 20);
+
+// Broadcast Title to All Online Players
+titles.broadcast("<red><bold>BOSS SPAWNED</bold></red>", "<gray>Prepare for battle!</gray>");
+
+// Clear Active Title
+titles.clear(player);
+```
+
+---
+
+## BossBarHelper & `BossBars`
+
+Display custom progress boss bars at the top of player screens with colors, segment overlays, and animated countdowns.
+
+### Auto-Injection
+```java
+private BossBarHelper bossbars; // Automatically injected!
+// Alias: private BossBarHelper bossbar;
+```
+
+### Methods
+```java
+// Show BossBar to a player (text, progress from 0.0f to 1.0f, color, overlay style)
+bossbars.show(player, "<gradient:#ff5555:#ffaa00>Dragon Health</gradient>", 0.75f, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
+
+// Update progress and title dynamically
+bossbars.setProgress(player, 0.50f);
+bossbars.setText(player, "<gradient:#ff5555:#ffaa00>Dragon Health (50%)</gradient>");
+
+// Hide and clean up
+bossbars.hide(player);
+
+// Broadcast to all players with timed animation (duration in ticks)
+bossbars.broadcastAnimated("<gold>Double Experience Weekend</gold>", 1200L, BossBar.Color.YELLOW);
+```
+
+---
+
 ## Annotations
 
 ### `@FoliaSupport`
@@ -1842,23 +1906,133 @@ chat.sendCentered(player, "<gray>Double EXP is now live!</gray>");
 
 ---
 
-## Manual API Access
+## CommandHelper (Fluent Commands)
 
-If auto-injection doesn't work, you can create APIs manually:
+Build and register dynamic commands fluently with automatic player/console isolation, permission checks, custom arguments, and subcommands.
 
+### Auto-Injection
 ```java
-import dev.mukulx.javaskript.JavaSkriptPlugin;
+private CommandHelper commands; // Automatically injected!
+```
 
-public class MyScript {
-    private ScriptScheduler scheduler;
-    private ScriptConfig config;
-    
-    public MyScript() {
-        var plugin = JavaSkriptPlugin.getInstance();
-        this.scheduler = new ScriptScheduler(plugin);
-        this.config = new ScriptConfig(plugin, "MyScript.java");
-    }
-}
+### 1. Basic Player Command
+```java
+commands.create("fly")
+    .description("Toggle creative flight")
+    .permission("script.fly")
+    .executesPlayer(ctx -> {
+        Player player = ctx.getPlayer();
+        boolean allow = !player.getAllowFlight();
+        player.setAllowFlight(allow);
+        Players.msg(player, "<green>Flight " + (allow ? "enabled" : "disabled"));
+    })
+    .register();
+```
+
+### 2. Commands with Typed Arguments
+```java
+commands.create("heal")
+    .description("Heal yourself or another player")
+    .permission("script.heal")
+    .optionalArgument(CommandArgument.player("target"))
+    .executesPlayer(ctx -> {
+        Player target = ctx.hasArgument("target") 
+            ? ctx.getArgument("target", Player.class) 
+            : ctx.getPlayer();
+        
+        Players.heal(target);
+        Players.msg(target, "<green>You have been healed!");
+        if (target != ctx.getPlayer()) {
+            Players.msg(ctx.getPlayer(), "<green>Healed " + target.getName());
+        }
+    })
+    .register();
+```
+
+### 3. Subcommands & Tab Completion
+```java
+commands.create("warp")
+    .description("Server warp system")
+    .subcommand("set", sub -> sub
+        .permission("script.warp.admin")
+        .argument(CommandArgument.string("name"))
+        .executesPlayer(ctx -> {
+            String name = ctx.getArgument("name", String.class);
+            Players.msg(ctx.getPlayer(), "<green>Warp '" + name + "' created.");
+        })
+    )
+    .subcommand("tp", sub -> sub
+        .argument(CommandArgument.string("name"))
+        .executesPlayer(ctx -> {
+            String name = ctx.getArgument("name", String.class);
+            // Teleport logic
+        })
+    )
+    .register();
+```
+
+---
+
+## RecipeHelper (Custom Recipes)
+
+Create custom crafting table recipes, furnace recipes, and smithing upgrades that automatically unregister when the script reloads or unloads.
+
+### Auto-Injection
+```java
+private RecipeHelper recipes; // Automatically injected!
+```
+
+### 1. Shaped Recipe
+```java
+ItemStack excalibur = Items.create(Material.NETHERITE_SWORD, "<gradient:#ffaa00:#ff5555><bold>EXCALIBUR</bold></gradient>");
+
+recipes.shaped("excalibur", excalibur)
+    .shape(
+        " N ",
+        " N ",
+        " S "
+    )
+    .set('N', Material.NETHERITE_INGOT)
+    .set('S', Material.STICK)
+    .register();
+```
+
+### 2. Shapeless Recipe
+```java
+ItemStack superApple = Items.create(Material.ENCHANTED_GOLDEN_APPLE);
+
+recipes.shapeless("super_apple", superApple)
+    .add(Material.GOLD_BLOCK, 8)
+    .add(Material.APPLE, 1)
+    .register();
+```
+
+### 3. Smelting, Campfire & Stonecutting Recipes
+```java
+// Furnace recipe: 100 ticks (5 seconds), 1.0 XP
+recipes.furnace("quick_iron", new ItemStack(Material.IRON_INGOT), Material.RAW_IRON)
+    .cookingTime(100)
+    .experience(1.0f)
+    .register();
+
+// Blast furnace: 50 ticks (2.5 seconds)
+recipes.blasting("quick_blast", new ItemStack(Material.IRON_INGOT), Material.RAW_IRON)
+    .cookingTime(50)
+    .register();
+
+// Smoker: fast food cooking
+recipes.smoking("crispy_steak", new ItemStack(Material.COOKED_BEEF), Material.BEEF)
+    .cookingTime(50)
+    .register();
+
+// Campfire recipe
+recipes.campfire("roasted_marshmallow", new ItemStack(Material.SUGAR), Material.SLIME_BALL)
+    .cookingTime(200)
+    .register();
+
+// Stonecutter recipe
+recipes.stonecutting("carved_andesite", new ItemStack(Material.POLISHED_ANDESITE), Material.ANDESITE)
+    .register();
 ```
 
 ---
@@ -2038,4 +2212,4 @@ if (Economy.has(player, 10000.0)) {
 
 ---
 
-**Last Updated:** 2026-05-27
+**Last Updated:** 2026-08-31
