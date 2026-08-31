@@ -2,42 +2,103 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
+    name: Build & Publish Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
+          java-version: '21'
           distribution: 'temurin'
-          java-version: 21
           cache: 'gradle'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Determine version
+        id: get_version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(grep -oP 'version\s*=\s*"\K[^"]+' build.gradle.kts)
+          fi
+          echo "Detected version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release tag already exists
+        id: check_release
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            if [[ "${GITHUB_REF}" != "refs/tags/${TAG}" ]]; then
+              echo "Tag ${TAG} already exists on remote and this is not a tag push. Skipping automated release."
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Tag push matches ${TAG}. Proceeding with release."
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Tag ${TAG} does not exist yet. Proceeding with automated release."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build with Gradle
-        run: ./gradlew clean build --no-daemon
+        if: steps.check_release.outputs.exists != 'true'
+        run: ./gradlew clean build shadowJar --no-daemon
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Generate Changelog
+        if: steps.check_release.outputs.exists != 'true'
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.get_version.outputs.tag }}^" 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "Generating changelog since $PREV_TAG..."
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
+          else
+            echo "Initial release. Generating changelog from recent commits..."
+            COMMITS=$(git log --oneline --no-merges -n 30)
+          fi
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+          {
+            echo "### Changes in v${{ steps.get_version.outputs.version }}"
+            echo ""
+            echo "$COMMITS" | while IFS= read -r line; do
+              [ -n "$line" ] && echo "- $line"
+            done
+            echo ""
+            echo "---"
+            echo "**Compatibility:** Paper & Folia 1.21.x | Java 21+"
+          } > release_notes.md
+
+      - name: Create or Update GitHub Release
+        if: steps.check_release.outputs.exists != 'true'
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: JavaSkript v${{ steps.get_version.outputs.version }}
+          body_path: release_notes.md
           files: build/libs/JavaSkript-*.jar
-          generate_release_notes: true
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
