@@ -1,12 +1,13 @@
 plugins {
     java
+    `maven-publish`
     id("com.diffplug.spotless") version "6.25.0"
     id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = "dev.mukulx"
 version = "2.0.0"
-description = "Java scripting engine for Paper and Folia"
+description = "In-memory scripting engine for Paper and Folia"
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -74,4 +75,12 @@ tasks.shadowJar {
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            artifact(tasks.shadowJar)
+        }
+    }
 }

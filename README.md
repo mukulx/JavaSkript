@@ -2,133 +2,115 @@
   <img src="assets/banner.jpg" alt="JavaSkript Banner" width="800">
 </p>
 
-#  JavaSkript
+# JavaSkript
 
-> **Work in Progress** - This project is under active development. Features may change and bugs may exist.
+JavaSkript is a Minecraft plugin for Paper and Folia which allows server owners and developers to customize their servers using standard Java without the overhead of creating full plugin projects. It is useful for both rapid prototyping and production server mechanics: write clean `.java` scripts that compile in memory and reload live on your server.
 
-JavaSkript is a scripting engine for Paper and Folia which allows developers to write scripts in .java files with hot-reload and automatic compilation, without the hassle of setting up a new project each time.
-
-If you already know Java, JavaSkript makes rapid prototyping and testing much faster. If you're learning Java, JavaSkript provides an easy way to experiment with the Paper API without the complexity of traditional plugin development.
-
-> **SECURITY WARNING** - Scripts run with plugin-level access. Review scripts before loading them.
+Unlike traditional scripting languages, JavaSkript compiles your code directly into native JVM bytecode in memory using the Eclipse Compiler for Java (ECJ), providing raw Java execution speed with zero interpreter lag.
 
 ## Requirements
 
-- Paper 1.21.1+ or Folia 1.21.1+ (Bukkit/Spigot NOT supported)
-- Java 21 or higher
+JavaSkript requires Paper or Folia to work. You heard it right, Spigot and CraftBukkit do not work.
 
-## Features
+Java 21 or higher is required.
 
-- Write Java in `.java` files - no IDE or build tools required
-- Hot-reload - scripts auto-reload when files change
-- Dynamic Maven dependencies - use any library from Maven Central
-- Full Paper and Folia support with automatic thread scheduling
-- Built-in Modern APIs: Lambda Events, Players Utility, Interactive Chat API, Command Builder, Item Builder, Cooldowns, Display Entity Holograms, GUI Menus, Database (SQLite), Config, Scheduler
-- Real-time nanosecond profiler and benchmark engine (`/js profile`, `/js benchmark`)
-- Dynamic commands and permissions - no plugin.yml needed
-- Multiple classes per file
-- High performance - compiles to native bytecode with in-memory caching
+## Downloads
 
-## Quick Start
-
-1. Build: `./gradlew clean build shadowJar`
-2. Place `build/libs/JavaSkript-2.0.0.jar` in `plugins/` folder
-3. Restart server
-4. Write scripts in `plugins/JavaSkript/scripts/`
-
-### Example Script
-
-Create `plugins/JavaSkript/scripts/Welcome.java`:
-
-```java
-import org.bukkit.event.*;
-import org.bukkit.event.player.PlayerJoinEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import dev.mukulx.javaskript.script.FoliaSupport;
-
-@FoliaSupport
-public class Welcome implements Listener {
-    
-    @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
-        if (event == null || event.getPlayer() == null) return;
-        
-        event.getPlayer().sendMessage(
-            Component.text("Welcome!").color(NamedTextColor.GOLD)
-        );
-    }
-}
-```
-
-Save the file - it loads automatically!
+You can find the downloads for each version with their release notes in the [releases page](https://github.com/mukulx/JavaSkript/releases).
 
 ## Documentation
 
-- **[Quick Start](docs/QUICKSTART.md)** - Get started in 5 minutes
-- **[Tutorial](docs/TUTORIAL.md)** - Step-by-step guide
-- **[API Documentation](docs/API.md)** - Complete API reference
-- **[Examples](docs/EXAMPLES.md)** - Code examples and patterns
-- **[Lifecycle](docs/LIFECYCLE.md)** - Resource management
-- **[Folia Support](docs/FOLIA.md)** - Folia compatibility guide
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues
+Documentation, tutorials, and examples are available in the [`docs/`](docs/) directory:
 
-## Commands
+- [API Reference](docs/API.md) - Reference guide for all 24 built-in subsystems and static facades.
+- [Quick Start](docs/QUICKSTART.md) - 5-minute setup and walkthrough.
+- [Tutorial](docs/TUTORIAL.md) - Step-by-step guide to writing scripts from scratch.
+- [Examples](docs/EXAMPLES.md) - Code examples and patterns for common server mechanics.
+- [Dynamic Dependencies](docs/DEPENDENCIES.md) - Loading external Maven libraries directly in scripts.
+- [Commands Guide](docs/COMMAND_REGISTRATION.md) - Registering runtime commands and tab-completions.
+- [Multiple Classes](docs/MULTIPLE_CLASSES.md) - Structuring scripts with multiple classes per file.
+- [Performance & Profiler](docs/PERFORMANCE.md) - Profiler commands and optimization techniques.
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Diagnostics and clean stack trace configuration.
+- [Folia Guide](docs/FOLIA.md) - Regional multithreading guidelines and best practices.
+- [Lifecycle](docs/LIFECYCLE.md) - Classloading, reload safety, and memory management.
+- [Changelog](docs/CHANGELOG.md) - Version history and changes.
 
-All commands require `javaskript.admin` permission (default: op). Aliases: `/js`, `/jskript`
+## Reporting Issues
 
-- `/js reload [script|all]` - Reload scripts
-- `/js list` - List all loaded scripts
-- `/js load <script>` - Load a script
-- `/js unload <script>` - Unload a script
-- `/js enable/disable <script>` - Enable/disable scripts
-- `/js info <script>` - Show script info
-- `/js profile [start|stop|top]` - Real-time nanosecond CPU performance profiler
-- `/js benchmark <script>` - Benchmark script methods with execution metrics
-- `/js debug` - Toggle debug mode
+Please see our [contribution guidelines](CONTRIBUTING.md) before reporting issues. When reporting a bug, please include:
+- Your server software and exact version (Paper or Folia)
+- JavaSkript version (`/js info`)
+- The script code causing the issue
+- Relevant console error logs
 
-## Example Scripts
+## A Note About Add-ons
 
-Ready-to-use examples in [src/main/resources/examples](src/main/resources/examples/):
+JavaSkript provides an open addon framework and static API gateway (`JavaSkript.getAPI()`) allowing third-party plugin developers to register custom addons and field injectors. Please note that there are no public or official add-ons available as of now. You can view any registered addons on your server using `/js addons`.
 
-- **ChatAPI**: ChatAPIExample (interactive buttons, confirms, prompts, pagers)
-- **Commands**: CommandAPIExample, HealCommand, FlyCommand
-- **Events & Players**: EventAndPlayerExample, WelcomeScript, Example
-- **Items & Cooldowns**: ItemBuilderExample, CooldownExample
-- **Display Holograms**: HologramExample
-- **Config & Storage**: ConfigExample, DatabaseExample, ExtraInventory (HikariCP)
-- **GUI & Display**: GUIExample, BossBarExample, TitleExample, ActionBarExample
-- **Scheduler**: SchedulerExample, RestartTimerCommand
-- **PlaceholderAPI**: PlaceholderExample
-- **Permissions**: PermissionExample
-- **Multi-class**: MultiClassExample
+## Compiling
 
-## API for Other Plugins
+JavaSkript uses Gradle for compilation. Use your command prompt of preference and navigate to JavaSkript's source directory. Then you can just call Gradle to compile and package JavaSkript for you:
 
-```java
-JavaSkriptPlugin plugin = (JavaSkriptPlugin) Bukkit.getPluginManager().getPlugin("JavaSkript");
-JavaSkriptAPI api = plugin.getAPI();
+```bash
+./gradlew clean build shadowJar # on UNIX-based systems (mac, linux)
+gradlew.bat clean build shadowJar # on Windows
+```
 
-// Load a script
-api.loadScript(new File("path/to/script.java"));
+The compiled jar will be located in `build/libs/JavaSkript-2.0.0.jar`.
 
-// Check if loaded
-boolean loaded = api.isScriptLoaded("MyScript.java");
+## Maven Repository
 
-// Get all scripts
-Map<String, ScriptInstance> scripts = api.getAllScripts();
+If you use JavaSkript as a dependency or build addons for it using Gradle or Maven:
+
+### Gradle (Groovy DSL)
+```groovy
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://jitpack.io'
+    }
+}
+
+dependencies {
+    compileOnly 'com.github.mukulx:JavaSkript:2.0.0'
+}
+```
+
+### Gradle (Kotlin DSL)
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://jitpack.io")
+}
+
+dependencies {
+    compileOnly("com.github.mukulx:JavaSkript:2.0.0")
+}
+```
+
+### Maven
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependencies>
+    <dependency>
+        <groupId>com.github.mukulx</groupId>
+        <artifactId>JavaSkript</artifactId>
+        <version>2.0.0</version>
+        <scope>provided</scope>
+    </dependency>
+</dependencies>
 ```
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Links
-
-- [Paper Documentation](https://docs.papermc.io/)
-- [Paper API Javadocs](https://jd.papermc.io/)
-- [Adventure API](https://docs.advntr.dev/)
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
 
 ## License
 
-GNU General Public License v3.0 - see [LICENSE](LICENSE) file.
+GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.
