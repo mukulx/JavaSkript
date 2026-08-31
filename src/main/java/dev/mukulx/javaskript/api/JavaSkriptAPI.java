@@ -16,6 +16,7 @@ public class JavaSkriptAPI {
   private final DialogHelper dialogHelper;
   private final PDCHelper pdcHelper;
   private final HologramHelper hologramHelper;
+  private final dev.mukulx.javaskript.api.addon.AddonRegistry addonRegistry;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -26,6 +27,7 @@ public class JavaSkriptAPI {
     this.dialogHelper = new DialogHelper(plugin);
     this.pdcHelper = new PDCHelper(plugin);
     this.hologramHelper = new HologramHelper(plugin);
+    this.addonRegistry = new dev.mukulx.javaskript.api.addon.AddonRegistry(plugin);
   }
 
   /**
@@ -299,5 +301,128 @@ public class JavaSkriptAPI {
    */
   public dev.mukulx.javaskript.api.economy.EconomyHelper economy() {
     return getEconomyHelper();
+  }
+
+  // ==========================================
+  // Addon & Custom Injector Management
+  // ==========================================
+
+  /**
+   * Get the AddonRegistry managing external addons and custom script field injectors.
+   *
+   * @return The AddonRegistry
+   */
+  public dev.mukulx.javaskript.api.addon.AddonRegistry getAddonRegistry() {
+    return addonRegistry;
+  }
+
+  /**
+   * Register an addon extending JavaSkript.
+   *
+   * @param addon The addon instance
+   */
+  public void registerAddon(dev.mukulx.javaskript.api.addon.JavaSkriptAddon addon) {
+    addonRegistry.registerAddon(addon);
+  }
+
+  /**
+   * Unregister an addon.
+   *
+   * @param addon The addon instance
+   */
+  public void unregisterAddon(dev.mukulx.javaskript.api.addon.JavaSkriptAddon addon) {
+    addonRegistry.unregisterAddon(addon);
+  }
+
+  /**
+   * Get all registered addons.
+   *
+   * @return Collection of registered addons
+   */
+  public java.util.Collection<dev.mukulx.javaskript.api.addon.JavaSkriptAddon> getAddons() {
+    return addonRegistry.getAddons();
+  }
+
+  /**
+   * Register a custom field injector matching a specific class type. When any script declares a
+   * field of this type, the injector provides the instance automatically.
+   *
+   * @param type The class type to match
+   * @param injector The provider lambda
+   */
+  public <T> void registerInjector(
+      Class<T> type, dev.mukulx.javaskript.api.addon.FieldInjector<T> injector) {
+    addonRegistry.registerInjector(type, injector);
+  }
+
+  /**
+   * Register a custom field injector matching a field name (case-insensitive).
+   *
+   * @param fieldName The name of the field to match
+   * @param injector The provider lambda
+   */
+  public void registerInjector(
+      String fieldName, dev.mukulx.javaskript.api.addon.FieldInjector<?> injector) {
+    addonRegistry.registerInjector(fieldName, injector);
+  }
+
+  /**
+   * Register a universal fallback injector that inspects every field.
+   *
+   * @param injector The provider lambda
+   */
+  public void registerUniversalInjector(dev.mukulx.javaskript.api.addon.FieldInjector<?> injector) {
+    addonRegistry.registerUniversalInjector(injector);
+  }
+
+  /**
+   * Resolve a custom injection for a script field.
+   *
+   * @param instance The script instance
+   * @param fieldType The declared field type
+   * @param fieldName The declared field name
+   * @return Injected object, or null if no injector matches
+   */
+  public Object resolveCustomInjection(
+      ScriptInstance instance, Class<?> fieldType, String fieldName) {
+    return addonRegistry.resolveInjection(instance, fieldType, fieldName);
+  }
+
+  // ==========================================
+  // Inter-Plugin Script Invocation
+  // ==========================================
+
+  /**
+   * Invoke a public method on a loaded script from another plugin.
+   *
+   * @param scriptName Name or path of the script (e.g. "pvp/CombatLog" or "Welcome")
+   * @param methodName Name of the public method
+   * @param args Arguments to pass
+   * @return Return value of the method, or null
+   * @throws NoSuchMethodException if no matching method is found
+   * @throws Exception if invocation fails
+   */
+  public Object call(String scriptName, String methodName, Object... args) throws Exception {
+    ScriptInstance instance = getScript(scriptName);
+    if (instance == null || instance.getInstance() == null) {
+      throw new IllegalArgumentException("Script not found or not loaded: " + scriptName);
+    }
+    Object target = instance.getInstance();
+    Class<?> clazz = target.getClass();
+
+    int expectedArgCount = (args != null ? args.length : 0);
+    for (java.lang.reflect.Method m : clazz.getMethods()) {
+      if (m.getName().equals(methodName) && m.getParameterCount() == expectedArgCount) {
+        m.setAccessible(true);
+        return m.invoke(target, args);
+      }
+    }
+    throw new NoSuchMethodException(
+        "Method '"
+            + methodName
+            + "' with "
+            + expectedArgCount
+            + " parameters not found in "
+            + scriptName);
   }
 }

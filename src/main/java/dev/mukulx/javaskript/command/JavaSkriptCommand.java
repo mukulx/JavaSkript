@@ -55,6 +55,7 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         case "timings" -> handleProfile(sender, new String[] {"profile", "top"});
         case "benchmark" -> handleBenchmark(sender, args);
         case "debug" -> handleDebug(sender);
+        case "addons" -> handleAddons(sender);
         default -> sendHelp(sender);
       }
     } catch (Throwable t) {
@@ -910,6 +911,27 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
     }
   }
 
+  private void handleAddons(CommandSender sender) {
+    var addons = plugin.getAPI().getAddons();
+    sender.sendMessage(
+        Component.text("Registered Addons (" + addons.size() + ")").color(NamedTextColor.GOLD));
+    if (addons.isEmpty()) {
+      sender.sendMessage(
+          Component.text("  No external addons registered.").color(NamedTextColor.GRAY));
+      return;
+    }
+    for (var addon : addons) {
+      sender.sendMessage(
+          Component.text("  * " + addon.getName() + " v" + addon.getVersion())
+              .color(NamedTextColor.GREEN)
+              .append(Component.text(" by " + addon.getAuthor()).color(NamedTextColor.GRAY)));
+      if (addon.getDescription() != null && !addon.getDescription().isEmpty()) {
+        sender.sendMessage(
+            Component.text("    " + addon.getDescription()).color(NamedTextColor.DARK_GRAY));
+      }
+    }
+  }
+
   private void sendHelp(CommandSender sender) {
     sender.sendMessage(Component.text("JavaSkript Commands:").color(NamedTextColor.GOLD));
     sender.sendMessage(
@@ -920,6 +942,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js configreload - Reload the configuration file")
+            .color(NamedTextColor.YELLOW));
+    sender.sendMessage(
+        Component.text("  /js addons - List registered external addons")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js list - List all scripts (loaded and disabled)")
@@ -983,7 +1008,8 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
               "profile",
               "benchmark",
               "timings",
-              "debug")
+              "debug",
+              "addons")
           .stream()
           .filter(s -> s.startsWith(args[0].toLowerCase()))
           .collect(Collectors.toList());

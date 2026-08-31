@@ -332,14 +332,30 @@ public class ScriptManager {
     }
 
     try {
+      boolean isReload = loadedScripts.containsKey(scriptKey);
+
       // Hot-replace logic: unload active instances prior to compilation tasks
-      if (loadedScripts.containsKey(scriptKey)) {
+      if (isReload) {
         unloadScript(scriptKey);
       }
 
       plugin.debug("Loading script: " + scriptKey);
 
       String scriptContent = Files.readString(scriptFile.toPath());
+
+      // Fire pre-compile event allowing external plugins/addons to preprocess or cancel
+      dev.mukulx.javaskript.event.ScriptPreCompileEvent preCompileEvent =
+          new dev.mukulx.javaskript.event.ScriptPreCompileEvent(scriptKey, scriptContent);
+      try {
+        org.bukkit.Bukkit.getPluginManager().callEvent(preCompileEvent);
+      } catch (Throwable t) {
+        plugin.getLogger().warning("Error in ScriptPreCompileEvent handler: " + t.getMessage());
+      }
+      if (preCompileEvent.isCancelled()) {
+        plugin.debug("Script compilation cancelled by external plugin event: " + scriptKey);
+        return false;
+      }
+      scriptContent = preCompileEvent.getSourceCode();
 
       // Early check for @Disabled annotation or // @disabled comment before compiling/resolving
       if (scriptContent.contains("@Disabled")
@@ -485,6 +501,21 @@ public class ScriptManager {
 
         loadedScripts.put(scriptKey, instance);
         plugin.getLogger().info("Loaded: " + scriptKey);
+
+        // Fire lifecycle events for external plugins and addons
+        try {
+          if (isReload) {
+            org.bukkit.Bukkit.getPluginManager()
+                .callEvent(new dev.mukulx.javaskript.event.ScriptReloadEvent(scriptKey, instance));
+          }
+          org.bukkit.Bukkit.getPluginManager()
+              .callEvent(
+                  new dev.mukulx.javaskript.event.ScriptLoadEvent(
+                      scriptKey, instance, scriptClass));
+        } catch (Throwable t) {
+          plugin.getLogger().warning("Error in ScriptLoadEvent handler: " + t.getMessage());
+        }
+
         return true;
       } catch (Exception e) {
         classLoader.unloadAll();
@@ -512,6 +543,14 @@ public class ScriptManager {
     }
 
     try {
+      // Fire unload lifecycle event for external plugins and addons
+      try {
+        org.bukkit.Bukkit.getPluginManager()
+            .callEvent(new dev.mukulx.javaskript.event.ScriptUnloadEvent(scriptKey, instance));
+      } catch (Throwable t) {
+        plugin.getLogger().warning("Error in ScriptUnloadEvent handler: " + t.getMessage());
+      }
+
       instance.unload();
       scriptDependencies.remove(scriptKey);
       compilationCache.remove(scriptKey);

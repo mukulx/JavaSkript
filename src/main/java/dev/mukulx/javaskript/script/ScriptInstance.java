@@ -371,6 +371,12 @@ public class ScriptInstance {
                 || name.equals("economyhelper")
                 || name.equals("vault")) {
               field.set(instance, economy);
+            } else {
+              // Check external addons and plugins for custom registered field injectors
+              Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
+              if (custom != null) {
+                field.set(instance, custom);
+              }
             }
           } catch (Exception e) {
             plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());

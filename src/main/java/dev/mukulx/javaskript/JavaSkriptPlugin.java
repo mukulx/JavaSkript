@@ -205,6 +205,15 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       debug("Error shutting down economy helper: " + t.getMessage());
     }
 
+    // Shutdown addons and custom injectors
+    try {
+      if (api != null && api.getAddonRegistry() != null) {
+        api.getAddonRegistry().shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down addon registry: " + t.getMessage());
+    }
+
     getLogger().info("JavaSkript has been disabled!");
   }
 

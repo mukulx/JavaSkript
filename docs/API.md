@@ -25,6 +25,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 19. [Permissions Management](#permissions)
 20. [Script Annotations & Lifecycle](#annotations)
 21. [External Maven Dependencies](#external-dependencies)
+22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
 
 ---
 
@@ -2187,6 +2188,166 @@ if (Economy.has(player, 10000.0)) {
     Economy.withdraw(player, 10000.0);
     gems.deposit(player, 10.0);
     Players.msg(player, "<green>Converted $10,000 Coins into 10 Gems!");
+}
+```
+
+---
+
+## External Plugin & Addon Integration
+
+JavaSkript provides a fully open API and addon architecture allowing other Bukkit/Paper plugins to interact with scripts, register custom field injectors, listen to script lifecycle events, and call script methods dynamically.
+
+### 1. Static Access
+
+External plugins can access JavaSkript's API directly through the static `JavaSkript` facade without needing plugin casting:
+
+```java
+import dev.mukulx.javaskript.JavaSkript;
+import dev.mukulx.javaskript.api.JavaSkriptAPI;
+
+if (JavaSkript.isAvailable()) {
+    JavaSkriptAPI api = JavaSkript.getAPI();
+    // Access all JavaSkript systems
+}
+```
+
+### 2. Addon Registration
+
+External plugins can register themselves as formal JavaSkript addons with metadata and lifecycle hooks:
+
+```java
+import dev.mukulx.javaskript.JavaSkript;
+import dev.mukulx.javaskript.api.addon.JavaSkriptAddon;
+import dev.mukulx.javaskript.api.JavaSkriptAPI;
+
+public class MyDiscordBridgeAddon implements JavaSkriptAddon {
+
+    @Override
+    public String getName() {
+        return "JavaSkript-Discord";
+    }
+
+    @Override
+    public String getVersion() {
+        return "1.0.0";
+    }
+
+    @Override
+    public String getAuthor() {
+        return "Developer";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Bridges Discord bot features directly into JavaSkript scripts";
+    }
+
+    @Override
+    public void onEnable(JavaSkriptAPI api) {
+        // Register custom field injectors or services
+    }
+
+    @Override
+    public void onDisable(JavaSkriptAPI api) {
+        // Cleanup resources
+    }
+}
+
+// Register during plugin onEnable:
+JavaSkript.registerAddon(new MyDiscordBridgeAddon());
+```
+
+Registered addons are visible in-game via `/js addons`.
+
+### 3. Custom Field Injectors
+
+Addons and external plugins can register custom field injectors. Any `.java` script that declares a field matching the registered class type or field name will automatically receive the injected instance:
+
+```java
+// Option A: Register by Class Type
+JavaSkript.registerInjector(DiscordService.class, (scriptInstance, fieldType, fieldName) -> {
+    return new DiscordService(scriptInstance.getScriptKey());
+});
+
+// Option B: Register by Field Name
+JavaSkript.registerInjector("discord", (scriptInstance, fieldType, fieldName) -> {
+    return new DiscordService(scriptInstance.getScriptKey());
+});
+```
+
+Scripts can then use the custom addon API with zero boilerplate:
+
+```java
+// Inside any script: MyScript.java
+public class MyScript implements Listener {
+
+    private DiscordService discord; // Automatically injected by your addon!
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        discord.sendMessage("Player " + event.getPlayer().getName() + " joined!");
+    }
+}
+```
+
+If the injected object implements `java.lang.AutoCloseable`, JavaSkript will automatically call `close()` when the script unloads or reloads!
+
+### 4. Bukkit Lifecycle Events
+
+Other plugins can listen to standard Bukkit events fired across the script lifecycle:
+
+| Event | Description |
+|-------|-------------|
+| `ScriptPreCompileEvent` | Cancellable event fired before compilation. Addons can inspect or modify source code (`setSourceCode(...)`) or cancel compilation (`setCancelled(true)`). |
+| `ScriptLoadEvent` | Fired when a script has successfully compiled, initialized, and registered events/commands. |
+| `ScriptUnloadEvent` | Fired immediately before a script is disabled and unloaded. |
+| `ScriptReloadEvent` | Fired when an existing script is replaced and reloaded. |
+
+Example listener in your plugin:
+
+```java
+import dev.mukulx.javaskript.event.ScriptLoadEvent;
+import dev.mukulx.javaskript.event.ScriptUnloadEvent;
+import dev.mukulx.javaskript.event.ScriptPreCompileEvent;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+
+public class JavaSkriptEventListener implements Listener {
+
+    @EventHandler
+    public void onPreCompile(ScriptPreCompileEvent event) {
+        String scriptKey = event.getScriptKey();
+        // Addons can preprocess source code before ECJ compiles it
+        String code = event.getSourceCode();
+        if (code.contains("// @custom-tag")) {
+            event.setSourceCode(code.replace("// @custom-tag", "// processed"));
+        }
+    }
+
+    @EventHandler
+    public void onScriptLoad(ScriptLoadEvent event) {
+        getLogger().info("Script loaded: " + event.getScriptKey());
+    }
+
+    @EventHandler
+    public void onScriptUnload(ScriptUnloadEvent event) {
+        getLogger().info("Script unloading: " + event.getScriptKey());
+    }
+}
+```
+
+### 5. Inter-Plugin Script Invocation (`call`)
+
+External plugins can execute public methods on active scripts without needing class references at compile time:
+
+```java
+JavaSkriptAPI api = JavaSkript.getAPI();
+
+// Call public method 'grantReward(Player, int)' in script 'rewards/DailyRewards.java'
+try {
+    Object result = api.call("rewards/DailyRewards", "grantReward", player, 500);
+} catch (Exception e) {
+    getLogger().warning("Failed to invoke script method: " + e.getMessage());
 }
 ```
 
