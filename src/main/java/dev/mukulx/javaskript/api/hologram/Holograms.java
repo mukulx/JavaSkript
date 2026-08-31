@@ -56,9 +56,22 @@ public final class Holograms {
     return get().createText(location, text);
   }
 
+  /** Create a single-line floating text hologram with custom scale and spawn it immediately. */
+  public static Hologram text(Location location, String text, double scale) {
+    return get().create(location).line(text).scale(scale).spawn();
+  }
+
   /** Create a single-line floating text hologram with Component and spawn it immediately. */
   public static Hologram text(Location location, Component text) {
     return get().createText(location, text);
+  }
+
+  /**
+   * Create a single-line floating text hologram with Component and custom scale and spawn it
+   * immediately.
+   */
+  public static Hologram text(Location location, Component text, double scale) {
+    return get().create(location).line(text).scale(scale).spawn();
   }
 
   /** Create a floating 3D item showcase and spawn it immediately. */
@@ -66,14 +79,31 @@ public final class Holograms {
     return get().createItem(location, item);
   }
 
+  /** Create a floating 3D item showcase with custom scale and spawn it immediately. */
+  public static Hologram item(Location location, ItemStack item, double scale) {
+    return get().create(location).item(item, scale).spawn();
+  }
+
   /** Create a floating 3D item showcase from Material and spawn it immediately. */
   public static Hologram item(Location location, Material material) {
     return get().createItem(location, new ItemStack(material));
   }
 
+  /**
+   * Create a floating 3D item showcase from Material with custom scale and spawn it immediately.
+   */
+  public static Hologram item(Location location, Material material, double scale) {
+    return get().create(location).item(new ItemStack(material), scale).spawn();
+  }
+
   /** Create a floating 3D block showcase and spawn it immediately. */
   public static Hologram block(Location location, Material material) {
     return get().createBlock(location, material);
+  }
+
+  /** Create a floating 3D block showcase with custom scale and spawn it immediately. */
+  public static Hologram block(Location location, Material material, double scale) {
+    return get().create(location).block(material).scale(scale).spawn();
   }
 
   /** Remove all active holograms spawned via this facade. */
