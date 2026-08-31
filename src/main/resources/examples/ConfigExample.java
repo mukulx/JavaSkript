@@ -5,7 +5,6 @@ import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.*;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
 @FoliaSupport
@@ -22,20 +21,24 @@ public class ConfigExample implements CommandExecutor, TabCompleter {
   }
 
   private void initializeConfigs() {
-    FileConfiguration mainConfig = config.getConfig("config.yml");
-    if (!mainConfig.contains("enabled")) {
-      mainConfig.set("enabled", true);
-      mainConfig.set("cooldown", 60);
-      config.saveConfig("config.yml", mainConfig);
-    }
+    // 1. Top-of-file header comments
+    config.setHeader(
+        "ConfigExample Configuration", "All comments and user modifications are preserved!");
 
-    FileConfiguration messages = config.getConfig("messages.yml");
-    if (!messages.contains("welcome")) {
-      messages.set("welcome", "Welcome to the server");
-      messages.set("goodbye", "See you later");
-      messages.set("error", "An error occurred");
-      config.saveConfig("messages.yml", messages);
-    }
+    // 2. Non-destructive defaults with comments
+    config.addDefault("enabled", true, "Enable or disable this feature");
+    config.addDefault("cooldown", 60, "Cooldown in seconds between uses");
+
+    // 3. Automated version migrations (no data loss)
+    config.migrate(
+        2,
+        c -> {
+          c.addDefault("new-feature.multiplier", 1.5, "New multiplier added in v2");
+        });
+
+    // 4. Multi-file support
+    config.addDefault("messages.yml", "welcome", "Welcome to the server", "Join message");
+    config.addDefault("messages.yml", "goodbye", "See you later", "Quit message");
   }
 
   @Override
@@ -45,8 +48,8 @@ public class ConfigExample implements CommandExecutor, TabCompleter {
       return true;
     }
 
-    boolean enabled = config.getBoolean("config.yml", "enabled", true);
-    int cooldown = config.getInt("config.yml", "cooldown", 60);
+    boolean enabled = config.getBoolean("enabled", true);
+    int cooldown = config.getInt("cooldown", 60);
     String welcomeMsg = config.getString("messages.yml", "welcome", "Welcome");
 
     player.sendMessage(Component.text("Config Values:", NamedTextColor.GOLD));

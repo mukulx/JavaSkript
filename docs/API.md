@@ -76,7 +76,7 @@ Cancel all tasks scheduled by this script.
 
 ## ScriptConfig
 
-Manage multiple YAML configuration files per script.
+Crash-safe, comment-preserving configuration management with schema migrations and O(1) in-memory reads.
 
 ### Auto-Injection
 ```java
@@ -86,49 +86,75 @@ private ScriptConfig config; // Automatically injected!
 ### File Location
 Config files are stored in: `plugins/JavaSkript/script-data/YourScriptName/`
 
-### Methods
+### Features & Methods
 
-#### `getConfig(String fileName)`
-Get or create a config file.
+#### 1. Non-Destructive Defaults with Comments (`addDefault`)
+Adds missing keys with comments. If the user already customized the value, their existing setting is strictly preserved:
 ```java
-FileConfiguration config = config.getConfig("config.yml");
+// Header comments at top of file
+config.setHeader("MyScript Configuration", "User settings are preserved across updates.");
+
+// Key-level defaults with comments
+config.addDefault("enabled", true, "Enable or disable this module");
+config.addDefault("cooldown", 30, "Cooldown in seconds between uses");
+config.addDefault("rewards.coins", 100, "Coins awarded on completion");
+```
+
+#### 2. Automatic Version Migration (`migrate`)
+Upgrade configuration schemas across script versions with zero data loss:
+```java
+config.migrate(2, c -> {
+    // Automatically runs when config-version is below 2:
+    if (c.contains("old-spawn-point")) {
+        c.set("spawn.location", c.get("old-spawn-point"));
+        c.remove("old-spawn-point");
+    }
+    c.addDefault("spawn.sound", "ENTITY_PLAYER_LEVELUP", "Sound played on spawn");
+});
+```
+
+#### 3. Comments & Headers
+Read and write comments dynamically without parsing YAML manually:
+```java
+config.setComments("rewards.coins", "Coins given to the player", "Set to 0 to disable");
+config.setInlineComments("enabled", "Master toggle");
+List<String> comments = config.getComments("rewards.coins");
+```
+
+#### 4. Batch Updates (`batch`)
+Modify multiple values in memory and flush to disk in a single atomic save:
+```java
+config.batch(cfg -> {
+    cfg.set("stats.kills", 10);
+    cfg.set("stats.deaths", 2);
+    cfg.set("stats.ratio", 5.0);
+});
+```
+
+#### 5. Section & Key Queries
+```java
+ConfigurationSection section = config.getSection("rewards");
+Set<String> keys = config.getKeys("rewards", false);
+boolean exists = config.contains("enabled");
+config.remove("deprecated-key");
+```
+
+#### 6. Typed Getters & Setters
+```java
+String title = config.getString("title", "Default Title");
+int amount = config.getInt("amount", 1);
+double multiplier = config.getDouble("multiplier", 1.0);
+boolean debug = config.getBoolean("debug", false);
+List<String> list = config.getStringList("allowed-worlds");
+
+config.set("title", "New Title"); // Saves atomically
+```
+
+#### 7. Multi-File YAML
+```java
 FileConfiguration messages = config.getConfig("messages.yml");
-```
-
-#### `saveConfig(String fileName, FileConfiguration config)`
-Save a config file.
-```java
-config.saveConfig("config.yml", cfg);
-```
-
-#### `getString(String fileName, String path, String defaultValue)`
-Quick access to string values.
-```java
-String msg = config.getString("messages.yml", "welcome", "Welcome!");
-```
-
-#### `getInt(String fileName, String path, int defaultValue)`
-Quick access to integer values.
-
-#### `getBoolean(String fileName, String path, boolean defaultValue)`
-Quick access to boolean values.
-
-#### `set(String fileName, String path, Object value)`
-Set a value and auto-save.
-```java
-config.set("config.yml", "enabled", true);
-```
-
-#### `getDataFolder()`
-Get the script's data folder.
-```java
-File folder = config.getDataFolder();
-```
-
-#### `listConfigs()`
-List all config files.
-```java
-List<String> configs = config.listConfigs();
+config.addDefault("messages.yml", "prefix", "<gold>[Server]</gold> ");
+config.saveConfig("messages.yml");
 ```
 
 ---

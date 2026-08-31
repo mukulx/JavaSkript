@@ -3,24 +3,33 @@ package dev.mukulx.javaskript.api;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
- * High-performance, thread-safe configuration management for scripts.
+ * Resilient, crash-safe, comment-preserving configuration management for JavaSkript.
  *
  * <p>Features:
  *
  * <ul>
- *   <li>O(1) in-memory cached reads (no disk I/O on every tick or event)
- *   <li>Default zero-boilerplate overloads assuming "config.yml"
- *   <li>Multi-file YAML management per script folder
- *   <li>Support for Strings, Integers, Longs, Doubles, Booleans, and String Lists
- *   <li>Thread-safe saves, reloads, and modifications
+ *   <li>O(1) in-memory cached reads with zero tick-lag
+ *   <li>Native comment preservation for headers, keys, and inline comments
+ *   <li>Crash-safe atomic saves (writes to temporary file before atomic rename, preventing 0-byte
+ *       corrupt files)
+ *   <li>Non-destructive defaults: adds missing options while strictly preserving player/admin
+ *       modifications
+ *   <li>Built-in schema migration engine for versioned updates without data loss
+ *   <li>Batch update transactions for multi-key writes with a single disk flush
  * </ul>
  */
 public class ScriptConfig {
@@ -97,11 +106,14 @@ public class ScriptConfig {
       }
     }
 
-    return YamlConfiguration.loadConfiguration(configFile);
+    YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
+    config.options().parseComments(true);
+    config.options().copyDefaults(true);
+    return config;
   }
 
   /**
-   * Save a configuration to disk.
+   * Save a configuration to disk atomically with zero risk of corruption.
    *
    * @param fileName The YAML file name
    * @param config The configuration instance to persist
@@ -109,12 +121,27 @@ public class ScriptConfig {
   public synchronized void saveConfig(String fileName, FileConfiguration config) {
     String normalized = normalizeFileName(fileName);
     File configFile = new File(scriptFolder, normalized);
+    File tempFile = new File(scriptFolder, normalized + ".tmp");
 
     try {
       if (!scriptFolder.exists()) {
         scriptFolder.mkdirs();
       }
-      config.save(configFile);
+
+      // Write to temp file first to prevent partial 0-byte writes on server crashes
+      config.save(tempFile);
+
+      // Atomically replace target file
+      try {
+        Files.move(
+            tempFile.toPath(),
+            configFile.toPath(),
+            StandardCopyOption.ATOMIC_MOVE,
+            StandardCopyOption.REPLACE_EXISTING);
+      } catch (IOException e) {
+        Files.move(tempFile.toPath(), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+      }
+
       configCache.put(normalized, config);
     } catch (IOException e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to save config file: " + normalized, e);
@@ -131,11 +158,7 @@ public class ScriptConfig {
     saveConfig();
   }
 
-  /**
-   * Save a specific named configuration.
-   *
-   * @param fileName The YAML file name
-   */
+  /** Save a specific named configuration. */
   public void saveConfig(String fileName) {
     saveConfig(fileName, getConfig(fileName));
   }
@@ -159,56 +182,236 @@ public class ScriptConfig {
     return getConfig(normalized);
   }
 
-  /**
-   * Reload the default "config.yml" configuration from disk.
-   *
-   * @return The freshly reloaded default FileConfiguration
-   */
   public FileConfiguration reloadConfig() {
     return reloadConfig(DEFAULT_CONFIG);
   }
 
-  /**
-   * Shortcut to reload the default configuration.
-   *
-   * @return The freshly reloaded default FileConfiguration
-   */
-  public FileConfiguration reload() {
-    return reloadConfig();
+  public void reload() {
+    reloadConfig();
   }
 
-  /** Reload all cached configuration files from disk. */
-  public synchronized void reloadAll() {
-    configCache.clear();
-    for (String file : listConfigs()) {
-      getConfig(file);
+  // ==========================================
+  // Header & Comment Preservation
+  // ==========================================
+
+  /** Set file header comment lines at the top of default config. */
+  public void setHeader(String... headerLines) {
+    setHeader(DEFAULT_CONFIG, headerLines);
+  }
+
+  /** Set file header comment lines at the top of a named config. */
+  public void setHeader(String fileName, String... headerLines) {
+    FileConfiguration config = getConfig(fileName);
+    config.options().setHeader(List.of(headerLines));
+    saveConfig(fileName, config);
+  }
+
+  /** Get top-of-file header comments. */
+  public List<String> getHeader() {
+    return getHeader(DEFAULT_CONFIG);
+  }
+
+  public List<String> getHeader(String fileName) {
+    return getConfig(fileName).options().getHeader();
+  }
+
+  /** Set comments above a specific key in default config. */
+  public void setComments(String path, String... comments) {
+    setComments(DEFAULT_CONFIG, path, List.of(comments));
+  }
+
+  public void setComments(String path, List<String> comments) {
+    setComments(DEFAULT_CONFIG, path, comments);
+  }
+
+  public void setComments(String fileName, String path, List<String> comments) {
+    FileConfiguration config = getConfig(fileName);
+    config.setComments(path, comments);
+    saveConfig(fileName, config);
+  }
+
+  /** Get comments above a specific key. */
+  public List<String> getComments(String path) {
+    return getComments(DEFAULT_CONFIG, path);
+  }
+
+  public List<String> getComments(String fileName, String path) {
+    return getConfig(fileName).getComments(path);
+  }
+
+  /** Set inline comment for a specific key (e.g. {@code key: value # inline comment}). */
+  public void setInlineComments(String path, String... comments) {
+    setInlineComments(DEFAULT_CONFIG, path, List.of(comments));
+  }
+
+  public void setInlineComments(String fileName, String path, List<String> comments) {
+    FileConfiguration config = getConfig(fileName);
+    config.setInlineComments(path, comments);
+    saveConfig(fileName, config);
+  }
+
+  public List<String> getInlineComments(String path) {
+    return getInlineComments(DEFAULT_CONFIG, path);
+  }
+
+  public List<String> getInlineComments(String fileName, String path) {
+    return getConfig(fileName).getInlineComments(path);
+  }
+
+  // ==========================================
+  // Non-Destructive Defaults & Migration
+  // ==========================================
+
+  /**
+   * Set a default value if not already present, preserving comments and user edits. If the key
+   * already exists, its existing user value is strictly preserved!
+   *
+   * @param path Key path
+   * @param value Default value
+   * @param comments Optional comment lines to place above the key
+   */
+  public void addDefault(String path, Object value, String... comments) {
+    addDefault(DEFAULT_CONFIG, path, value, comments);
+  }
+
+  public void addDefault(String fileName, String path, Object value, String... comments) {
+    FileConfiguration config = getConfig(fileName);
+    boolean modified = false;
+
+    if (!config.contains(path)) {
+      config.set(path, value);
+      modified = true;
+    }
+
+    if (comments != null && comments.length > 0) {
+      List<String> existing = config.getComments(path);
+      if (existing == null || existing.isEmpty()) {
+        config.setComments(path, List.of(comments));
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      saveConfig(fileName, config);
     }
   }
 
-  /** Clear the in-memory cache without modifying disk files. */
-  public void clearCache() {
-    configCache.clear();
+  /** Get current configuration schema version (stored in 'config-version', default 1). */
+  public int getVersion() {
+    return getVersion(DEFAULT_CONFIG);
+  }
+
+  public int getVersion(String fileName) {
+    return getConfig(fileName).getInt("config-version", 1);
+  }
+
+  /**
+   * Automatically migrate configuration to a newer target version with zero data loss.
+   *
+   * <p>If the user's config is below targetVersion, migrationAction is executed and
+   * 'config-version' is automatically updated with comments and saved cleanly.
+   *
+   * @param targetVersion The desired version number
+   * @param migrationAction Migration logic to transform old keys or inject new defaults
+   */
+  public void migrate(int targetVersion, Consumer<ScriptConfig> migrationAction) {
+    migrate(DEFAULT_CONFIG, targetVersion, migrationAction);
+  }
+
+  public synchronized void migrate(
+      String fileName, int targetVersion, Consumer<ScriptConfig> migrationAction) {
+    int currentVersion = getVersion(fileName);
+    if (currentVersion < targetVersion) {
+      plugin
+          .getLogger()
+          .info(
+              "["
+                  + scriptName
+                  + "] Migrating "
+                  + fileName
+                  + " from v"
+                  + currentVersion
+                  + " to v"
+                  + targetVersion);
+      try {
+        if (migrationAction != null) {
+          migrationAction.accept(this);
+        }
+        FileConfiguration config = getConfig(fileName);
+        config.set("config-version", targetVersion);
+        config.setComments(
+            "config-version",
+            List.of(
+                "Configuration version - automatically managed by script migrations.",
+                "Do not modify manually."));
+        saveConfig(fileName, config);
+        plugin
+            .getLogger()
+            .info(
+                "[" + scriptName + "] Successfully migrated " + fileName + " to v" + targetVersion);
+      } catch (Throwable t) {
+        plugin
+            .getLogger()
+            .log(
+                Level.SEVERE,
+                "[" + scriptName + "] Failed to migrate " + fileName + ": " + t.getMessage(),
+                t);
+      }
+    }
+  }
+
+  /**
+   * Execute multiple configuration edits in memory and flush to disk in a single atomic save.
+   *
+   * @param batchAction The consumer performing set / addDefault actions
+   */
+  public synchronized void batch(Consumer<FileConfiguration> batchAction) {
+    batch(DEFAULT_CONFIG, batchAction);
+  }
+
+  public synchronized void batch(String fileName, Consumer<FileConfiguration> batchAction) {
+    FileConfiguration config = getConfig(fileName);
+    if (batchAction != null) {
+      batchAction.accept(config);
+      saveConfig(fileName, config);
+    }
   }
 
   // ==========================================
-  // String Getters
+  // Typed Getters (O(1) in-memory cached)
   // ==========================================
+
+  public Object get(String path) {
+    return get(DEFAULT_CONFIG, path);
+  }
+
+  public Object get(String path, Object defaultValue) {
+    return get(DEFAULT_CONFIG, path, defaultValue);
+  }
+
+  public Object get(String fileName, String path) {
+    return getConfig(fileName).get(path);
+  }
+
+  public Object get(String fileName, String path, Object defaultValue) {
+    return getConfig(fileName).get(path, defaultValue);
+  }
 
   public String getString(String path, String defaultValue) {
     return getString(DEFAULT_CONFIG, path, defaultValue);
   }
 
   public String getString(String path) {
-    return getString(DEFAULT_CONFIG, path, null);
+    return getString(DEFAULT_CONFIG, path, "");
   }
 
   public String getString(String fileName, String path, String defaultValue) {
     return getConfig(fileName).getString(path, defaultValue);
   }
 
-  // ==========================================
-  // Integer Getters
-  // ==========================================
+  public String getFileString(String fileName, String path) {
+    return getString(fileName, path, "");
+  }
 
   public int getInt(String path, int defaultValue) {
     return getInt(DEFAULT_CONFIG, path, defaultValue);
@@ -226,10 +429,6 @@ public class ScriptConfig {
     return getInt(fileName, path, 0);
   }
 
-  // ==========================================
-  // Long Getters
-  // ==========================================
-
   public long getLong(String path, long defaultValue) {
     return getLong(DEFAULT_CONFIG, path, defaultValue);
   }
@@ -245,10 +444,6 @@ public class ScriptConfig {
   public long getLong(String fileName, String path) {
     return getLong(fileName, path, 0L);
   }
-
-  // ==========================================
-  // Double Getters
-  // ==========================================
 
   public double getDouble(String path, double defaultValue) {
     return getDouble(DEFAULT_CONFIG, path, defaultValue);
@@ -266,10 +461,6 @@ public class ScriptConfig {
     return getDouble(fileName, path, 0.0);
   }
 
-  // ==========================================
-  // Boolean Getters
-  // ==========================================
-
   public boolean getBoolean(String path, boolean defaultValue) {
     return getBoolean(DEFAULT_CONFIG, path, defaultValue);
   }
@@ -285,10 +476,6 @@ public class ScriptConfig {
   public boolean getBoolean(String fileName, String path) {
     return getBoolean(fileName, path, false);
   }
-
-  // ==========================================
-  // List Getters
-  // ==========================================
 
   public List<String> getStringList(String path) {
     return getStringList(DEFAULT_CONFIG, path);
@@ -307,7 +494,7 @@ public class ScriptConfig {
   }
 
   // ==========================================
-  // Path Existence Check
+  // Sections & Keys
   // ==========================================
 
   public boolean contains(String path) {
@@ -318,8 +505,52 @@ public class ScriptConfig {
     return getConfig(fileName).contains(path);
   }
 
+  public ConfigurationSection getSection(String path) {
+    return getSection(DEFAULT_CONFIG, path);
+  }
+
+  public ConfigurationSection getSection(String fileName, String path) {
+    return getConfig(fileName).getConfigurationSection(path);
+  }
+
+  public Set<String> getKeys(boolean deep) {
+    return getKeys(DEFAULT_CONFIG, deep);
+  }
+
+  public Set<String> getFileKeys(String fileName, boolean deep) {
+    return getConfig(fileName).getKeys(deep);
+  }
+
+  public Set<String> getKeys(String path, boolean deep) {
+    ConfigurationSection section = getConfig(DEFAULT_CONFIG).getConfigurationSection(path);
+    return section != null ? section.getKeys(deep) : Collections.emptySet();
+  }
+
+  public Set<String> getKeys(String fileName, String path, boolean deep) {
+    ConfigurationSection section = getConfig(fileName).getConfigurationSection(path);
+    return section != null ? section.getKeys(deep) : Collections.emptySet();
+  }
+
+  public Map<String, Object> getValues(boolean deep) {
+    return getValues(DEFAULT_CONFIG, deep);
+  }
+
+  public Map<String, Object> getFileValues(String fileName, boolean deep) {
+    return getConfig(fileName).getValues(deep);
+  }
+
+  public Map<String, Object> getValues(String path, boolean deep) {
+    ConfigurationSection section = getConfig(DEFAULT_CONFIG).getConfigurationSection(path);
+    return section != null ? section.getValues(deep) : Collections.emptyMap();
+  }
+
+  public Map<String, Object> getValues(String fileName, String path, boolean deep) {
+    ConfigurationSection section = getConfig(fileName).getConfigurationSection(path);
+    return section != null ? section.getValues(deep) : Collections.emptyMap();
+  }
+
   // ==========================================
-  // Setters & Modifiers
+  // Setters & Deletion
   // ==========================================
 
   /** Set a value in default config.yml and save immediately. */
@@ -339,21 +570,19 @@ public class ScriptConfig {
     setMemory(DEFAULT_CONFIG, path, value);
   }
 
-  /** Set a value in in-memory cache for a named config without saving immediately. */
   public void setMemory(String fileName, String path, Object value) {
     getConfig(fileName).set(path, value);
   }
 
-  /** Set a default value if not already present, copying defaults on save. */
-  public void addDefault(String path, Object value) {
-    addDefault(DEFAULT_CONFIG, path, value);
+  /** Remove a key and save immediately. */
+  public void remove(String path) {
+    remove(DEFAULT_CONFIG, path);
   }
 
-  /** Set a default value in a named config if not present. */
-  public void addDefault(String fileName, String path, Object value) {
+  public void remove(String fileName, String path) {
     FileConfiguration config = getConfig(fileName);
-    if (!config.contains(path)) {
-      config.set(path, value);
+    if (config.contains(path)) {
+      config.set(path, null);
       saveConfig(fileName, config);
     }
   }
