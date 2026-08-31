@@ -29,6 +29,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.economy.EconomyHelper economyHelper;
   private dev.mukulx.javaskript.api.variable.VariableHelper variableHelper;
   private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
+  private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
   private boolean debugMode;
 
   @Override
@@ -92,6 +93,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       // Shared inter-script variable storage
       this.variableHelper = new dev.mukulx.javaskript.api.variable.VariableHelper(this);
       dev.mukulx.javaskript.api.variable.Variables.setInstance(variableHelper);
+
+      // Built-in async HTTP & Discord Webhook client
+      this.httpHelper = new dev.mukulx.javaskript.api.http.HttpHelper(this);
+      dev.mukulx.javaskript.api.http.Http.setInstance(httpHelper);
 
       // Economy subsystem (Vault & Built-in SQLite)
       try {
@@ -266,6 +271,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
     return eventBus;
+  }
+
+  public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
+    return httpHelper;
   }
 
   public DynamicCommandRegistry getCommandRegistry() {

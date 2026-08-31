@@ -53,6 +53,7 @@ public class ScriptInstance {
   private ChatHelper chat;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economy;
   private dev.mukulx.javaskript.api.variable.VariableHelper variables;
+  private dev.mukulx.javaskript.api.http.HttpHelper http;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -103,6 +104,7 @@ public class ScriptInstance {
       this.chat = new ChatHelper(plugin, scriptKey);
       this.economy = plugin.getEconomyHelper();
       this.variables = plugin.getVariableHelper();
+      this.http = plugin.getHttpHelper();
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -302,6 +304,8 @@ public class ScriptInstance {
             } else if (type.isAssignableFrom(
                 dev.mukulx.javaskript.api.variable.VariableHelper.class)) {
               field.set(instance, variables);
+            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.http.HttpHelper.class)) {
+              field.set(instance, http);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -382,6 +386,8 @@ public class ScriptInstance {
                 || name.equals("shared")
                 || name.equals("state")) {
               field.set(instance, variables);
+            } else if (name.equals("http") || name.equals("web") || name.equals("httphelper")) {
+              field.set(instance, http);
             } else {
               // Check external addons and plugins for custom registered field injectors
               Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
@@ -944,6 +950,14 @@ public class ScriptInstance {
 
   public dev.mukulx.javaskript.api.variable.VariableHelper getVariableHelper() {
     return variables;
+  }
+
+  public dev.mukulx.javaskript.api.http.HttpHelper getHttp() {
+    return http;
+  }
+
+  public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
+    return http;
   }
 
   public boolean isFoliaCompatible() {

@@ -330,6 +330,24 @@ public class JavaSkriptAPI {
     return plugin.getEventBus();
   }
 
+  /**
+   * Get the HttpHelper for making asynchronous HTTP requests and sending Discord webhooks.
+   *
+   * @return The HttpHelper instance
+   */
+  public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
+    return plugin.getHttpHelper();
+  }
+
+  /**
+   * Get the HttpHelper (alias).
+   *
+   * @return The HttpHelper instance
+   */
+  public dev.mukulx.javaskript.api.http.HttpHelper http() {
+    return getHttpHelper();
+  }
+
   // ==========================================
   // Addon & Custom Injector Management
   // ==========================================

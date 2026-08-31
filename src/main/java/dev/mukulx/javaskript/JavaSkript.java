@@ -82,4 +82,13 @@ public final class JavaSkript {
   public static dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
     return getAPI().getEventBus();
   }
+
+  /**
+   * Get the HttpHelper for asynchronous HTTP requests and Discord webhooks.
+   *
+   * @return HttpHelper instance
+   */
+  public static dev.mukulx.javaskript.api.http.HttpHelper getHttp() {
+    return getAPI().getHttpHelper();
+  }
 }

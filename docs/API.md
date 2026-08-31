@@ -27,6 +27,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 21. [External Maven Dependencies](#external-dependencies)
 22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
 23. [VariableHelper & Variables (Shared State)](#variablehelper--variables-shared-state)
+24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
 
 ---
 
@@ -2431,6 +2432,79 @@ int jackpot = variables.getPersistentInt("global_jackpot", 10000);
 
 // Remove persisted key
 variables.removePersistent("global_jackpot");
+```
+
+---
+
+## HttpHelper & `Http` (Web Requests & Discord Webhooks)
+
+Built-in non-blocking HTTP engine for JavaSkript scripts.
+
+Eliminates the need for external OkHttp or Apache HttpClient dependencies. Allows sending REST API requests (GET, POST, PUT, DELETE), JSON payloads, and rich Discord webhooks with embeds in a few clean lines.
+
+### Auto-Injection & Static Facade
+```java
+// Option A: Injected helper
+private HttpHelper http;
+// Aliases: private HttpHelper web; / httphelper;
+
+// Option B: Static facade (usable anywhere)
+Http.discord(webhookUrl).title("Alert").send();
+```
+
+### 1. Discord Webhooks with Rich Embeds
+Send formatted Discord embed messages asynchronously:
+```java
+http.discord(webhookUrl)
+    .username("Staff Bot")
+    .avatarUrl("https://example.com/bot.png")
+    .title("Player Report")
+    .description("Player **" + target.getName() + "** was reported for cheating.")
+    .color(0xFF5555) // Hex color or java.awt.Color
+    .thumbnail("https://minotar.net/avatar/" + target.getName() + "/100.png")
+    .field("Reporter", sender.getName(), true)
+    .field("Reason", reason, true)
+    .field("Location", target.getLocation().getBlockX() + ", " + target.getLocation().getBlockZ(), false)
+    .timestamp()
+    .footer("Server Security", null)
+    .send();
+```
+
+Multiple embeds in one webhook:
+```java
+http.discord(webhookUrl)
+    .content("@here Staff attention required")
+    .embed(e -> e.title("Log 1").description("Action recorded"))
+    .embed(e -> e.title("Log 2").description("Follow up"))
+    .send();
+```
+
+### 2. REST API Requests (GET, POST, PUT, DELETE)
+Execute async HTTP requests with fluent configuration:
+```java
+// GET request with callback
+http.get("https://api.github.com/zen", (statusCode, body) -> {
+    if (statusCode == 200) {
+        player.sendMessage("Zen: " + body);
+    }
+});
+
+// JSON GET with parsed JsonElement
+http.getJson("https://api.example.com/player/" + uuid, json -> {
+    String rank = json.getAsJsonObject().get("rank").getAsString();
+    player.sendMessage("Rank: " + rank);
+});
+
+// POST JSON with custom headers and authorization
+http.request("https://api.example.com/v1/punish")
+    .POST()
+    .bearerAuth("my-secret-token")
+    .bodyJson(Map.of("target", target.getName(), "reason", "Kicked"))
+    .timeout(Duration.ofSeconds(5))
+    .onError(ex -> getLogger().warning("HTTP request failed: " + ex.getMessage()))
+    .send((code, response) -> {
+        getLogger().info("Response code: " + code);
+    });
 ```
 
 ---
