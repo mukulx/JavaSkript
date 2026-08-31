@@ -29,7 +29,7 @@ If you want to work on something not in the issue tracker, consider opening an i
 Fork the repository and clone it to your local machine:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/JavaSkript.git --recurse-submodules
+git clone https://github.com/mukulx/JavaSkript.git --recurse-submodules
 ```
 
 Create a new branch for your changes:
