@@ -60,4 +60,9 @@ public class GUIManager implements Listener {
       unregisterGUI(player);
     }
   }
+
+  @EventHandler
+  public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+    unregisterGUI(event.getPlayer());
+  }
 }

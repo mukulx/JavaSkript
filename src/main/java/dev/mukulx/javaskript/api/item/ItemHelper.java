@@ -70,4 +70,62 @@ public class ItemHelper {
       }
     }
   }
+
+  /** Count total amount of a given material in the player's inventory. */
+  public int count(Player player, Material material) {
+    if (player == null || material == null || material.isAir()) return 0;
+    int total = 0;
+    for (ItemStack stack : player.getInventory().getContents()) {
+      if (stack != null && stack.getType() == material) {
+        total += stack.getAmount();
+      }
+    }
+    return total;
+  }
+
+  /** Check if a player has at least the specified amount of a material. */
+  public boolean has(Player player, Material material, int amount) {
+    if (amount <= 0) return true;
+    return count(player, material) >= amount;
+  }
+
+  /** Check if a player has at least 1 of a material. */
+  public boolean has(Player player, Material material) {
+    return has(player, material, 1);
+  }
+
+  /**
+   * Safely remove a specified amount of a material across all inventory slots.
+   *
+   * @param player The player
+   * @param material The material to remove
+   * @param amount The quantity to remove
+   * @return true if the items were found and removed, false if insufficient items
+   */
+  public boolean take(Player player, Material material, int amount) {
+    if (player == null || material == null || amount <= 0) return false;
+    if (!has(player, material, amount)) {
+      return false;
+    }
+
+    int remaining = amount;
+    ItemStack[] contents = player.getInventory().getContents();
+    for (int i = 0; i < contents.length; i++) {
+      ItemStack stack = contents[i];
+      if (stack != null && stack.getType() == material) {
+        int stackAmount = stack.getAmount();
+        if (stackAmount <= remaining) {
+          remaining -= stackAmount;
+          contents[i] = null;
+        } else {
+          stack.setAmount(stackAmount - remaining);
+          remaining = 0;
+          break;
+        }
+      }
+    }
+    player.getInventory().setContents(contents);
+    player.updateInventory();
+    return true;
+  }
 }

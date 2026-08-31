@@ -41,7 +41,7 @@ public class GUI {
    * @param rows Number of rows (1-6)
    */
   public GUI(String title, int rows) {
-    this(Component.text(title), rows);
+    this(dev.mukulx.javaskript.util.TextUtil.parse(title), rows);
   }
 
   /**
@@ -202,7 +202,13 @@ public class GUI {
       if (slot >= 0 && slot < inventory.getSize()) {
         Consumer<InventoryClickEvent> handler = clickHandlers.get(slot);
         if (handler != null) {
-          handler.accept(event);
+          try {
+            handler.accept(event);
+          } catch (Throwable t) {
+            Bukkit.getLogger()
+                .warning(
+                    "[GUI] Error executing click handler in slot " + slot + ": " + t.getMessage());
+          }
         }
       }
     }
@@ -215,7 +221,11 @@ public class GUI {
    */
   public void handleClose(InventoryCloseEvent event) {
     if (closeHandler != null) {
-      closeHandler.accept(event);
+      try {
+        closeHandler.accept(event);
+      } catch (Throwable t) {
+        Bukkit.getLogger().warning("[GUI] Error executing close handler: " + t.getMessage());
+      }
     }
   }
 
