@@ -1884,16 +1884,93 @@ for (Map.Entry<UUID, Double> entry : top) {
 ```
 
 ### 5. Multi-Currency Support (Gems, Tokens, Credits)
-```java
-// Register custom currency provider:
-economy.registerCurrency("gems", new CustomGemsEconomy());
 
-// Access anytime:
-Economy.currency("gems").ifPresent(gems -> {
-    if (gems.has(player, 50)) {
-        gems.withdraw(player, 50);
+You can create and register secondary currencies alongside the main server economy.
+
+#### A. Creating a Custom Currency Provider
+Implement `EconomyProvider` (storing data in memory, SQLite, or player PDC):
+```java
+public class GemsCurrencyProvider implements EconomyProvider {
+    private final Map<UUID, Double> gems = new ConcurrentHashMap<>();
+
+    @Override public String getName() { return "Gems"; }
+    @Override public String getCurrencySymbol() { return "💎"; }
+    @Override public String getCurrencySingular() { return "Gem"; }
+    @Override public String getCurrencyPlural() { return "Gems"; }
+
+    @Override public double getBalance(UUID uuid) { return gems.getOrDefault(uuid, 0.0); }
+
+    @Override
+    public EconomyResult withdraw(UUID uuid, double amount) {
+        double current = getBalance(uuid);
+        if (current < amount) return EconomyResult.fail("Insufficient gems", current);
+        double next = current - amount;
+        gems.put(uuid, next);
+        return EconomyResult.success(amount, next);
     }
-});
+
+    @Override
+    public EconomyResult deposit(UUID uuid, double amount) {
+        double next = getBalance(uuid) + amount;
+        gems.put(uuid, next);
+        return EconomyResult.success(amount, next);
+    }
+
+    @Override
+    public EconomyResult set(UUID uuid, double amount) {
+        gems.put(uuid, amount);
+        return EconomyResult.success(amount, amount);
+    }
+
+    @Override public String format(double amount) { return "💎" + (int) amount; }
+    @Override public String formatShort(double amount) { return format(amount); }
+}
+```
+
+#### B. Registering the Custom Currency
+```java
+// Register in your script's onEnable():
+economy.registerCurrency("gems", new GemsCurrencyProvider());
+```
+
+#### C. Multi-Balance Hybrid Transaction (Coins + Gems)
+Purchase an item requiring **both** $5,000 Coins AND 25 Gems with full rollback safety:
+```java
+double costCoins = 5000.0;
+double costGems = 25.0;
+
+EconomyProvider gems = Economy.currency("gems").orElseThrow();
+
+// 1. Verify player can afford both
+if (!Economy.has(player, costCoins) || !gems.has(player, costGems)) {
+    Players.msg(player, "<red>You need " + Economy.format(costCoins) + " and " + gems.format(costGems) + "!");
+    return;
+}
+
+// 2. Perform atomic multi-balance withdrawal
+EconomyResult resCoins = Economy.withdraw(player, costCoins);
+EconomyResult resGems = gems.withdraw(player, costGems);
+
+if (resCoins.isSuccess() && resGems.isSuccess()) {
+    Players.msg(player, "<green>✔ Purchased Mythic Relic with Coins & Gems!");
+    Players.sound(player, Sound.UI_TOAST_CHALLENGE_COMPLETE);
+    // Give item...
+} else {
+    // Transaction failed - rollback whichever was charged
+    if (resCoins.isSuccess()) Economy.deposit(player, costCoins);
+    if (resGems.isSuccess()) gems.deposit(player, costGems);
+    Players.msg(player, "<red>✖ Transaction failed. Funds refunded.");
+}
+```
+
+#### D. Currency Exchange (Convert Coins to Gems)
+Convert $10,000 Coins into 10 Gems:
+```java
+if (Economy.has(player, 10000.0)) {
+    Economy.withdraw(player, 10000.0);
+    gems.deposit(player, 10.0);
+    Players.msg(player, "<green>Converted $10,000 Coins into 10 Gems!");
+}
 ```
 
 ---
