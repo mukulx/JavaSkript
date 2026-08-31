@@ -32,7 +32,7 @@ If you already know Java, JavaSkript makes rapid prototyping and testing much fa
 ## Quick Start
 
 1. Build: `./gradlew clean build shadowJar`
-2. Place `build/libs/JavaSkript-1.1.0.jar` in `plugins/` folder
+2. Place `build/libs/JavaSkript-2.0.0.jar` in `plugins/` folder
 3. Restart server
 4. Write scripts in `plugins/JavaSkript/scripts/`
 
