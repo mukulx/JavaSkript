@@ -52,6 +52,7 @@ public class ScriptInstance {
   private PlayerHelper players;
   private ChatHelper chat;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economy;
+  private dev.mukulx.javaskript.api.variable.VariableHelper variables;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -101,6 +102,7 @@ public class ScriptInstance {
       this.players = new PlayerHelper(plugin);
       this.chat = new ChatHelper(plugin, scriptKey);
       this.economy = plugin.getEconomyHelper();
+      this.variables = plugin.getVariableHelper();
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptName);
@@ -297,6 +299,9 @@ public class ScriptInstance {
             } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyHelper.class)
                 || type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyProvider.class)) {
               field.set(instance, economy);
+            } else if (type.isAssignableFrom(
+                dev.mukulx.javaskript.api.variable.VariableHelper.class)) {
+              field.set(instance, variables);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -371,6 +376,12 @@ public class ScriptInstance {
                 || name.equals("economyhelper")
                 || name.equals("vault")) {
               field.set(instance, economy);
+            } else if (name.equals("variables")
+                || name.equals("vars")
+                || name.equals("variablehelper")
+                || name.equals("shared")
+                || name.equals("state")) {
+              field.set(instance, variables);
             } else {
               // Check external addons and plugins for custom registered field injectors
               Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
@@ -925,6 +936,14 @@ public class ScriptInstance {
 
   public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
     return economy;
+  }
+
+  public dev.mukulx.javaskript.api.variable.VariableHelper getVariables() {
+    return variables;
+  }
+
+  public dev.mukulx.javaskript.api.variable.VariableHelper getVariableHelper() {
+    return variables;
   }
 
   public boolean isFoliaCompatible() {

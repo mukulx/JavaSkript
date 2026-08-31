@@ -85,7 +85,7 @@ src/main/resources/examples/ (on GitHub)
 - **Full Paper/Folia support** - Works on both platforms with automatic detection
 - **Dynamic commands** - Commands register automatically, no plugin.yml needed
 - **Dynamic permissions** - LuckPerms-style permission registration
-- **Built-in APIs** - Scheduler, Config (with comment preservation & schema migrations), Database (SQLite), Economy (Vault & multi-currency), Players, Sounds, ChatBuilder, Lambda Events, CommandBuilder, GUI Menus, ItemBuilder, Display Holograms, Cooldowns, RecipeHelper, and PlaceholderAPI
+- **Built-in APIs** - Scheduler, Config (with comment preservation & schema migrations), Database (SQLite), Shared Variables, Custom EventBus, Economy (Vault & multi-currency), Players, Sounds, ChatBuilder, Lambda Events, CommandBuilder, GUI Menus, ItemBuilder, Display Holograms, Cooldowns, RecipeHelper, and PlaceholderAPI
 - **Auto-injection** - APIs automatically injected into declared script fields
 - **Real-time Profiler** - Built-in nanosecond profiling and synthetic benchmarks (`/js profile`, `/js benchmark`, `/js timings`)
 - **Compilation caching** - Instant reloads for unchanged scripts via bytecode caching

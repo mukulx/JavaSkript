@@ -303,6 +303,33 @@ public class JavaSkriptAPI {
     return getEconomyHelper();
   }
 
+  /**
+   * Get the VariableHelper for managing shared in-memory and persistent script state.
+   *
+   * @return The VariableHelper instance
+   */
+  public dev.mukulx.javaskript.api.variable.VariableHelper getVariableHelper() {
+    return plugin.getVariableHelper();
+  }
+
+  /**
+   * Get the VariableHelper (alias).
+   *
+   * @return The VariableHelper instance
+   */
+  public dev.mukulx.javaskript.api.variable.VariableHelper variables() {
+    return getVariableHelper();
+  }
+
+  /**
+   * Get the inter-script Pub/Sub EventBus.
+   *
+   * @return The ScriptEventBus instance
+   */
+  public dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
+    return plugin.getEventBus();
+  }
+
   // ==========================================
   // Addon & Custom Injector Management
   // ==========================================

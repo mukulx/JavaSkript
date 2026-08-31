@@ -14,7 +14,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 8. [PlayerHelper & Players Utility](#playerhelper--players-universal-player-utility)
 9. [Sounds & Audio Chords](#audio--visuals)
 10. [ChatHelper (Interactive Chat API)](#chathelper-interactive-chat-api)
-11. [EventHelper (Lambda Events)](#eventhelper-lambda-events)
+11. [EventHelper (Lambda Events & Custom Event Bus)](#eventhelper-lambda-events)
 12. [CooldownHelper & Cooldowns](#cooldownhelper-rate-limiting--tickers)
 13. [HologramHelper & Holograms](#hologramhelper-display-entities)
 14. [ActionBarHelper, TitleHelper, & BossBarHelper](#actionbarhelper)
@@ -26,6 +26,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 20. [Script Annotations & Lifecycle](#annotations)
 21. [External Maven Dependencies](#external-dependencies)
 22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
+23. [VariableHelper & Variables (Shared State)](#variablehelper--variables-shared-state)
 
 ---
 
@@ -1745,6 +1746,33 @@ EventSubscription<EntityDamageByEntityEvent> sub = events.on(EntityDamageByEntit
 sub.unsubscribe();
 ```
 
+### 6. Inter-Script Custom Events (Pub/Sub Event Bus)
+
+Broadcast custom events to any other script on the server without compile-time class dependencies:
+
+```java
+// In Script A (Broadcaster):
+events.fire("quest_completed", player, "ancient_ruins", 500);
+
+// In Script B (Listener):
+events.onCustom("quest_completed", ctx -> {
+    Player player = ctx.getPlayer();
+    String quest = ctx.get(1, String.class);
+    int coins = ctx.get(2, Integer.class, 0);
+
+    Economy.deposit(player, coins);
+    Players.msg(player, "<green>Reward received for " + quest);
+});
+
+// Or listen once:
+events.onceCustom("first_blood", ctx -> {
+    Player killer = ctx.getPlayer();
+    Players.broadcast("<red><bold>" + killer.getName() + " got First Blood!</bold></red>");
+});
+```
+
+All custom event listeners are automatically unregistered when the script unloads or reloads.
+
 ---
 
 ## PlayerHelper & `Players` (Universal Player Utility)
@@ -2349,6 +2377,60 @@ try {
 } catch (Exception e) {
     getLogger().warning("Failed to invoke script method: " + e.getMessage());
 }
+```
+
+---
+
+## VariableHelper & `Variables` (Shared State)
+
+Thread-safe shared variable storage engine for JavaSkript scripts.
+
+Because each script is isolated in its own ClassLoader, `Variables` provides a global, thread-safe memory store accessible by every script on the server. It also supports disk persistence so data can survive server restarts.
+
+### Auto-Injection & Static Facade
+```java
+// Option A: Injected helper
+private VariableHelper variables;
+// Aliases: private VariableHelper vars; / state; / shared;
+
+// Option B: Static facade (usable anywhere, even in utility classes)
+Variables.set("jackpot", 5000);
+int jackpot = Variables.getInt("jackpot");
+```
+
+### 1. In-Memory Variables
+Fast, sub-microsecond in-memory key-value cache:
+```java
+// Set any Java or Bukkit object
+variables.set("event_active", true);
+variables.set("spawn_point", player.getLocation());
+
+// Get with type safety and fallback default values
+boolean active = variables.getBoolean("event_active", false);
+Location spawn = variables.get("spawn_point", Location.class);
+String motd = variables.getString("server_motd", "Welcome!");
+```
+
+### 2. Atomic Counters & Math
+Thread-safe atomic updates without locks:
+```java
+// Atomic increment & decrement
+long joins = variables.increment("total_joins", 1);
+double prizePool = variables.increment("lottery_pool", 25.50);
+long remaining = variables.decrement("lives", 1);
+```
+
+### 3. Persistent Variables (Survives Server Restarts)
+Saved atomically to `plugins/JavaSkript/script-data/variables.json`:
+```java
+// Saved to disk asynchronously, survives restarts
+variables.setPersistent("global_jackpot", 150000);
+
+// Read persisted value
+int jackpot = variables.getPersistentInt("global_jackpot", 10000);
+
+// Remove persisted key
+variables.removePersistent("global_jackpot");
 ```
 
 ---

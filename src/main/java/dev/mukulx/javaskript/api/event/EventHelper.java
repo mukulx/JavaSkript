@@ -177,6 +177,55 @@ public class EventHelper {
   }
 
   // ==========================================
+  // Inter-Script Custom Events (Pub/Sub)
+  // ==========================================
+
+  /**
+   * Broadcast a custom event across all scripts.
+   *
+   * @param eventName Name of the custom event (e.g. "quest_completed", "jackpot_won")
+   * @param args Arguments to pass
+   * @return The populated context
+   */
+  public CustomEventContext fire(String eventName, Object... args) {
+    if (plugin != null && plugin.getEventBus() != null) {
+      return plugin.getEventBus().fire(eventName, args);
+    }
+    return new CustomEventContext(eventName, args);
+  }
+
+  /**
+   * Listen for a custom event broadcast by any script or external plugin. Automatically cleaned up
+   * when this script unloads or reloads.
+   *
+   * @param eventName Name of the custom event
+   * @param handler Consumer accepting CustomEventContext
+   * @return BusSubscription handle
+   */
+  public ScriptEventBus.BusSubscription onCustom(
+      String eventName, Consumer<CustomEventContext> handler) {
+    if (plugin != null && plugin.getEventBus() != null) {
+      return plugin.getEventBus().subscribe(scriptName, eventName, handler);
+    }
+    return null;
+  }
+
+  /**
+   * Listen for a custom event once, then automatically unsubscribe.
+   *
+   * @param eventName Name of the custom event
+   * @param handler Consumer accepting CustomEventContext
+   * @return BusSubscription handle
+   */
+  public ScriptEventBus.BusSubscription onceCustom(
+      String eventName, Consumer<CustomEventContext> handler) {
+    if (plugin != null && plugin.getEventBus() != null) {
+      return plugin.getEventBus().subscribeOnce(scriptName, eventName, handler);
+    }
+    return null;
+  }
+
+  // ==========================================
   // Lifecycle & Cleanup
   // ==========================================
 
@@ -186,6 +235,9 @@ public class EventHelper {
       sub.unsubscribe();
     }
     subscriptions.clear();
+    if (plugin != null && plugin.getEventBus() != null) {
+      plugin.getEventBus().unregisterAll(scriptName);
+    }
   }
 
   /** Returns the number of currently active subscriptions. */

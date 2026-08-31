@@ -27,6 +27,8 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private UpdateChecker updateChecker;
   private ScriptProfiler profiler;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economyHelper;
+  private dev.mukulx.javaskript.api.variable.VariableHelper variableHelper;
+  private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
   private boolean debugMode;
 
   @Override
@@ -83,6 +85,13 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       this.api = new JavaSkriptAPI(this);
       dev.mukulx.javaskript.api.player.Players.setInstance(
           new dev.mukulx.javaskript.api.player.PlayerHelper(this));
+
+      // Inter-script event bus
+      this.eventBus = new dev.mukulx.javaskript.api.event.ScriptEventBus(this);
+
+      // Shared inter-script variable storage
+      this.variableHelper = new dev.mukulx.javaskript.api.variable.VariableHelper(this);
+      dev.mukulx.javaskript.api.variable.Variables.setInstance(variableHelper);
 
       // Economy subsystem (Vault & Built-in SQLite)
       try {
@@ -205,6 +214,24 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       debug("Error shutting down economy helper: " + t.getMessage());
     }
 
+    // Save shared persistent variables
+    try {
+      if (variableHelper != null) {
+        variableHelper.shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down variable helper: " + t.getMessage());
+    }
+
+    // Clear event bus
+    try {
+      if (eventBus != null) {
+        eventBus.clear();
+      }
+    } catch (Throwable t) {
+      debug("Error clearing event bus: " + t.getMessage());
+    }
+
     // Shutdown addons and custom injectors
     try {
       if (api != null && api.getAddonRegistry() != null) {
@@ -231,6 +258,14 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public JavaSkriptAPI getAPI() {
     return api;
+  }
+
+  public dev.mukulx.javaskript.api.variable.VariableHelper getVariableHelper() {
+    return variableHelper;
+  }
+
+  public dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
+    return eventBus;
   }
 
   public DynamicCommandRegistry getCommandRegistry() {

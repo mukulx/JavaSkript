@@ -64,4 +64,22 @@ public final class JavaSkript {
   public static void registerInjector(String fieldName, FieldInjector<?> injector) {
     getAPI().registerInjector(fieldName, injector);
   }
+
+  /**
+   * Get the VariableHelper managing shared in-memory and persistent script variables.
+   *
+   * @return VariableHelper instance
+   */
+  public static dev.mukulx.javaskript.api.variable.VariableHelper getVariables() {
+    return getAPI().getVariableHelper();
+  }
+
+  /**
+   * Get the inter-script Pub/Sub EventBus.
+   *
+   * @return ScriptEventBus instance
+   */
+  public static dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
+    return getAPI().getEventBus();
+  }
 }
