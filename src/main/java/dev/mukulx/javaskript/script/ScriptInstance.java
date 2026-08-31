@@ -313,13 +313,21 @@ public class ScriptInstance {
               field.set(instance, placeholders);
             } else if (name.equals("recipes")) {
               field.set(instance, recipes);
-            } else if (name.equals("actionbar")) {
+            } else if (name.equals("actionbar")
+                || name.equals("actionbars")
+                || name.equals("actionbarhelper")) {
               field.set(instance, plugin.getAPI().getActionBarHelper());
-            } else if (name.equals("title")) {
+            } else if (name.equals("title")
+                || name.equals("titles")
+                || name.equals("titlehelper")) {
               field.set(instance, plugin.getAPI().getTitleHelper());
-            } else if (name.equals("bossbar")) {
+            } else if (name.equals("bossbar")
+                || name.equals("bossbars")
+                || name.equals("bossbarhelper")) {
               field.set(instance, plugin.getAPI().getBossBarHelper());
-            } else if (name.equals("sound")) {
+            } else if (name.equals("sound")
+                || name.equals("sounds")
+                || name.equals("soundhelper")) {
               field.set(instance, plugin.getAPI().getSoundHelper());
             } else if (name.equals("dialog")
                 || name.equals("dialogs")

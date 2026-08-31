@@ -72,7 +72,9 @@ public class DynamicCommandRegistry {
         TabCompleter safeTabCompleter =
             (sender, cmd, label, args) -> {
               try {
-                return effectiveTabCompleter.onTabComplete(sender, cmd, label, args);
+                List<String> results =
+                    effectiveTabCompleter.onTabComplete(sender, cmd, label, args);
+                return results != null ? results : java.util.Collections.emptyList();
               } catch (Throwable t) {
                 plugin.debug("Error in tab completion for /" + commandName + ": " + t.getMessage());
                 return java.util.Collections.emptyList();

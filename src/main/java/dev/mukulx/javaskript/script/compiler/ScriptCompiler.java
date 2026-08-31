@@ -25,9 +25,10 @@ public class ScriptCompiler {
     this.plugin = plugin;
     this.tempDir = new File(plugin.getDataFolder(), "temp");
 
-    if (!tempDir.exists()) {
-      tempDir.mkdirs();
+    if (tempDir.exists()) {
+      deleteRecursively(tempDir);
     }
+    tempDir.mkdirs();
   }
 
   /**

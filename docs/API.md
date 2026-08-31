@@ -1494,9 +1494,15 @@ public void onBossDeath(EntityDeathEvent event) {
 
 Modern Paper Display Entity system for creating zero-lag floating text, 3D items, and 3D blocks without armor stands or external plugins.
 
-### Auto-Injection
+### Usage: Injection or Static Facade
 ```java
-private HologramHelper holograms; // Automatically injected!
+// Option A: Auto-injected field
+private HologramHelper holograms;
+
+// Option B: 1-line static facade anywhere (no injection needed!)
+Holograms.text(loc, "<gold><bold>SPAWN POINT</bold></gold>");
+Holograms.item(loc, new ItemStack(Material.NETHER_STAR));
+Holograms.create(loc, "<yellow>Line 1", "<gold>Line 2").spawn();
 ```
 
 ### Methods
