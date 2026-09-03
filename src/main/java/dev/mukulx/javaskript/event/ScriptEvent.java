@@ -11,7 +11,7 @@ public abstract class ScriptEvent extends Event {
   private final String scriptKey;
 
   public ScriptEvent(String scriptKey) {
-    this(scriptKey, false);
+    this(scriptKey, org.bukkit.Bukkit.getServer() != null && !org.bukkit.Bukkit.isPrimaryThread());
   }
 
   public ScriptEvent(String scriptKey, boolean async) {

@@ -37,8 +37,8 @@ public class ConfigExample implements CommandExecutor, TabCompleter {
         });
 
     // 4. Multi-file support
-    config.addDefault("messages.yml", "welcome", "Welcome to the server", "Join message");
-    config.addDefault("messages.yml", "goodbye", "See you later", "Quit message");
+    config.addFileDefault("messages.yml", "welcome", "Welcome to the server", "Join message");
+    config.addFileDefault("messages.yml", "goodbye", "See you later", "Quit message");
   }
 
   @Override

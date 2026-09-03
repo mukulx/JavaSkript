@@ -75,6 +75,16 @@ public class SubcommandBuilder {
     return this;
   }
 
+  public SubcommandBuilder playerOnly() {
+    this.playerOnly = true;
+    return this;
+  }
+
+  public SubcommandBuilder consoleOnly() {
+    this.consoleOnly = true;
+    return this;
+  }
+
   public SubcommandBuilder executesPlayer(PlayerCallback callback) {
     this.playerOnly = true;
     this.callback =

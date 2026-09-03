@@ -35,6 +35,19 @@ public class CommandContext {
     return rawArgs;
   }
 
+  /** Shorthand for rawArgs() - returns array of raw arguments. */
+  public String[] args() {
+    return rawArgs != null ? rawArgs : new String[0];
+  }
+
+  /** Get raw argument string at 0-indexed position, or null if out of bounds. */
+  public String arg(int index) {
+    if (rawArgs == null || index < 0 || index >= rawArgs.length) {
+      return null;
+    }
+    return rawArgs[index];
+  }
+
   public boolean isPlayer() {
     return sender instanceof Player;
   }

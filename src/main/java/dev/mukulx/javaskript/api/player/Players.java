@@ -505,6 +505,10 @@ public final class Players {
     return get().all();
   }
 
+  public static Collection<? extends Player> online() {
+    return get().online();
+  }
+
   public static Optional<Player> random() {
     return get().random();
   }

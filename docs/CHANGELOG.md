@@ -2,6 +2,14 @@
 
 All notable changes to JavaSkript are documented in GitHub Releases.
 
+## [2.0.1] - 2026-09-03
+
+### Bug Fixes & Improvements
+- **Asynchronous Lifecycle Events:** Made `ScriptEvent` async state dynamic to prevent Bukkit `IllegalStateException` when triggered from background file watcher threads.
+- **Config Overload Ambiguity:** Added `setFileHeader` and `addFileDefault` in `ScriptConfig` to eliminate compiler ambiguity with vararg overloads.
+- **Command Builder & Context:** Added fluent `.playerOnly()` and `.consoleOnly()` methods to `CommandBuilder` / `SubcommandBuilder`, and added `.args()` and `.arg(int index)` helpers to `CommandContext`.
+- **Compiler Classpath Enhancements:** Added Google Gson and Guava directly to `ScriptCompiler` base classpath and added `Players.online()` alias.
+
 ## [2.0.0] - 2026-08-31
 
 ### Features

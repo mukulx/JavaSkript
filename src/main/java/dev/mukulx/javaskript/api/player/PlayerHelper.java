@@ -778,6 +778,11 @@ public class PlayerHelper {
     return Bukkit.getOnlinePlayers();
   }
 
+  /** Alias for all() - get all online players. */
+  public Collection<? extends Player> online() {
+    return all();
+  }
+
   /** Pick a random online player. */
   public Optional<Player> random() {
     List<? extends Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());

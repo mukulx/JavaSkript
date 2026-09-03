@@ -56,7 +56,7 @@ JavaSkript uses Gradle for compilation. Use your command prompt of preference an
 gradlew.bat clean build shadowJar # on Windows
 ```
 
-The compiled jar will be located in `build/libs/JavaSkript-2.0.0.jar`.
+The compiled jar will be located in `build/libs/JavaSkript-2.0.1.jar`.
 
 ## Maven Repository
 
@@ -72,7 +72,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'com.github.mukulx:JavaSkript:2.0.0'
+    compileOnly 'com.github.mukulx:JavaSkript:2.0.1'
 }
 ```
 
@@ -84,7 +84,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.github.mukulx:JavaSkript:2.0.0")
+    compileOnly("com.github.mukulx:JavaSkript:2.0.1")
 }
 ```
 
@@ -101,7 +101,7 @@ dependencies {
     <dependency>
         <groupId>com.github.mukulx</groupId>
         <artifactId>JavaSkript</artifactId>
-        <version>2.0.0</version>
+        <version>2.0.1</version>
         <scope>provided</scope>
     </dependency>
 </dependencies>

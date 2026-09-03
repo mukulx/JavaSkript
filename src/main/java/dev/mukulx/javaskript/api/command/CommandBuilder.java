@@ -66,6 +66,18 @@ public class CommandBuilder extends SubcommandBuilder implements CommandExecutor
   }
 
   @Override
+  public CommandBuilder playerOnly() {
+    super.playerOnly();
+    return this;
+  }
+
+  @Override
+  public CommandBuilder consoleOnly() {
+    super.consoleOnly();
+    return this;
+  }
+
+  @Override
   public CommandBuilder subcommand(String name, Consumer<SubcommandBuilder> consumer) {
     super.subcommand(name, consumer);
     return this;

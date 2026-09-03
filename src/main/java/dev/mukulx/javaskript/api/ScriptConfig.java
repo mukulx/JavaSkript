@@ -196,13 +196,20 @@ public class ScriptConfig {
 
   /** Set file header comment lines at the top of default config. */
   public void setHeader(String... headerLines) {
-    setHeader(DEFAULT_CONFIG, headerLines);
+    setFileHeader(DEFAULT_CONFIG, headerLines);
   }
 
   /** Set file header comment lines at the top of a named config. */
-  public void setHeader(String fileName, String... headerLines) {
+  public void setFileHeader(String fileName, String... headerLines) {
     FileConfiguration config = getConfig(fileName);
     config.options().setHeader(List.of(headerLines));
+    saveConfig(fileName, config);
+  }
+
+  /** Set file header comment lines for a named config using a list. */
+  public void setHeader(String fileName, List<String> headerLines) {
+    FileConfiguration config = getConfig(fileName);
+    config.options().setHeader(headerLines);
     saveConfig(fileName, config);
   }
 
@@ -271,10 +278,18 @@ public class ScriptConfig {
    * @param comments Optional comment lines to place above the key
    */
   public void addDefault(String path, Object value, String... comments) {
-    addDefault(DEFAULT_CONFIG, path, value, comments);
+    addFileDefault(DEFAULT_CONFIG, path, value, comments);
   }
 
-  public void addDefault(String fileName, String path, Object value, String... comments) {
+  /**
+   * Add a default key-value pair to a specific configuration file with optional comments.
+   *
+   * @param fileName The YAML configuration file name
+   * @param path The YAML configuration path
+   * @param value Default value
+   * @param comments Optional comment lines to place above the key
+   */
+  public void addFileDefault(String fileName, String path, Object value, String... comments) {
     FileConfiguration config = getConfig(fileName);
     boolean modified = false;
 
@@ -294,6 +309,12 @@ public class ScriptConfig {
     if (modified) {
       saveConfig(fileName, config);
     }
+  }
+
+  /** Add default value for a named config file with comments list. */
+  public void addDefault(String fileName, String path, Object value, List<String> comments) {
+    addFileDefault(
+        fileName, path, value, comments != null ? comments.toArray(new String[0]) : new String[0]);
   }
 
   /** Get current configuration schema version (stored in 'config-version', default 1). */

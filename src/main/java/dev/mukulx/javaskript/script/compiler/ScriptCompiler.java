@@ -247,6 +247,22 @@ public class ScriptCompiler {
         plugin.getLogger().warning("BungeeCord Chat API not found in classpath");
       }
 
+      // Add Google Gson API
+      try {
+        Class<?> gsonClass = Class.forName("com.google.gson.Gson");
+        addToClasspath(classpath, gsonClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Gson not found in classpath");
+      }
+
+      // Add Google Guava API
+      try {
+        Class<?> guavaClass = Class.forName("com.google.common.collect.ImmutableList");
+        addToClasspath(classpath, guavaClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Guava not found in classpath");
+      }
+
       // Add plugin jar itself (contains bundled dependencies)
       String pluginJar = null;
       try {
