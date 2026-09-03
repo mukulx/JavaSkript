@@ -69,6 +69,11 @@ public class ScriptScheduler {
     }
   }
 
+  /** Run a task after a delay (ticks, runnable order). */
+  public Object runLater(long delayTicks, Runnable runnable) {
+    return runLater(runnable, delayTicks);
+  }
+
   /**
    * Run a task repeatedly on the global region (Folia) or main thread (Paper).
    *
