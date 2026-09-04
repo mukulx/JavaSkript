@@ -198,6 +198,17 @@ public class FileWatcher implements Runnable {
   }
 
   private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String scriptKey) {
+    // WatchService and the debounce executor are not server threads. Script lifecycle operations
+    // register Bukkit state, so always hand them back to the appropriate server scheduler.
+    Runnable operation = () -> handleFileEventOnServerThread(kind, file, scriptKey);
+    if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+      plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> operation.run());
+    } else {
+      plugin.getServer().getScheduler().runTask(plugin, operation);
+    }
+  }
+
+  private void handleFileEventOnServerThread(WatchEvent.Kind<?> kind, File file, String scriptKey) {
     try {
       if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
         plugin.getLogger().info("New script detected: " + scriptKey);

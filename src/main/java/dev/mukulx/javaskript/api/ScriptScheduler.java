@@ -207,7 +207,22 @@ public class ScriptScheduler {
    * @return CompletableFuture that completes when task finishes
    */
   public CompletableFuture<Void> runAsyncFuture(Runnable runnable) {
-    return CompletableFuture.runAsync(runnable);
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    Object task =
+        runAsync(
+            () -> {
+              try {
+                runnable.run();
+                future.complete(null);
+              } catch (Throwable throwable) {
+                future.completeExceptionally(throwable);
+                throw throwable;
+              }
+            });
+    if (task == null) {
+      future.completeExceptionally(new IllegalStateException("Unable to schedule async task"));
+    }
+    return future;
   }
 
   /**

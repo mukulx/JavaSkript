@@ -67,8 +67,7 @@ public class ScriptCompiler {
 
     try {
       // Create temporary directories
-      File scriptTempDir = new File(tempDir, "compile_" + System.currentTimeMillis());
-      scriptTempDir.mkdirs();
+      File scriptTempDir = Files.createTempDirectory(tempDir.toPath(), "compile-").toFile();
 
       outputDir = new File(scriptTempDir, "output");
       outputDir.mkdirs();

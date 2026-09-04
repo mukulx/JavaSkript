@@ -311,7 +311,7 @@ public class ScriptManager {
     }
   }
 
-  public boolean loadScript(File scriptFile) {
+  public synchronized boolean loadScript(File scriptFile) {
     if (scriptFile == null || !scriptFile.exists()) {
       plugin.getLogger().warning("Script file does not exist: " + scriptFile);
       return false;
@@ -333,11 +333,6 @@ public class ScriptManager {
 
     try {
       boolean isReload = loadedScripts.containsKey(scriptKey);
-
-      // Hot-replace logic: unload active instances prior to compilation tasks
-      if (isReload) {
-        unloadScript(scriptKey);
-      }
 
       plugin.debug("Loading script: " + scriptKey);
 
@@ -489,6 +484,12 @@ public class ScriptManager {
           }
           classLoader.unloadAll();
           return false;
+        }
+
+        // Do not take a running script down for a bad edit. Compilation and class validation have
+        // completed successfully; only now is it safe to replace the active instance.
+        if (isReload) {
+          unloadScript(scriptKey);
         }
 
         ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
