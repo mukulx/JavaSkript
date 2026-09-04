@@ -27,5 +27,4 @@ logs/
 *.log
 
 # Local testing and scratch files
-test/
-
+/test/

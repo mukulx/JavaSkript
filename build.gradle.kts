@@ -31,6 +31,9 @@ dependencies {
     compileOnly("org.ow2.asm:asm:9.10.1")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
     implementation("org.bstats:bstats-bukkit:3.2.1")
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -75,6 +78,10 @@ tasks.shadowJar {
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 publishing {
