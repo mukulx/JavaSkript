@@ -1,6 +1,7 @@
 package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ScriptStorage;
 import java.io.File;
 import java.sql.*;
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ public class DatabaseHelper {
 
   public DatabaseHelper(JavaSkriptPlugin plugin, String scriptName) {
     this.plugin = plugin;
-    this.scriptName = scriptName.replace(".java", "");
+    this.scriptName = ScriptStorage.id(scriptName);
 
     File dataFolder = new File(plugin.getDataFolder(), "script-data/" + this.scriptName);
     this.dbFile = new File(dataFolder, "database.db");

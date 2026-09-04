@@ -3,6 +3,7 @@ package dev.mukulx.javaskript.dependency;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.*;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,7 +92,7 @@ public class DependencyManager {
     File tempFile = null;
     try {
       String groupPath = groupId.replace('.', '/');
-      String jarName = artifactId + "-" + version + ".jar";
+      String jarName = groupId.replace('.', '_') + "-" + artifactId + "-" + version + ".jar";
       File localFile = new File(libsDirectory, jarName);
 
       // If already downloaded and not empty, return it
@@ -108,7 +109,10 @@ public class DependencyManager {
       tempFile = new File(libsDirectory, jarName + ".tmp." + System.currentTimeMillis());
 
       URL url = java.net.URI.create(urlString).toURL();
-      try (InputStream in = url.openStream()) {
+      URLConnection connection = url.openConnection();
+      connection.setConnectTimeout(10_000);
+      connection.setReadTimeout(30_000);
+      try (InputStream in = connection.getInputStream()) {
         Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       }
 

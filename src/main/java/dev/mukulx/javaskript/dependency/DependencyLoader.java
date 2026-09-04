@@ -30,7 +30,9 @@ public class DependencyLoader implements PluginLoader {
 
     // Declare plugin dependencies (only essential external libraries not provided by Paper)
     String[] dependencies = {
-      "org.eclipse.jdt:org.eclipse.jdt.core:3.45.0", "org.ow2.asm:asm:9.10.1"
+      "org.eclipse.jdt:org.eclipse.jdt.core:3.45.0",
+      "org.ow2.asm:asm:9.10.1",
+      "org.xerial:sqlite-jdbc:3.46.1.3"
     };
 
     for (String dep : dependencies) {

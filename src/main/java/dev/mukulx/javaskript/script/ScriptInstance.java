@@ -86,13 +86,12 @@ public class ScriptInstance {
 
       // Initialize API helpers
       // Use class name instead of file name to avoid issues with manual config creation
-      String scriptName = scriptClass.getSimpleName() + ".java";
       String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
       this.scheduler = new ScriptScheduler(plugin, scriptKey);
-      this.config = new ScriptConfig(plugin, scriptName);
-      this.database = new DatabaseHelper(plugin, scriptName);
-      this.placeholders = new PlaceholderHelper(plugin, scriptName);
-      this.recipes = new RecipeHelper(plugin, scriptName);
+      this.config = new ScriptConfig(plugin, scriptKey);
+      this.database = new DatabaseHelper(plugin, scriptKey);
+      this.placeholders = new PlaceholderHelper(plugin, scriptKey);
+      this.recipes = new RecipeHelper(plugin, scriptKey);
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
@@ -107,7 +106,7 @@ public class ScriptInstance {
       this.http = plugin.getHttpHelper();
 
       // Inject API helpers into script instance
-      plugin.debug("Injecting APIs into script: " + scriptName);
+      plugin.debug("Injecting APIs into script: " + scriptKey);
       injectAPIs();
 
       // Call onEnable method if it exists across class hierarchy
@@ -245,6 +244,10 @@ public class ScriptInstance {
       while (current != null && current != Object.class) {
         for (Field field : current.getDeclaredFields()) {
           try {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                || java.lang.reflect.Modifier.isFinal(field.getModifiers())) {
+              continue;
+            }
             field.setAccessible(true);
 
             // Skip if already initialized with non-null value
@@ -256,53 +259,53 @@ public class ScriptInstance {
             String name = field.getName().toLowerCase();
 
             // 1. Match by Type
-            if (type.isAssignableFrom(JavaSkriptPlugin.class)) {
+            if (JavaSkriptPlugin.class.isAssignableFrom(type)) {
               field.set(instance, plugin);
-            } else if (type.isAssignableFrom(JavaSkriptAPI.class)) {
+            } else if (JavaSkriptAPI.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI());
-            } else if (type.isAssignableFrom(ScriptScheduler.class)) {
+            } else if (ScriptScheduler.class.isAssignableFrom(type)) {
               field.set(instance, scheduler);
-            } else if (type.isAssignableFrom(ScriptConfig.class)) {
+            } else if (ScriptConfig.class.isAssignableFrom(type)) {
               field.set(instance, config);
-            } else if (type.isAssignableFrom(DatabaseHelper.class)) {
+            } else if (DatabaseHelper.class.isAssignableFrom(type)) {
               field.set(instance, database);
-            } else if (type.isAssignableFrom(PlaceholderHelper.class)) {
+            } else if (PlaceholderHelper.class.isAssignableFrom(type)) {
               field.set(instance, placeholders);
-            } else if (type.isAssignableFrom(RecipeHelper.class)) {
+            } else if (RecipeHelper.class.isAssignableFrom(type)) {
               field.set(instance, recipes);
-            } else if (type.isAssignableFrom(ActionBarHelper.class)) {
+            } else if (ActionBarHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getActionBarHelper());
-            } else if (type.isAssignableFrom(TitleHelper.class)) {
+            } else if (TitleHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getTitleHelper());
-            } else if (type.isAssignableFrom(BossBarHelper.class)) {
+            } else if (BossBarHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getBossBarHelper());
-            } else if (type.isAssignableFrom(SoundHelper.class)) {
+            } else if (SoundHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getSoundHelper());
-            } else if (type.isAssignableFrom(DialogHelper.class)) {
+            } else if (DialogHelper.class.isAssignableFrom(type)) {
               field.set(instance, dialog);
-            } else if (type.isAssignableFrom(PDCHelper.class)) {
+            } else if (PDCHelper.class.isAssignableFrom(type)) {
               field.set(instance, pdc);
-            } else if (type.isAssignableFrom(HologramHelper.class)) {
+            } else if (HologramHelper.class.isAssignableFrom(type)) {
               field.set(instance, holograms);
-            } else if (type.isAssignableFrom(CommandHelper.class)) {
+            } else if (CommandHelper.class.isAssignableFrom(type)) {
               field.set(instance, commands);
-            } else if (type.isAssignableFrom(ItemHelper.class)) {
+            } else if (ItemHelper.class.isAssignableFrom(type)) {
               field.set(instance, items);
-            } else if (type.isAssignableFrom(CooldownHelper.class)) {
+            } else if (CooldownHelper.class.isAssignableFrom(type)) {
               field.set(instance, cooldowns);
-            } else if (type.isAssignableFrom(EventHelper.class)) {
+            } else if (EventHelper.class.isAssignableFrom(type)) {
               field.set(instance, events);
-            } else if (type.isAssignableFrom(PlayerHelper.class)) {
+            } else if (PlayerHelper.class.isAssignableFrom(type)) {
               field.set(instance, players);
-            } else if (type.isAssignableFrom(ChatHelper.class)) {
+            } else if (ChatHelper.class.isAssignableFrom(type)) {
               field.set(instance, chat);
-            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyHelper.class)
-                || type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyProvider.class)) {
+            } else if (dev.mukulx.javaskript.api.economy.EconomyHelper.class.isAssignableFrom(type)
+                || dev.mukulx.javaskript.api.economy.EconomyProvider.class.isAssignableFrom(type)) {
               field.set(instance, economy);
-            } else if (type.isAssignableFrom(
-                dev.mukulx.javaskript.api.variable.VariableHelper.class)) {
+            } else if (dev.mukulx.javaskript.api.variable.VariableHelper.class.isAssignableFrom(
+                type)) {
               field.set(instance, variables);
-            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.http.HttpHelper.class)) {
+            } else if (dev.mukulx.javaskript.api.http.HttpHelper.class.isAssignableFrom(type)) {
               field.set(instance, http);
             }
             // 2. Match by Name / Alias
