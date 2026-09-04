@@ -235,6 +235,22 @@ public class ScriptScheduler {
     return runTimer(runnable, 20L, 20L);
   }
 
+  public TaskHandle everySecondHandle(Runnable runnable) {
+    return handle(everySecond(runnable));
+  }
+
+  public TaskHandle runHandle(Runnable runnable) {
+    return handle(run(runnable));
+  }
+
+  public TaskHandle runLaterHandle(Runnable runnable, long delayTicks) {
+    return handle(runLater(runnable, delayTicks));
+  }
+
+  public TaskHandle runTimerHandle(Runnable runnable, long delayTicks, long periodTicks) {
+    return handle(runTimer(runnable, delayTicks, periodTicks));
+  }
+
   /**
    * Run every minute.
    *
@@ -379,5 +395,29 @@ public class ScriptScheduler {
     } catch (Exception e) {
       // Task already cancelled or doesn't exist
     }
+  }
+
+  private TaskHandle handle(Object task) {
+    return new TaskHandle() {
+      @Override
+      public void cancel() {
+        cancelTask(task);
+      }
+
+      @Override
+      public boolean isCancelled() {
+        if (task instanceof BukkitTask bukkitTask) return bukkitTask.isCancelled();
+        try {
+          return (boolean) task.getClass().getMethod("isCancelled").invoke(task);
+        } catch (Exception ignored) {
+          return false;
+        }
+      }
+
+      @Override
+      public Object unwrap() {
+        return task;
+      }
+    };
   }
 }

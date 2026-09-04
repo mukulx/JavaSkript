@@ -53,6 +53,7 @@ public class ScriptInstance {
   private ChatHelper chat;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economy;
   private dev.mukulx.javaskript.api.variable.VariableHelper variables;
+  private dev.mukulx.javaskript.api.variable.ScriptVariables scriptVariables;
   private dev.mukulx.javaskript.api.http.HttpHelper http;
 
   public ScriptInstance(
@@ -103,6 +104,8 @@ public class ScriptInstance {
       this.chat = new ChatHelper(plugin, scriptKey);
       this.economy = plugin.getEconomyHelper();
       this.variables = plugin.getVariableHelper();
+      this.scriptVariables =
+          new dev.mukulx.javaskript.api.variable.ScriptVariables(variables, scriptKey);
       this.http = plugin.getHttpHelper();
 
       // Inject API helpers into script instance
@@ -302,6 +305,9 @@ public class ScriptInstance {
             } else if (dev.mukulx.javaskript.api.economy.EconomyHelper.class.isAssignableFrom(type)
                 || dev.mukulx.javaskript.api.economy.EconomyProvider.class.isAssignableFrom(type)) {
               field.set(instance, economy);
+            } else if (dev.mukulx.javaskript.api.variable.ScriptVariables.class.isAssignableFrom(
+                type)) {
+              field.set(instance, scriptVariables);
             } else if (dev.mukulx.javaskript.api.variable.VariableHelper.class.isAssignableFrom(
                 type)) {
               field.set(instance, variables);
@@ -381,6 +387,8 @@ public class ScriptInstance {
                 || name.equals("economyhelper")
                 || name.equals("vault")) {
               field.set(instance, economy);
+            } else if (name.equals("scriptvariables") || name.equals("localvariables")) {
+              field.set(instance, scriptVariables);
             } else if (name.equals("variables")
                 || name.equals("vars")
                 || name.equals("variablehelper")
