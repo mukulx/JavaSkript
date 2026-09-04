@@ -322,12 +322,18 @@ public class ScriptManager {
     // Check if dash-disabled (filename starts with -)
     if (isDashDisabled(scriptFile)) {
       plugin.debug("Script is dash-disabled, skipping: " + scriptKey);
+      if (loadedScripts.containsKey(scriptKey)) {
+        unloadScript(scriptKey);
+      }
       return false;
     }
 
     // Check if disabled via disabled-scripts.json
     if (disabledScripts.contains(scriptKey)) {
       plugin.debug("Script is disabled, skipping: " + scriptKey);
+      if (loadedScripts.containsKey(scriptKey)) {
+        unloadScript(scriptKey);
+      }
       return false;
     }
 
@@ -358,6 +364,9 @@ public class ScriptManager {
           || scriptContent.contains("// @disabled")
           || scriptContent.contains("/* @disabled */")) {
         plugin.debug("Script marked as disabled in file, skipping: " + scriptKey);
+        if (isReload) {
+          unloadScript(scriptKey);
+        }
         return false;
       }
 
@@ -481,6 +490,9 @@ public class ScriptManager {
                 "Script has @Disabled annotation (" + reason + "), skipping: " + scriptKey);
           } else {
             plugin.debug("Script has @Disabled annotation, skipping: " + scriptKey);
+          }
+          if (isReload) {
+            unloadScript(scriptKey);
           }
           classLoader.unloadAll();
           return false;

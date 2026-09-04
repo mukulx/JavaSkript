@@ -130,7 +130,6 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         return;
       }
 
-      plugin.getScriptManager().unloadScript(scriptKey);
       boolean success = plugin.getScriptManager().loadScript(scriptFile);
 
       if (success) {

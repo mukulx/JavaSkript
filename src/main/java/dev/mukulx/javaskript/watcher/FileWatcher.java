@@ -216,7 +216,6 @@ public class FileWatcher implements Runnable {
 
       } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
         plugin.getLogger().info("Script modified: " + scriptKey);
-        plugin.getScriptManager().unloadScript(scriptKey);
         plugin.getScriptManager().loadScript(file);
 
       } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
