@@ -26,7 +26,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 20. [Script Annotations & Lifecycle](#annotations)
 21. [External Maven Dependencies](#external-dependencies)
 22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
-23. [VariableHelper & Variables (Shared State)](#variablehelper--variables-shared-state)
+23. [VariableHelper, ScriptVariables, & Variables (State Storage)](#variablehelper--variables-shared-state)
 24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
 
 ---
@@ -86,12 +86,15 @@ private ScriptScheduler scheduler; // Automatically injected!
 
 ### Methods
 
-#### `runLater(Runnable task, long delayTicks)`
-Run a task after a delay.
+#### `runLater(Runnable task, long delayTicks)` & `runLater(long delayTicks, Runnable task)`
+Run a task after a delay. Both parameter orders are supported for maximum developer convenience.
 ```java
 scheduler.runLater(() -> {
     player.sendMessage("5 seconds later!");
 }, 100L); // 100 ticks = 5 seconds
+
+// Alternative parameter order:
+scheduler.runLater(100L, () -> player.sendMessage("Done!"));
 ```
 
 #### `runTimer(Runnable task, long delayTicks, long periodTicks)`
@@ -107,12 +110,12 @@ Run a task asynchronously (off main thread).
 ```java
 scheduler.runAsync(() -> {
     // Heavy computation here
-    // Don't use Bukkit API!
+    // Don't call non-thread-safe Bukkit APIs directly!
 });
 ```
 
 #### `everySecond(Runnable task)`
-Convenience method - runs every second.
+Convenience method - runs every second (every 20 ticks).
 ```java
 scheduler.everySecond(() -> {
     // Runs every second
@@ -120,13 +123,33 @@ scheduler.everySecond(() -> {
 ```
 
 #### `everyMinute(Runnable task)`
-Runs every minute.
+Runs every minute (every 1200 ticks).
 
 #### `everyHour(Runnable task)`
-Runs every hour.
+Runs every hour (every 72000 ticks).
+
+#### `TaskHandle` for Portable Task Control
+Instead of dealing with platform-specific `BukkitTask` (Paper) vs `ScheduledTask` (Folia), use `*Handle` methods that return a unified `TaskHandle`:
+
+```java
+// Schedule with a portable handle
+TaskHandle task = scheduler.runTimerHandle(() -> {
+    updateScoreboard();
+}, 0L, 20L);
+
+// Inspect or cancel anywhere without platform casting:
+if (!task.isCancelled()) {
+    task.cancel();
+}
+
+// Also available:
+TaskHandle handle1 = scheduler.runHandle(runnable);
+TaskHandle handle2 = scheduler.runLaterHandle(runnable, 40L);
+TaskHandle handle3 = scheduler.everySecondHandle(runnable);
+```
 
 #### `cancelAll()`
-Cancel all tasks scheduled by this script.
+Cancel all tasks scheduled by this script (also called automatically on script unload).
 
 ---
 
@@ -288,13 +311,32 @@ for (Map<String, Object> row : results) {
 }
 ```
 
+#### `executeQueryAsync(String sql, Consumer<List<Map<String, Object>>> callback, Object... params)`
+Execute a SELECT query off-thread and safely receive the results on the global server scheduler:
+```java
+database.executeQueryAsync("SELECT * FROM players WHERE coins > ?", rows -> {
+    // This callback runs safely on the server thread (or Folia global region)!
+    for (Map<String, Object> row : rows) {
+        player.sendMessage("Rich player: " + row.get("name"));
+    }
+}, 1000);
+```
+
 #### `executeUpdate(String sql, Object... params)`
-Execute INSERT, UPDATE, DELETE, or DDL.
+Execute INSERT, UPDATE, DELETE, or DDL synchronously.
 ```java
 int affected = database.executeUpdate(
     "UPDATE players SET coins = coins + ? WHERE uuid = ?",
     10, uuid
 );
+```
+
+#### `executeUpdateAsync(String sql, Consumer<Integer> callback, Object... params)`
+Execute an update off-thread without freezing ticks, and receive the affected rows count on the server scheduler:
+```java
+database.executeUpdateAsync("UPDATE players SET coins = coins + ? WHERE uuid = ?", affected -> {
+    player.sendMessage("Updated " + affected + " rows!");
+}, 50, uuid);
 ```
 
 #### `querySingle(String sql, Object... params)`
@@ -1969,7 +2011,7 @@ chat.pager(player, "Server Warps", warpList)
     .pageSize(7)
     .header("<gold> %title% <gray>(Page %page%/%max%)</gray> ")
     .formatter((index, warp) -> "<yellow>#" + index + " <white>" + warp)
-    .send(1); // Clickable [◀ Previous] & [Next ▶] buttons automatically work!
+    .send(1); // Clickable [< Previous] & [Next >] buttons automatically work!
 ```
 
 ### 5. Pixel-Perfect Centered Text
@@ -2424,6 +2466,23 @@ try {
 }
 ```
 
+### 6. Typed Script Access with `ScriptHandle` (`api.script`)
+
+For compile-time type safety and Folia/Paper scheduler-safe execution across ClassLoaders:
+
+```java
+JavaSkriptAPI api = JavaSkript.getAPI();
+
+// Asynchronously dispatch on the global server scheduler without thread safety issues:
+api.script("quests/DailyQuest.java", DailyQuest.class)
+    .callGlobal(quest -> quest.refresh());
+
+// Supply a computed value back to a CompletableFuture:
+api.script("stats/SkillTree.java", SkillTree.class)
+    .supplyGlobal(tree -> tree.getLevel(player))
+    .thenAccept(level -> player.sendMessage("Level: " + level));
+```
+
 ---
 
 ## VariableHelper & `Variables` (Shared State)
@@ -2432,10 +2491,32 @@ Thread-safe shared variable storage engine for JavaSkript scripts.
 
 Because each script is isolated in its own ClassLoader, `Variables` provides a global, thread-safe memory store accessible by every script on the server. It also supports disk persistence so data can survive server restarts.
 
-### Auto-Injection & Static Facade
+### Scoped Script-Local State (`ScriptVariables`)
+
+When you want variables scoped strictly to the current script without risk of key collisions across scripts, use `ScriptVariables`:
+
+```java
+@Inject private ScriptVariables scriptVariables;
+// Aliases: private ScriptVariables localvariables;
+
+// Automatically namespaced behind the scenes as "scriptKey:key":
+scriptVariables.set("cache_enabled", true);
+boolean enabled = scriptVariables.get("cache_enabled", true);
+
+// Disk persistence scoped to this script:
+scriptVariables.setPersistent("times_loaded", 5);
+int runs = (int) scriptVariables.getPersistent("times_loaded");
+
+// Returns keys automatically un-prefixed:
+Set<String> keys = scriptVariables.keys();
+```
+
+> **Best Practice:** Use `ScriptVariables` for script-internal state. Use `VariableHelper` / `Variables` when you intentionally want multiple scripts to share state.
+
+### Auto-Injection & Static Facade for Global Variables
 ```java
 // Option A: Injected helper
-private VariableHelper variables;
+@Inject private VariableHelper variables;
 // Aliases: private VariableHelper vars; / state; / shared;
 
 // Option B: Static facade (usable anywhere, even in utility classes)
@@ -2549,6 +2630,25 @@ http.request("https://api.example.com/v1/punish")
     .send((code, response) -> {
         getLogger().info("Response code: " + code);
     });
+```
+
+### 3. Server-Scheduler Safe Callbacks (`sendGlobal` & `getGlobal`)
+By default, callbacks passed to `send(...)` and `sendJson(...)` are safely dispatched back onto the server's global scheduler (Paper main thread / Folia global region scheduler).
+
+You can also use explicit global callbacks:
+```java
+// Safe GET callback directly on server thread
+http.getGlobal("https://api.example.com/status", response -> {
+    player.sendMessage("Server status: " + response.body());
+});
+
+// Full request with separate success and error global callbacks
+http.request("https://api.example.com/players/stats")
+    .GET()
+    .sendGlobal(
+        response -> player.sendMessage("Stats: " + response.body()),
+        error -> getLogger().warning("Failed to fetch stats: " + error.getMessage())
+    );
 ```
 
 ---
