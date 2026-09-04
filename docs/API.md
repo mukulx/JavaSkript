@@ -31,6 +31,50 @@ Complete reference for all JavaSkript APIs available to scripts.
 
 ---
 
+## Safer API Additions
+
+Existing field injection remains supported. New scripts can mark injected fields explicitly:
+
+```java
+@Inject private ScriptScheduler scheduler;
+@Inject private ScriptVariables scriptVariables;
+```
+
+`ScriptVariables` scopes keys to the current script, while `Variables` remains the intentional
+cross-script shared store.
+
+```java
+scriptVariables.set("enabled", true);
+Variables.set("network.maintenance", true);
+```
+
+Use typed task handles when a script needs to cancel a specific task:
+
+```java
+TaskHandle task = scheduler.everySecondHandle(this::updateScoreboard);
+task.cancel();
+```
+
+HTTP and database callbacks can return safely to the global server scheduler:
+
+```java
+http.request("https://example.com/status").GET().sendGlobal(
+    response -> Bukkit.broadcast(Component.text(response.body())),
+    error -> plugin.getLogger().warning(error.getMessage())
+);
+
+database.executeQueryAsync("SELECT * FROM players", rows -> {
+  // Safe server-thread callback
+});
+```
+
+External plugins can access scripts with type checking and scheduler-safe execution:
+
+```java
+api.script("quests/DailyQuest.java", DailyQuest.class)
+    .callGlobal(quest -> quest.refresh());
+```
+
 ## ScriptScheduler
 
 Easy task scheduling without boilerplate code.

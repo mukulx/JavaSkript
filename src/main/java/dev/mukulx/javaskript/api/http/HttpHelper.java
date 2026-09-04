@@ -62,7 +62,12 @@ public class HttpHelper {
    * @return HttpRequestBuilder
    */
   public HttpRequestBuilder request(String url) {
-    return new HttpRequestBuilder(httpClient, url);
+    return new HttpRequestBuilder(httpClient, plugin, url);
+  }
+
+  /** Fetch a URL and run the callback safely on the global server scheduler. */
+  public void getGlobal(String url, Consumer<HttpResponse<String>> callback) {
+    request(url).GET().sendGlobal(callback, null);
   }
 
   // ==========================================

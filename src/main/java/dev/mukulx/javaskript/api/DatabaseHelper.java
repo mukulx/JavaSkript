@@ -2,12 +2,15 @@ package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.util.ScriptStorage;
+import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 
 /** Easy database access for scripts Supports SQLite out of the box */
@@ -121,6 +124,36 @@ public class DatabaseHelper {
     }
 
     return results;
+  }
+
+  /** Execute a query off-thread and deliver its result on the global server scheduler. */
+  public CompletableFuture<List<Map<String, Object>>> executeQueryAsync(
+      String sql, Consumer<List<Map<String, Object>>> callback, Object... params) {
+    CompletableFuture<List<Map<String, Object>>> future =
+        CompletableFuture.supplyAsync(() -> executeQuery(sql, params));
+    if (callback != null) {
+      future.thenAccept(rows -> runGlobal(() -> callback.accept(rows)));
+    }
+    return future;
+  }
+
+  /** Execute an update off-thread and deliver its affected-row count on the global scheduler. */
+  public CompletableFuture<Integer> executeUpdateAsync(
+      String sql, Consumer<Integer> callback, Object... params) {
+    CompletableFuture<Integer> future =
+        CompletableFuture.supplyAsync(() -> executeUpdate(sql, params));
+    if (callback != null) {
+      future.thenAccept(result -> runGlobal(() -> callback.accept(result)));
+    }
+    return future;
+  }
+
+  private void runGlobal(Runnable action) {
+    if (ServerUtil.isFolia()) {
+      plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> action.run());
+    } else {
+      plugin.getServer().getScheduler().runTask(plugin, action);
+    }
   }
 
   /**

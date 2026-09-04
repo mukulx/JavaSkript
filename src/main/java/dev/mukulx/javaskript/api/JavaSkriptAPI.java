@@ -285,6 +285,14 @@ public class JavaSkriptAPI {
     return plugin.getScriptManager().getScript(scriptName) != null;
   }
 
+  /** Get typed, scheduler-safe access to a loaded script. */
+  public <T> ScriptHandle<T> script(String scriptName, Class<T> type) {
+    if (scriptName == null || scriptName.isBlank() || type == null) {
+      throw new IllegalArgumentException("Script name and type are required");
+    }
+    return new ScriptHandle<>(plugin, scriptName, type);
+  }
+
   /**
    * Get the EconomyHelper for managing balances, Vault, built-in economy, and custom currencies.
    *
