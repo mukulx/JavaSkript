@@ -963,6 +963,7 @@ public class ScriptManager {
       "CooldownExample.java",
       "EventAndPlayerExample.java",
       "ChatAPIExample.java",
+      "TeamExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

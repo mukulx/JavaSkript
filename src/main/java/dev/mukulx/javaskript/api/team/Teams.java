@@ -344,4 +344,59 @@ public final class Teams {
       helper.save(team);
     }
   }
+
+  /** Checks if a player is currently in any team. */
+  public static boolean isInTeam(Player player) {
+    return player != null && get(player).isPresent();
+  }
+
+  /** Checks if a UUID is currently in any team. */
+  public static boolean isInTeam(UUID uuid) {
+    return uuid != null && get(uuid).isPresent();
+  }
+
+  /** Adds a player to a team as a Member. */
+  public static boolean join(Team team, Player player) {
+    return addMember(team, player, TeamRole.MEMBER);
+  }
+
+  /** Removes a player from a team. */
+  public static boolean leave(Team team, Player player) {
+    return removeMember(team, player);
+  }
+
+  /** Kicks a member from a team by UUID. */
+  public static boolean kick(Team team, UUID target, UUID kicker, String reason) {
+    TeamHelper helper = get();
+    return helper != null
+        && helper.isEnabled()
+        && target != null
+        && helper.kick(team, target, kicker, reason);
+  }
+
+  /** Sets whether friendly fire is enabled for a team and persists the change. */
+  public static boolean setFriendlyFire(Team team, boolean friendlyFire) {
+    if (team == null) return false;
+    team.setFriendlyFire(friendlyFire);
+    save(team);
+    return true;
+  }
+
+  /** Transfers ownership of a team to a new leader. */
+  public static boolean transferLeadership(Team team, UUID newLeader) {
+    TeamHelper helper = get();
+    if (helper == null
+        || !helper.isEnabled()
+        || team == null
+        || newLeader == null
+        || !team.hasMember(newLeader)) {
+      return false;
+    }
+    UUID oldLeader = team.getLeader();
+    team.setLeader(newLeader);
+    helper.setRole(team, oldLeader, TeamRole.CAPTAIN, oldLeader);
+    helper.setRole(team, newLeader, TeamRole.LEADER, oldLeader);
+    save(team);
+    return true;
+  }
 }

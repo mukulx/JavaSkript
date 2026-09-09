@@ -32,6 +32,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
   private dev.mukulx.javaskript.api.message.MessageManager messageManager;
   private dev.mukulx.javaskript.api.team.TeamHelper teamHelper;
+  private dev.mukulx.javaskript.command.TeamCommand teamCommand;
   private boolean debugMode;
 
   @Override
@@ -114,6 +115,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         if (getConfig().getBoolean("teams.enabled", true)) {
           this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
           dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
+          if (getConfig().getBoolean("teams.register-command", true)) {
+            registerTeamCommand();
+          }
         }
       } catch (Throwable t) {
         getLogger().warning("Failed to initialize Team subsystem: " + t.getMessage());
@@ -290,6 +294,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   /** Dynamically reloads or enables/disables the Team subsystem based on config.yml. */
   public synchronized void reloadTeamHelper() {
     boolean enabled = getConfig().getBoolean("teams.enabled", true);
+    boolean regCmd = getConfig().getBoolean("teams.register-command", true);
     if (enabled) {
       if (this.teamHelper == null) {
         try {
@@ -302,7 +307,13 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       } else {
         this.teamHelper.reload();
       }
+      if (regCmd) {
+        registerTeamCommand();
+      } else {
+        unregisterTeamCommand();
+      }
     } else {
+      unregisterTeamCommand();
       if (this.teamHelper != null) {
         try {
           this.teamHelper.shutdown();
@@ -313,6 +324,27 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         dev.mukulx.javaskript.api.team.Teams.setInstance(null);
         getLogger().info("Team subsystem disabled on reload.");
       }
+    }
+  }
+
+  public synchronized void registerTeamCommand() {
+    if (this.teamCommand == null) {
+      this.teamCommand = new dev.mukulx.javaskript.command.TeamCommand(this);
+    }
+    this.commandRegistry.registerCommand(
+        "team",
+        teamCommand,
+        teamCommand,
+        "Universal Team and Clan management command",
+        "/team <help|create|invite|join|leave|kick|disband|transfer|sethome|home|chat|deposit|withdraw|ff|info>",
+        "javaskript.team",
+        null,
+        java.util.List.of("clan", "party", "t"));
+  }
+
+  public synchronized void unregisterTeamCommand() {
+    if (this.commandRegistry != null) {
+      this.commandRegistry.unregisterCommand("team");
     }
   }
 

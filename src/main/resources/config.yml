@@ -71,6 +71,10 @@ teams:
   # Enable or disable the native team subsystem
   enabled: true
 
+  # Register built-in /team command (aliases: /clan, /party, /t)
+  # Set to false if you prefer implementing team commands via custom scripts
+  register-command: true
+
   # Default team configurations
   defaults:
     # Maximum members per team (0 = unlimited)

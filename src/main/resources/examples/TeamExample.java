@@ -44,6 +44,23 @@ public class TeamExample implements Listener {
         .aliases("clan", "party", "t")
         .description("Team management command")
         .playerOnly()
+        .optionalArgument(
+            dev.mukulx.javaskript.api.command.CommandArgs.choice(
+                "action",
+                () ->
+                    java.util.List.of(
+                        "create",
+                        "invite",
+                        "join",
+                        "leave",
+                        "kick",
+                        "sethome",
+                        "home",
+                        "chat",
+                        "deposit",
+                        "withdraw",
+                        "ff",
+                        "info")))
         .executesPlayer(
             (player, ctx) -> {
               if (ctx.args().length == 0) {
@@ -68,7 +85,8 @@ public class TeamExample implements Listener {
                 case "info" -> handleInfo(player);
                 default -> sendHelp(player);
               }
-            });
+            })
+        .register();
   }
 
   private void sendHelp(Player player) {

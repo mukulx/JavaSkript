@@ -164,5 +164,14 @@ class TeamTest {
     assertFalse(Teams.withdraw(null, null, 100));
     assertFalse(Teams.teleportHome(null, null));
     assertTrue(Teams.getOnlinePlayers(null).isEmpty());
+
+    // Convenience methods
+    assertFalse(Teams.isInTeam((Player) null));
+    assertFalse(Teams.isInTeam((UUID) null));
+    assertFalse(Teams.isInTeam(u1));
+    assertFalse(Teams.join(null, null));
+    assertFalse(Teams.leave(null, null));
+    assertFalse(Teams.setFriendlyFire(null, true));
+    assertFalse(Teams.transferLeadership(null, null));
   }
 }
