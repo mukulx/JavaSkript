@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
@@ -17,7 +18,7 @@ public class FileWatcher implements Runnable {
   private final File scriptsFolder;
   private WatchService watchService;
   private final Map<WatchKey, Path> watchKeys;
-  private final Map<String, Long> pendingReloads;
+  private final Map<String, ScheduledFuture<?>> pendingReloads;
   private volatile boolean running = false;
   private Thread watchThread;
   private ScheduledExecutorService debounceExecutor;
@@ -88,6 +89,13 @@ public class FileWatcher implements Runnable {
 
   public void stop() {
     running = false;
+
+    for (ScheduledFuture<?> task : pendingReloads.values()) {
+      if (task != null) {
+        task.cancel(false);
+      }
+    }
+    pendingReloads.clear();
 
     if (debounceExecutor != null && !debounceExecutor.isShutdown()) {
       debounceExecutor.shutdown();
@@ -179,28 +187,33 @@ public class FileWatcher implements Runnable {
   }
 
   private void scheduleReload(WatchEvent.Kind<?> kind, File file) {
-    // Use the script key (relative path) for dedup
+    // Use the script key (relative path) for deduplicating events.
     String scriptKey = plugin.getScriptManager().getScriptKey(file);
-    String debounceKey = scriptKey + ":" + kind.name();
-    pendingReloads.put(debounceKey, System.currentTimeMillis());
 
-    debounceExecutor.schedule(
-        () -> {
-          Long scheduledTime = pendingReloads.get(debounceKey);
-          if (scheduledTime != null
-              && System.currentTimeMillis() - scheduledTime >= reloadDelay - 50) {
-            pendingReloads.remove(debounceKey);
-            handleFileEvent(kind, file, scriptKey);
-          }
-        },
-        reloadDelay,
-        TimeUnit.MILLISECONDS);
+    // Cancel any previous pending task for this script so burst OS events
+    // (such as ENTRY_CREATE immediately followed by ENTRY_MODIFY, or multi-part writes)
+    // collapse cleanly into a single reload once changes settle.
+    ScheduledFuture<?> previousTask = pendingReloads.get(scriptKey);
+    if (previousTask != null && !previousTask.isDone()) {
+      previousTask.cancel(false);
+    }
+
+    ScheduledFuture<?> newTask =
+        debounceExecutor.schedule(
+            () -> {
+              pendingReloads.remove(scriptKey);
+              handleFileEvent(file, scriptKey);
+            },
+            reloadDelay,
+            TimeUnit.MILLISECONDS);
+
+    pendingReloads.put(scriptKey, newTask);
   }
 
-  private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String scriptKey) {
+  private void handleFileEvent(File file, String scriptKey) {
     // WatchService and the debounce executor are not server threads. Script lifecycle operations
     // register Bukkit state, so always hand them back to the appropriate server scheduler.
-    Runnable operation = () -> handleFileEventOnServerThread(kind, file, scriptKey);
+    Runnable operation = () -> handleFileEventOnServerThread(file, scriptKey);
     if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
       plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> operation.run());
     } else {
@@ -208,19 +221,17 @@ public class FileWatcher implements Runnable {
     }
   }
 
-  private void handleFileEventOnServerThread(WatchEvent.Kind<?> kind, File file, String scriptKey) {
+  private void handleFileEventOnServerThread(File file, String scriptKey) {
     try {
-      if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-        plugin.getLogger().info("New script detected: " + scriptKey);
-        plugin.getScriptManager().loadScript(file);
-
-      } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
-        plugin.getLogger().info("Script modified: " + scriptKey);
-        plugin.getScriptManager().loadScript(file);
-
-      } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+      if (!file.exists()) {
         plugin.getLogger().info("Script deleted: " + scriptKey);
         plugin.getScriptManager().unloadScript(scriptKey);
+      } else if (plugin.getScriptManager().getScript(scriptKey) != null) {
+        plugin.getLogger().info("Script modified: " + scriptKey);
+        plugin.getScriptManager().loadScript(file);
+      } else {
+        plugin.getLogger().info("New script detected: " + scriptKey);
+        plugin.getScriptManager().loadScript(file);
       }
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error handling file event for: " + scriptKey, e);
