@@ -153,9 +153,9 @@ public class Team {
     return leader.equals(uuid);
   }
 
-  public boolean isOfficer(UUID uuid) {
+  public boolean isCaptain(UUID uuid) {
     TeamMember member = members.get(uuid);
-    return member != null && member.getRole().isAtLeast(TeamRole.OFFICER);
+    return member != null && member.getRole().isAtLeast(TeamRole.CAPTAIN);
   }
 
   public Map<UUID, TeamMember> getMembers() {

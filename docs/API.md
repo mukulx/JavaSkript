@@ -2679,7 +2679,7 @@ JavaSkript provides a built-in, zero-boilerplate Team, Clan, and Party system ba
 
 ### Features
 - O(1) in-memory teammate checks (`areTeammates(p1, p2)`), ideal for high-frequency PvP events.
-- Hierarchical role system: `LEADER`, `OFFICER`, `MEMBER`, `RECRUIT`.
+- Hierarchical role system: `LEADER`, `CAPTAIN`, `MEMBER`.
 - Built-in friendly fire prevention.
 - Team bank account, team private chat, and waypoint home teleportation.
 - Seamless visual integration: Vanilla tab list and Paper scoreboard nametag support.

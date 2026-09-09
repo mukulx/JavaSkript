@@ -81,7 +81,7 @@ public class TeamTabBridge {
           return teamLookup.apply(player.getUniqueId()).map(Team::getSuffix).orElse("");
         });
 
-    // %javaskript_team_role% -> Role name (Leader, Officer, Member, Recruit, or empty)
+    // %javaskript_team_role% -> Role name (Leader, Captain, Member, or empty)
     placeholderHelper.registerPlaceholder(
         "team_role",
         (player, params) -> {

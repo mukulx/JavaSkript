@@ -130,8 +130,8 @@ public class TeamExample implements Listener {
       return;
     }
     Team team = teamOpt.get();
-    if (!team.isOfficer(player.getUniqueId())) {
-      Players.msg(player, "<red>Only officers and leaders can invite players.</red>");
+    if (!team.isCaptain(player.getUniqueId())) {
+      Players.msg(player, "<red>Only captains and leaders can invite players.</red>");
       return;
     }
 
@@ -192,14 +192,14 @@ public class TeamExample implements Listener {
       return;
     }
     Team team = teamOpt.get();
-    if (!team.isOfficer(player.getUniqueId())) {
-      Players.msg(player, "<red>Only officers and leaders can kick members.</red>");
+    if (!team.isCaptain(player.getUniqueId())) {
+      Players.msg(player, "<red>Only captains and leaders can kick members.</red>");
       return;
     }
 
     Player target = Bukkit.getPlayer(args[1]);
     if (target != null) {
-      Teams.kick(team, target, player, "Kicked by officer");
+      Teams.kick(team, target, player, "Kicked by captain");
     } else {
       Players.msg(player, "<red>Player not found.</red>");
     }
@@ -212,8 +212,8 @@ public class TeamExample implements Listener {
       return;
     }
     Team team = teamOpt.get();
-    if (!team.isOfficer(player.getUniqueId())) {
-      Players.msg(player, "<red>Only officers and leaders can set the team home.</red>");
+    if (!team.isCaptain(player.getUniqueId())) {
+      Players.msg(player, "<red>Only captains and leaders can set the team home.</red>");
       return;
     }
     Teams.setHome(team, player.getLocation());
@@ -267,8 +267,8 @@ public class TeamExample implements Listener {
       return;
     }
     Team team = teamOpt.get();
-    if (!team.isOfficer(player.getUniqueId())) {
-      Players.msg(player, "<red>Only officers and leaders can withdraw team funds.</red>");
+    if (!team.isCaptain(player.getUniqueId())) {
+      Players.msg(player, "<red>Only captains and leaders can withdraw team funds.</red>");
       return;
     }
     try {
@@ -286,8 +286,8 @@ public class TeamExample implements Listener {
       return;
     }
     Team team = teamOpt.get();
-    if (!team.isOfficer(player.getUniqueId())) {
-      Players.msg(player, "<red>Only officers and leaders can toggle friendly fire.</red>");
+    if (!team.isCaptain(player.getUniqueId())) {
+      Players.msg(player, "<red>Only captains and leaders can toggle friendly fire.</red>");
       return;
     }
     boolean newState = !team.isFriendlyFireEnabled();

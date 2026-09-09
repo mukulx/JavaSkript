@@ -19,32 +19,31 @@ class TeamTest {
 
   @Test
   void testRoleHierarchyAndPermissions() {
-    assertTrue(TeamRole.LEADER.isAtLeast(TeamRole.OFFICER));
-    assertTrue(TeamRole.OFFICER.isAtLeast(TeamRole.MEMBER));
-    assertTrue(TeamRole.MEMBER.isAtLeast(TeamRole.RECRUIT));
-    assertTrue(TeamRole.RECRUIT.isAtLeast(TeamRole.RECRUIT));
-    assertFalse(TeamRole.MEMBER.isAtLeast(TeamRole.OFFICER));
+    assertTrue(TeamRole.LEADER.isAtLeast(TeamRole.CAPTAIN));
+    assertTrue(TeamRole.CAPTAIN.isAtLeast(TeamRole.MEMBER));
+    assertTrue(TeamRole.MEMBER.isAtLeast(TeamRole.MEMBER));
+    assertFalse(TeamRole.MEMBER.isAtLeast(TeamRole.CAPTAIN));
 
-    assertTrue(TeamRole.LEADER.isHigherThan(TeamRole.OFFICER));
-    assertFalse(TeamRole.OFFICER.isHigherThan(TeamRole.OFFICER));
+    assertTrue(TeamRole.LEADER.isHigherThan(TeamRole.CAPTAIN));
+    assertFalse(TeamRole.CAPTAIN.isHigherThan(TeamRole.CAPTAIN));
 
     // Permission checks
     assertTrue(TeamRole.LEADER.canDisband());
-    assertFalse(TeamRole.OFFICER.canDisband());
+    assertFalse(TeamRole.CAPTAIN.canDisband());
 
-    assertTrue(TeamRole.OFFICER.canInvite());
+    assertTrue(TeamRole.CAPTAIN.canInvite());
     assertFalse(TeamRole.MEMBER.canInvite());
 
-    assertTrue(TeamRole.OFFICER.canKick(TeamRole.MEMBER));
-    assertFalse(TeamRole.OFFICER.canKick(TeamRole.OFFICER));
-    assertFalse(TeamRole.OFFICER.canKick(TeamRole.LEADER));
+    assertTrue(TeamRole.CAPTAIN.canKick(TeamRole.MEMBER));
+    assertFalse(TeamRole.CAPTAIN.canKick(TeamRole.CAPTAIN));
+    assertFalse(TeamRole.CAPTAIN.canKick(TeamRole.LEADER));
 
-    assertTrue(TeamRole.RECRUIT.canDeposit());
-    assertFalse(TeamRole.RECRUIT.canWithdraw());
-    assertTrue(TeamRole.OFFICER.canWithdraw());
+    assertTrue(TeamRole.MEMBER.canDeposit());
+    assertFalse(TeamRole.MEMBER.canWithdraw());
+    assertTrue(TeamRole.CAPTAIN.canWithdraw());
 
     assertEquals(TeamRole.LEADER, TeamRole.fromString("leader", TeamRole.MEMBER));
-    assertEquals(TeamRole.OFFICER, TeamRole.fromString("OFFICER", TeamRole.MEMBER));
+    assertEquals(TeamRole.CAPTAIN, TeamRole.fromString("CAPTAIN", TeamRole.MEMBER));
     assertEquals(TeamRole.MEMBER, TeamRole.fromString("invalid_role", TeamRole.MEMBER));
   }
 
@@ -65,7 +64,7 @@ class TeamTest {
     assertTrue(team.hasMember(leader));
     assertEquals(1, team.getSize());
     assertTrue(team.isLeader(leader));
-    assertTrue(team.isOfficer(leader));
+    assertTrue(team.isCaptain(leader));
 
     // Friendly fire defaults to false
     assertFalse(team.isFriendlyFireEnabled());
@@ -88,21 +87,21 @@ class TeamTest {
 
     Team team = new Team("knights", "Knights", leader);
     team.addMember(member1, TeamRole.MEMBER);
-    team.addMember(member2, TeamRole.OFFICER);
+    team.addMember(member2, TeamRole.CAPTAIN);
 
     assertEquals(3, team.getSize());
     assertTrue(team.hasMember(member1));
     assertTrue(team.hasMember(member2));
 
     assertEquals(TeamRole.MEMBER, team.getRole(member1).orElse(null));
-    assertEquals(TeamRole.OFFICER, team.getRole(member2).orElse(null));
+    assertEquals(TeamRole.CAPTAIN, team.getRole(member2).orElse(null));
 
-    assertFalse(team.isOfficer(member1));
-    assertTrue(team.isOfficer(member2));
+    assertFalse(team.isCaptain(member1));
+    assertTrue(team.isCaptain(member2));
 
     // Promote member1
-    team.setRole(member1, TeamRole.OFFICER);
-    assertTrue(team.isOfficer(member1));
+    team.setRole(member1, TeamRole.CAPTAIN);
+    assertTrue(team.isCaptain(member1));
 
     // Remove member
     assertNotNull(team.removeMember(member1));

@@ -2,10 +2,9 @@ package dev.mukulx.javaskript.api.team;
 
 /** Hierarchical roles for team members with built-in permission evaluation. */
 public enum TeamRole {
-  RECRUIT(1, "Recruit"),
-  MEMBER(2, "Member"),
-  OFFICER(3, "Officer"),
-  LEADER(4, "Leader");
+  MEMBER(1, "Member"),
+  CAPTAIN(2, "Captain"),
+  LEADER(3, "Leader");
 
   private final int priority;
   private final String displayName;
@@ -46,56 +45,56 @@ public enum TeamRole {
   /**
    * Checks whether this role can invite new players to the team.
    *
-   * @return true if officer or leader
+   * @return true if captain or leader
    */
   public boolean canInvite() {
-    return isAtLeast(OFFICER);
+    return isAtLeast(CAPTAIN);
   }
 
   /**
    * Checks whether this role can kick a member of the target role.
    *
    * @param targetRole The role of the member to be kicked
-   * @return true if officer or leader and strictly higher priority than target
+   * @return true if captain or leader and strictly higher priority than target
    */
   public boolean canKick(TeamRole targetRole) {
-    return isAtLeast(OFFICER) && isHigherThan(targetRole);
+    return isAtLeast(CAPTAIN) && isHigherThan(targetRole);
   }
 
   /**
    * Checks whether this role can set or update the team home location.
    *
-   * @return true if officer or leader
+   * @return true if captain or leader
    */
   public boolean canSetHome() {
-    return isAtLeast(OFFICER);
+    return isAtLeast(CAPTAIN);
   }
 
   /**
    * Checks whether this role can toggle team settings (e.g. friendly fire, open).
    *
-   * @return true if officer or leader
+   * @return true if captain or leader
    */
   public boolean canToggleSettings() {
-    return isAtLeast(OFFICER);
+    return isAtLeast(CAPTAIN);
   }
 
   /**
    * Checks whether this role can withdraw money from the team bank account.
    *
-   * @return true if officer or leader
+   * @return true if captain or leader
    */
   public boolean canWithdraw() {
-    return isAtLeast(OFFICER);
+    return isAtLeast(CAPTAIN);
   }
 
   /**
    * Checks whether this role can deposit money into the team bank account.
    *
-   * @return true if recruit or above
+   * @return true if member or above
    */
   public boolean canDeposit() {
-    return isAtLeast(RECRUIT);
+    return isAtLeast(MEMBER);
   }
 
   /**
