@@ -31,6 +31,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
   private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
   private dev.mukulx.javaskript.api.message.MessageManager messageManager;
+  private dev.mukulx.javaskript.api.team.TeamHelper teamHelper;
   private boolean debugMode;
 
   @Override
@@ -106,6 +107,16 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         dev.mukulx.javaskript.api.economy.Economy.setInstance(economyHelper);
       } catch (Throwable t) {
         getLogger().warning("Failed to initialize Economy subsystem: " + t.getMessage());
+      }
+
+      // Team / Clan subsystem
+      try {
+        if (getConfig().getBoolean("teams.enabled", true)) {
+          this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
+          dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
+        }
+      } catch (Throwable t) {
+        getLogger().warning("Failed to initialize Team subsystem: " + t.getMessage());
       }
 
       // Register main command handler
@@ -221,6 +232,15 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       debug("Error shutting down economy helper: " + t.getMessage());
     }
 
+    // Shutdown team subsystem
+    try {
+      if (teamHelper != null) {
+        teamHelper.shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down team helper: " + t.getMessage());
+    }
+
     // Save shared persistent variables
     try {
       if (variableHelper != null) {
@@ -261,6 +281,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
     return economyHelper;
+  }
+
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return teamHelper;
   }
 
   public JavaSkriptAPI getAPI() {

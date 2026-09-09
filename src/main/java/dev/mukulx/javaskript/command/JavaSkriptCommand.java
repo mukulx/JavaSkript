@@ -285,6 +285,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       if (plugin.getMessageManager() != null) {
         plugin.getMessageManager().reload();
       }
+      if (plugin.getTeamHelper() != null) {
+        plugin.getTeamHelper().reload();
+      }
       sender.sendMessage(
           Component.text("Configuration reloaded successfully!").color(NamedTextColor.GREEN));
       sender.sendMessage(

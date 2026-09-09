@@ -312,6 +312,33 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get the TeamHelper for managing teams, clans, friendly fire, and member roles.
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return plugin.getTeamHelper();
+  }
+
+  /**
+   * Get the TeamHelper (alias).
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeams() {
+    return getTeamHelper();
+  }
+
+  /**
+   * Get the TeamHelper (alias).
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper teams() {
+    return getTeamHelper();
+  }
+
+  /**
    * Get the VariableHelper for managing shared in-memory and persistent script state.
    *
    * @return The VariableHelper instance

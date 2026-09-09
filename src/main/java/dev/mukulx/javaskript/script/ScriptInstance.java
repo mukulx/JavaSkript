@@ -55,6 +55,7 @@ public class ScriptInstance {
   private dev.mukulx.javaskript.api.variable.VariableHelper variables;
   private dev.mukulx.javaskript.api.variable.ScriptVariables scriptVariables;
   private dev.mukulx.javaskript.api.http.HttpHelper http;
+  private dev.mukulx.javaskript.api.team.TeamHelper teams;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -107,6 +108,7 @@ public class ScriptInstance {
       this.scriptVariables =
           new dev.mukulx.javaskript.api.variable.ScriptVariables(variables, scriptKey);
       this.http = plugin.getHttpHelper();
+      this.teams = plugin.getTeamHelper();
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptKey);
@@ -313,6 +315,8 @@ public class ScriptInstance {
               field.set(instance, variables);
             } else if (dev.mukulx.javaskript.api.http.HttpHelper.class.isAssignableFrom(type)) {
               field.set(instance, http);
+            } else if (dev.mukulx.javaskript.api.team.TeamHelper.class.isAssignableFrom(type)) {
+              field.set(instance, teams);
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -397,6 +401,12 @@ public class ScriptInstance {
               field.set(instance, variables);
             } else if (name.equals("http") || name.equals("web") || name.equals("httphelper")) {
               field.set(instance, http);
+            } else if (name.equals("teams")
+                || name.equals("team")
+                || name.equals("teamhelper")
+                || name.equals("clan")
+                || name.equals("party")) {
+              field.set(instance, teams);
             } else {
               // Check external addons and plugins for custom registered field injectors
               Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
@@ -960,6 +970,14 @@ public class ScriptInstance {
 
   public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
     return http;
+  }
+
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeams() {
+    return teams;
+  }
+
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return teams;
   }
 
   public boolean isFoliaCompatible() {
