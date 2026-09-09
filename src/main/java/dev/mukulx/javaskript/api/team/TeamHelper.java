@@ -15,6 +15,7 @@ import dev.mukulx.javaskript.event.team.TeamRoleChangeEvent;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,6 +30,7 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
@@ -41,7 +43,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
  * Native Team, Clan, and Party manager for JavaSkript.
  *
  * <p>Provides zero-boilerplate access to team querying, lifecycle events, friendly fire prevention,
- * SQLite persistence, and visual tab/nametag synchronization.
+ * SQLite persistence, and visual tab/nametag synchronization. Fully resilient against nulls, edge
+ * conditions, and dynamic reloads.
  */
 public class TeamHelper implements Listener {
 
@@ -51,6 +54,7 @@ public class TeamHelper implements Listener {
   private final Map<String, Team> teamsById;
   private final Map<UUID, String> playerToTeamId;
   private final Map<String, TeamInvite> pendingInvites;
+  private volatile boolean enabled = true;
 
   public TeamHelper(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -74,7 +78,17 @@ public class TeamHelper implements Listener {
     // Register event listener for friendly fire and player join/quit
     Bukkit.getPluginManager().registerEvents(this, plugin);
 
+    // Synchronize any currently online players
+    for (Player online : Bukkit.getOnlinePlayers()) {
+      tabBridge.updatePlayer(online);
+    }
+
     plugin.getLogger().info("Team engine initialized (" + teamsById.size() + " active teams)");
+  }
+
+  /** Checks if the team subsystem is active. */
+  public boolean isEnabled() {
+    return enabled;
   }
 
   // -------------------------------------------------------------
@@ -88,7 +102,7 @@ public class TeamHelper implements Listener {
    * @return Optional containing the Team if player is a member
    */
   public Optional<Team> getTeam(UUID uuid) {
-    if (uuid == null) return Optional.empty();
+    if (!enabled || uuid == null) return Optional.empty();
     String teamId = playerToTeamId.get(uuid);
     if (teamId == null) return Optional.empty();
     return Optional.ofNullable(teamsById.get(teamId));
@@ -111,7 +125,7 @@ public class TeamHelper implements Listener {
    * @return Optional containing the Team if found
    */
   public Optional<Team> getByName(String idOrName) {
-    if (idOrName == null || idOrName.isBlank()) return Optional.empty();
+    if (!enabled || idOrName == null || idOrName.isBlank()) return Optional.empty();
     String key = idOrName.trim().toLowerCase();
     Team team = teamsById.get(key);
     if (team != null) {
@@ -131,6 +145,7 @@ public class TeamHelper implements Listener {
    * @return Collection of all teams
    */
   public Collection<Team> getAll() {
+    if (!enabled) return Collections.emptyList();
     return Collections.unmodifiableCollection(teamsById.values());
   }
 
@@ -141,7 +156,8 @@ public class TeamHelper implements Listener {
    * @return true if exists
    */
   public boolean exists(String teamId) {
-    return teamId != null && teamsById.containsKey(teamId.toLowerCase());
+    if (!enabled || teamId == null) return false;
+    return teamsById.containsKey(teamId.trim().toLowerCase());
   }
 
   /**
@@ -152,7 +168,7 @@ public class TeamHelper implements Listener {
    * @return true if both players are in the same team
    */
   public boolean areTeammates(UUID a, UUID b) {
-    if (a == null || b == null || a.equals(b)) return false;
+    if (!enabled || a == null || b == null || a.equals(b)) return false;
     String teamA = playerToTeamId.get(a);
     if (teamA == null) return false;
     String teamB = playerToTeamId.get(b);
@@ -181,9 +197,10 @@ public class TeamHelper implements Listener {
    * @param id Unique lowercase identifier
    * @param name Display name
    * @param leader Leader player UUID
-   * @return The newly created Team, or null if cancelled by event
+   * @return The newly created Team, or null if disabled or cancelled by event
    */
   public Team create(String id, String name, UUID leader) {
+    if (!enabled) return null;
     Objects.requireNonNull(id, "Team ID cannot be null");
     Objects.requireNonNull(leader, "Team leader cannot be null");
 
@@ -259,7 +276,7 @@ public class TeamHelper implements Listener {
    * @return The created Team
    */
   public Team create(String id, String name, Player leader) {
-    Objects.requireNonNull(leader, "leader player cannot be null");
+    if (!enabled || leader == null) return null;
     return create(id, name, leader.getUniqueId());
   }
 
@@ -271,7 +288,7 @@ public class TeamHelper implements Listener {
    * @return true if disbanded successfully
    */
   public boolean disband(Team team, UUID initiator) {
-    if (team == null) return false;
+    if (!enabled || team == null) return false;
 
     // Fire Bukkit Event
     TeamDisbandEvent event = new TeamDisbandEvent(team, initiator);
@@ -308,6 +325,7 @@ public class TeamHelper implements Listener {
    * @return true if disbanded
    */
   public boolean disband(String idOrName, UUID initiator) {
+    if (!enabled || idOrName == null) return false;
     return getByName(idOrName).map(team -> disband(team, initiator)).orElse(false);
   }
 
@@ -324,8 +342,15 @@ public class TeamHelper implements Listener {
    * @return true if member added successfully
    */
   public boolean addMember(Team team, UUID playerUuid, TeamRole role) {
-    if (team == null || playerUuid == null) return false;
-    if (team.isFull()) return false;
+    if (!enabled || team == null || playerUuid == null) return false;
+
+    if (team.isFull()) {
+      Player p = Bukkit.getPlayer(playerUuid);
+      if (p != null) {
+        plugin.getMessageManager().send(p, "team.full", "<red>This team is full!</red>");
+      }
+      return false;
+    }
 
     // Leave existing team if present
     getTeam(playerUuid).ifPresent(oldTeam -> removeMember(oldTeam, playerUuid));
@@ -387,7 +412,7 @@ public class TeamHelper implements Listener {
    * @return true if removed successfully
    */
   public boolean removeMember(Team team, UUID playerUuid) {
-    if (team == null || playerUuid == null || !team.hasMember(playerUuid)) return false;
+    if (!enabled || team == null || playerUuid == null || !team.hasMember(playerUuid)) return false;
 
     // Fire Bukkit Event
     TeamLeaveEvent event = new TeamLeaveEvent(team, playerUuid);
@@ -428,10 +453,32 @@ public class TeamHelper implements Listener {
     if (team.getSize() == 0) {
       disband(team, null);
     } else if (team.isLeader(playerUuid)) {
-      // Auto-promote first remaining officer or member
-      UUID newLeader = team.getMemberUuids().iterator().next();
-      team.setLeader(newLeader);
-      storage.saveTeamAsync(team);
+      // Auto-promote highest ranking remaining member
+      TeamMember highest = null;
+      for (TeamMember m : team.getMembers().values()) {
+        if (highest == null || m.getRole().isHigherThan(highest.getRole())) {
+          highest = m;
+        }
+      }
+      if (highest != null) {
+        team.setLeader(highest.getUniqueId());
+        storage.saveTeamAsync(team);
+        Player newLead = Bukkit.getPlayer(highest.getUniqueId());
+        if (newLead != null) {
+          tabBridge.updatePlayer(newLead);
+        }
+        broadcast(
+            team,
+            plugin
+                .getMessageManager()
+                .get(
+                    "team.role-changed",
+                    "<green>{player} is the new team leader!</green>",
+                    "{player}",
+                    highest.getName(),
+                    "{role}",
+                    "Leader"));
+      }
     }
 
     return true;
@@ -447,7 +494,7 @@ public class TeamHelper implements Listener {
    * @return true if kicked
    */
   public boolean kick(Team team, UUID targetUuid, UUID kickerUuid, String reason) {
-    if (team == null || targetUuid == null || !team.hasMember(targetUuid)) return false;
+    if (!enabled || team == null || targetUuid == null || !team.hasMember(targetUuid)) return false;
     if (team.isLeader(targetUuid)) return false; // Leader cannot be kicked
 
     // Fire Bukkit Event
@@ -500,7 +547,7 @@ public class TeamHelper implements Listener {
    * @return true if role changed successfully
    */
   public boolean setRole(Team team, UUID memberUuid, TeamRole newRole, UUID actor) {
-    if (team == null || memberUuid == null || newRole == null) return false;
+    if (!enabled || team == null || memberUuid == null || newRole == null) return false;
     Optional<TeamMember> memberOpt = team.getMember(memberUuid);
     if (memberOpt.isEmpty()) return false;
 
@@ -547,7 +594,32 @@ public class TeamHelper implements Listener {
    * @param timeoutMillis Expiration duration in milliseconds
    */
   public void invite(Team team, Player target, Player sender, long timeoutMillis) {
-    if (team == null || target == null || sender == null) return;
+    if (!enabled || team == null || target == null || sender == null) return;
+
+    if (target.equals(sender)) {
+      plugin
+          .getMessageManager()
+          .send(sender, "team.invite-self", "<red>You cannot invite yourself!</red>");
+      return;
+    }
+
+    if (team.hasMember(target.getUniqueId())) {
+      plugin
+          .getMessageManager()
+          .send(
+              sender,
+              "team.invite-already-member",
+              "<red>{target} is already in your team!</red>",
+              "{target}",
+              target.getName());
+      return;
+    }
+
+    if (team.isFull()) {
+      plugin.getMessageManager().send(sender, "team.full", "<red>Your team is full!</red>");
+      return;
+    }
+
     String inviteKey = team.getId() + ":" + target.getUniqueId();
     TeamInvite invite =
         new TeamInvite(team.getId(), target.getUniqueId(), sender.getUniqueId(), timeoutMillis);
@@ -580,7 +652,7 @@ public class TeamHelper implements Listener {
 
   /** Checks if a player has an active, non-expired invite to a team. */
   public boolean hasInvite(Team team, UUID targetUuid) {
-    if (team == null || targetUuid == null) return false;
+    if (!enabled || team == null || targetUuid == null) return false;
     String inviteKey = team.getId() + ":" + targetUuid;
     TeamInvite invite = pendingInvites.get(inviteKey);
     if (invite == null) return false;
@@ -593,7 +665,13 @@ public class TeamHelper implements Listener {
 
   /** Accepts an active team invite. */
   public boolean acceptInvite(Team team, Player target) {
-    if (team == null || target == null) return false;
+    if (!enabled || team == null || target == null) return false;
+
+    if (team.isFull()) {
+      plugin.getMessageManager().send(target, "team.full", "<red>This team is full!</red>");
+      return false;
+    }
+
     String inviteKey = team.getId() + ":" + target.getUniqueId();
     TeamInvite invite = pendingInvites.remove(inviteKey);
     if (invite == null || invite.isExpired()) {
@@ -610,7 +688,7 @@ public class TeamHelper implements Listener {
 
   /** Declines an active team invite. */
   public void declineInvite(Team team, Player target) {
-    if (team == null || target == null) return;
+    if (!enabled || team == null || target == null) return;
     String inviteKey = team.getId() + ":" + target.getUniqueId();
     pendingInvites.remove(inviteKey);
     plugin
@@ -624,7 +702,7 @@ public class TeamHelper implements Listener {
 
   /** Broadcasts an Adventure Component to all online team members. */
   public void broadcast(Team team, Component message) {
-    if (team == null || message == null) return;
+    if (!enabled || team == null || message == null) return;
     for (Player player : team.getOnlinePlayers()) {
       player.sendMessage(message);
     }
@@ -632,13 +710,13 @@ public class TeamHelper implements Listener {
 
   /** Broadcasts a formatted MiniMessage or legacy string to all online team members. */
   public void broadcast(Team team, String message) {
-    if (team == null || message == null) return;
+    if (!enabled || team == null || message == null) return;
     broadcast(team, plugin.getMessageManager().parse(message));
   }
 
   /** Broadcasts an action bar message to all online team members. */
   public void broadcastActionBar(Team team, Component message) {
-    if (team == null || message == null) return;
+    if (!enabled || team == null || message == null) return;
     for (Player player : team.getOnlinePlayers()) {
       player.sendActionBar(message);
     }
@@ -646,13 +724,13 @@ public class TeamHelper implements Listener {
 
   /** Broadcasts an action bar MiniMessage or legacy string to all online team members. */
   public void broadcastActionBar(Team team, String message) {
-    if (team == null || message == null) return;
+    if (!enabled || team == null || message == null) return;
     broadcastActionBar(team, plugin.getMessageManager().parse(message));
   }
 
   /** Broadcasts a Title to all online team members. */
   public void broadcastTitle(Team team, Title title) {
-    if (team == null || title == null) return;
+    if (!enabled || team == null || title == null) return;
     for (Player player : team.getOnlinePlayers()) {
       player.showTitle(title);
     }
@@ -660,7 +738,7 @@ public class TeamHelper implements Listener {
 
   /** Plays a sound effect for all online team members at their respective locations. */
   public void playSound(Team team, Sound sound, float volume, float pitch) {
-    if (team == null || sound == null) return;
+    if (!enabled || team == null || sound == null) return;
     for (Player player : team.getOnlinePlayers()) {
       player.playSound(player.getLocation(), sound, volume, pitch);
     }
@@ -674,7 +752,7 @@ public class TeamHelper implements Listener {
    * @return true if chat delivered
    */
   public boolean sendTeamChat(Player sender, String message) {
-    if (sender == null || message == null || message.isBlank()) return false;
+    if (!enabled || sender == null || message == null || message.isBlank()) return false;
     Optional<Team> teamOpt = getTeam(sender);
     if (teamOpt.isEmpty()) {
       plugin
@@ -731,7 +809,7 @@ public class TeamHelper implements Listener {
    * @return true if deposited successfully
    */
   public boolean deposit(Team team, Player player, double amount) {
-    if (team == null || player == null || amount <= 0) return false;
+    if (!enabled || team == null || player == null || amount <= 0) return false;
 
     // Fire Bukkit Event
     TeamBankTransactionEvent event =
@@ -765,7 +843,7 @@ public class TeamHelper implements Listener {
    * @return true if withdrawn successfully
    */
   public boolean withdraw(Team team, Player player, double amount) {
-    if (team == null || player == null || amount <= 0) return false;
+    if (!enabled || team == null || player == null || amount <= 0) return false;
     if (team.getBalance() < amount) {
       plugin
           .getMessageManager()
@@ -804,7 +882,7 @@ public class TeamHelper implements Listener {
 
   /** Sets the team home location. */
   public void setHome(Team team, Location location) {
-    if (team == null || location == null) return;
+    if (!enabled || team == null || location == null) return;
     team.setHome(location);
     storage.saveTeamAsync(team);
   }
@@ -817,7 +895,7 @@ public class TeamHelper implements Listener {
    * @return true if teleport initiated
    */
   public boolean teleportHome(Team team, Player player) {
-    if (team == null || player == null) return false;
+    if (!enabled || team == null || player == null) return false;
     Location home = team.getHome();
     if (home == null || home.getWorld() == null) {
       plugin
@@ -838,15 +916,22 @@ public class TeamHelper implements Listener {
     return true;
   }
 
+  /** Returns all online players in a team. */
+  public List<Player> getOnlinePlayers(Team team) {
+    if (!enabled || team == null) return Collections.emptyList();
+    return team.getOnlinePlayers();
+  }
+
   /** Saves a team to persistent storage. */
   public void save(Team team) {
-    if (team != null) {
+    if (enabled && team != null) {
       storage.saveTeamAsync(team);
     }
   }
 
   /** Reloads visual configurations and message bridges. */
   public void reload() {
+    if (!enabled) return;
     for (Player player : Bukkit.getOnlinePlayers()) {
       tabBridge.updatePlayer(player);
     }
@@ -854,9 +939,13 @@ public class TeamHelper implements Listener {
 
   /** Shuts down the team manager, visual bridges, and SQLite connections. */
   public void shutdown() {
+    this.enabled = false;
     HandlerList.unregisterAll(this);
     tabBridge.shutdown();
     storage.close();
+    teamsById.clear();
+    playerToTeamId.clear();
+    pendingInvites.clear();
   }
 
   public TeamTabBridge getTabBridge() {
@@ -869,6 +958,7 @@ public class TeamHelper implements Listener {
 
   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
   public void onEntityDamage(EntityDamageByEntityEvent event) {
+    if (!enabled) return;
     if (!(event.getEntity() instanceof Player victim)) {
       return;
     }
@@ -880,6 +970,9 @@ public class TeamHelper implements Listener {
       damager = p;
     } else if (attacker instanceof Projectile proj && proj.getShooter() instanceof Player p) {
       damager = p;
+    } else if (attacker instanceof Tameable tameable
+        && tameable.getOwner() instanceof Player owner) {
+      damager = owner;
     }
 
     if (damager == null || damager.equals(victim)) {
@@ -903,15 +996,19 @@ public class TeamHelper implements Listener {
           new TeamDamageTeammateEvent(team, damager, victim, event.getDamage());
       Bukkit.getPluginManager().callEvent(ffEvent);
 
-      event.setCancelled(true);
-      plugin
-          .getMessageManager()
-          .send(damager, "team.friendly-fire-blocked", "<red>You cannot hurt your teammate!</red>");
+      if (!ffEvent.isCancelled()) {
+        event.setCancelled(true);
+        plugin
+            .getMessageManager()
+            .send(
+                damager, "team.friendly-fire-blocked", "<red>You cannot hurt your teammate!</red>");
+      }
     }
   }
 
   @EventHandler(priority = EventPriority.MONITOR)
   public void onPlayerJoin(PlayerJoinEvent event) {
+    if (!enabled) return;
     Player player = event.getPlayer();
     getTeam(player)
         .ifPresent(
@@ -923,6 +1020,7 @@ public class TeamHelper implements Listener {
 
   @EventHandler(priority = EventPriority.MONITOR)
   public void onPlayerQuit(PlayerQuitEvent event) {
+    if (!enabled) return;
     Player player = event.getPlayer();
     getTeam(player)
         .ifPresent(

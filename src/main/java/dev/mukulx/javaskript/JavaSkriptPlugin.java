@@ -287,6 +287,35 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     return teamHelper;
   }
 
+  /** Dynamically reloads or enables/disables the Team subsystem based on config.yml. */
+  public synchronized void reloadTeamHelper() {
+    boolean enabled = getConfig().getBoolean("teams.enabled", true);
+    if (enabled) {
+      if (this.teamHelper == null) {
+        try {
+          this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
+          dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
+          getLogger().info("Team subsystem enabled and initialized on reload.");
+        } catch (Throwable t) {
+          getLogger().warning("Failed to initialize Team subsystem on reload: " + t.getMessage());
+        }
+      } else {
+        this.teamHelper.reload();
+      }
+    } else {
+      if (this.teamHelper != null) {
+        try {
+          this.teamHelper.shutdown();
+        } catch (Throwable t) {
+          debug("Error shutting down team helper: " + t.getMessage());
+        }
+        this.teamHelper = null;
+        dev.mukulx.javaskript.api.team.Teams.setInstance(null);
+        getLogger().info("Team subsystem disabled on reload.");
+      }
+    }
+  }
+
   public JavaSkriptAPI getAPI() {
     return api;
   }

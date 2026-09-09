@@ -214,6 +214,8 @@ public class TeamTabBridge {
     // 1. Vanilla Scoreboard Nametag Sync
     if (syncScoreboard) {
       updateScoreboardTeam(player, team);
+    } else {
+      removeFromScoreboard(player);
     }
 
     // 2. Tab List Formatting (empty by default; only applied when prefix/suffix is configured)
@@ -238,6 +240,8 @@ public class TeamTabBridge {
         Component tabComponent = plugin.getMessageManager().parse(formatted);
         player.playerListName(tabComponent);
       }
+    } else {
+      player.playerListName(null);
     }
   }
 
@@ -337,6 +341,12 @@ public class TeamTabBridge {
   /** Shuts down bridge and cleans up placeholders and scoreboard teams. */
   public void shutdown() {
     placeholderHelper.unregisterAll();
+    for (Player player : Bukkit.getOnlinePlayers()) {
+      try {
+        player.playerListName(null);
+      } catch (Exception ignored) {
+      }
+    }
     try {
       Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
       for (org.bukkit.scoreboard.Team sbTeam : scoreboard.getTeams()) {
