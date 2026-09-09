@@ -30,6 +30,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.variable.VariableHelper variableHelper;
   private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
   private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
+  private dev.mukulx.javaskript.api.message.MessageManager messageManager;
   private boolean debugMode;
 
   @Override
@@ -39,8 +40,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     try {
       displayLogo();
 
-      // Ensure config.yml exists on disk
+      // Ensure config.yml and messages.yml exist on disk
       saveDefaultConfig();
+      this.messageManager = new dev.mukulx.javaskript.api.message.MessageManager(this);
 
       // Cache debug flag to minimize runtime disk reads
       this.debugMode = getConfig().getBoolean("debug.enabled", false);
@@ -275,6 +277,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
     return httpHelper;
+  }
+
+  public dev.mukulx.javaskript.api.message.MessageManager getMessageManager() {
+    return messageManager;
   }
 
   public DynamicCommandRegistry getCommandRegistry() {
