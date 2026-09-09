@@ -30,6 +30,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 
 - **MultiClassExample.java** - Multiple classes in one file (managers, utilities, data classes)
 - **ExtraInventory.java** - Complete inventory storage system with HikariCP + SQLite
+- **TeamExample.java** - Full Team / Clan / Party system with friendly fire, chat, bank, and waypoints
 
 ### Compatibility Examples
 
@@ -81,6 +82,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 | Maven Dependencies | ExtraInventory (HikariCP) |
 | Dupe Prevention | ExtraInventory |
 | Folia Support | All examples (marked with @FoliaSupport) |
+| Team / Clan Engine | TeamExample |
 
 ## Notes
 

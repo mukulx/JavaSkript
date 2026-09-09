@@ -28,6 +28,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
 23. [VariableHelper, ScriptVariables, & Variables (State Storage)](#variablehelper--variables-shared-state)
 24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
+25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
 
 ---
 
@@ -2669,6 +2670,96 @@ http.request("https://api.example.com/players/stats")
         error -> getLogger().warning("Failed to fetch stats: " + error.getMessage())
     );
 ```
+
+---
+
+## TeamHelper & Teams (Native Team / Clan Engine)
+
+JavaSkript provides a built-in, zero-boilerplate Team, Clan, and Party system backed by SQLite persistence with WAL mode and in-memory caches.
+
+### Features
+- O(1) in-memory teammate checks (`areTeammates(p1, p2)`), ideal for high-frequency PvP events.
+- Hierarchical role system: `LEADER`, `OFFICER`, `MEMBER`, `RECRUIT`.
+- Built-in friendly fire prevention.
+- Team bank account, team private chat, and waypoint home teleportation.
+- Seamless visual integration: Vanilla tab list and Paper scoreboard nametag support.
+- TAB Plugin by NEZNAMY compatibility via built-in PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, etc.).
+- Prefixes and suffixes are empty by default; they only display when explicitly configured.
+- Comprehensive Bukkit event pipeline for third-party plugins and scripts.
+
+### Accessing Teams
+```java
+// Method 1: Field injection
+@Inject private TeamHelper teams;
+
+// Method 2: Static 1-line facade
+Teams.areTeammates(player1, player2);
+```
+
+### Core API Examples
+
+#### 1. Friendly Fire Blocker (PvP Listener)
+```java
+@EventHandler
+public void onPvP(EntityDamageByEntityEvent event) {
+    if (event.getDamager() instanceof Player damager && event.getEntity() instanceof Player victim) {
+        if (Teams.areTeammates(damager, victim) && !Teams.get(damager).get().isFriendlyFireEnabled()) {
+            event.setCancelled(true);
+            Players.actionbar(damager, "<red>You cannot hurt teammates!</red>");
+        }
+    }
+}
+```
+
+#### 2. Creating and Managing Teams
+```java
+// Create a new team
+Team team = Teams.create("dragons", "The Dragons", leaderPlayer);
+
+// Configure visuals (empty by default)
+team.setTag("[DRG]");
+team.setPrefix("<gold>[DRG] </gold>");
+Teams.save(team);
+
+// Add and kick members
+Teams.addMember(team, targetPlayer, TeamRole.MEMBER);
+Teams.kick(team, targetPlayer, kickerPlayer, "Inactivity");
+
+// Disband team
+Teams.disband(team);
+```
+
+#### 3. Team Chat Channel
+```java
+@Command("tc")
+public void onTeamChat(Player player, String[] args) {
+    String msg = String.join(" ", args);
+    Teams.sendTeamChat(player, msg);
+}
+```
+
+#### 4. Team Bank & Waypoints
+```java
+// Shared bank deposit & withdraw
+Teams.deposit(team, player, 250.0);
+Teams.withdraw(team, player, 100.0);
+
+// Waypoint home
+Teams.setHome(team, player.getLocation());
+Teams.teleportHome(team, player);
+```
+
+#### 5. Bukkit Events
+Scripts and plugins can listen to native team events:
+- `TeamCreateEvent` (Cancellable)
+- `TeamDisbandEvent` (Cancellable)
+- `TeamJoinEvent` (Cancellable)
+- `TeamLeaveEvent`
+- `TeamKickEvent` (Cancellable)
+- `TeamRoleChangeEvent` (Cancellable)
+- `TeamDamageTeammateEvent` (Cancellable)
+- `TeamChatEvent` (Cancellable)
+- `TeamBankTransactionEvent` (Cancellable)
 
 ---
 
