@@ -72,18 +72,21 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleReload(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /js reload <script|all>").color(NamedTextColor.RED));
+          Component.text("Usage: /js reload <script|folder|all>").color(NamedTextColor.RED));
       sender.sendMessage(
           Component.text("  /js reload <script> - Reload a specific script")
+              .color(NamedTextColor.GRAY));
+      sender.sendMessage(
+          Component.text("  /js reload <folder> - Reload all scripts in a folder")
               .color(NamedTextColor.GRAY));
       sender.sendMessage(
           Component.text("  /js reload all - Reload all scripts").color(NamedTextColor.GRAY));
       return;
     }
 
-    String target = args[1];
+    String rawTarget = joinArgs(args, 1);
 
-    if (target.equalsIgnoreCase("all")) {
+    if (rawTarget.equalsIgnoreCase("all")) {
       // Reload all scripts
       sender.sendMessage(Component.text("Reloading all scripts...").color(NamedTextColor.YELLOW));
 
@@ -99,8 +102,6 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         plugin.getLogger().severe("Error reloading scripts: " + e.getMessage());
       }
     } else {
-      String rawTarget = joinArgs(args, 1);
-
       // Check if target is a directory
       if (plugin.getScriptManager().isDirectory(rawTarget)) {
         File dir = plugin.getScriptManager().resolveDirectory(rawTarget);
@@ -145,18 +146,21 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleRestart(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /js restart <script|all>").color(NamedTextColor.RED));
+          Component.text("Usage: /js restart <script|folder|all>").color(NamedTextColor.RED));
       sender.sendMessage(
           Component.text("  /js restart <script> - Restart a specific script")
+              .color(NamedTextColor.GRAY));
+      sender.sendMessage(
+          Component.text("  /js restart <folder> - Restart all scripts in a folder")
               .color(NamedTextColor.GRAY));
       sender.sendMessage(
           Component.text("  /js restart all - Restart all scripts").color(NamedTextColor.GRAY));
       return;
     }
 
-    String target = args[1];
+    String rawTarget = joinArgs(args, 1);
 
-    if (target.equalsIgnoreCase("all")) {
+    if (rawTarget.equalsIgnoreCase("all")) {
       // Restart all scripts
       sender.sendMessage(Component.text("Restarting all scripts...").color(NamedTextColor.YELLOW));
 
@@ -188,9 +192,42 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
                 .color(NamedTextColor.RED));
         plugin.getLogger().severe("Error restarting scripts: " + e.getMessage());
       }
+    } else if (plugin.getScriptManager().isDirectory(rawTarget)) {
+      File dir = plugin.getScriptManager().resolveDirectory(rawTarget);
+      int unloadedCount = plugin.getScriptManager().unloadDirectory(rawTarget);
+      sender.sendMessage(
+          Component.text(
+                  "Restarting folder: "
+                      + rawTarget
+                      + " ("
+                      + unloadedCount
+                      + " script(s) unloaded)...")
+              .color(NamedTextColor.YELLOW));
+
+      Runnable loadTask =
+          () -> {
+            int count = plugin.getScriptManager().loadDirectory(dir);
+            sender.sendMessage(
+                Component.text(
+                        "Successfully restarted folder: "
+                            + rawTarget
+                            + " ("
+                            + count
+                            + " script(s) loaded)!")
+                    .color(NamedTextColor.GREEN));
+          };
+
+      if (ServerUtil.isFolia()) {
+        plugin
+            .getServer()
+            .getGlobalRegionScheduler()
+            .runDelayed(plugin, task -> loadTask.run(), 20L);
+      } else {
+        plugin.getServer().getScheduler().runTaskLater(plugin, loadTask, 20L);
+      }
     } else {
       // Restart specific script
-      String scriptKey = joinArgs(args, 1);
+      String scriptKey = rawTarget;
       if (!scriptKey.endsWith(".java")) {
         scriptKey += ".java";
       }
@@ -321,11 +358,21 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleLoad(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /javaskript load <script|folder>").color(NamedTextColor.RED));
+          Component.text("Usage: /javaskript load <script|folder|all>").color(NamedTextColor.RED));
       return;
     }
 
     String rawTarget = joinArgs(args, 1);
+
+    if (rawTarget.equalsIgnoreCase("all")) {
+      sender.sendMessage(Component.text("Loading all scripts...").color(NamedTextColor.YELLOW));
+      plugin.getScriptManager().loadAllScripts();
+      int count = plugin.getScriptManager().getLoadedScripts().size();
+      sender.sendMessage(
+          Component.text("Successfully loaded " + count + " script(s)!")
+              .color(NamedTextColor.GREEN));
+      return;
+    }
 
     // Check if target is a directory
     if (plugin.getScriptManager().isDirectory(rawTarget)) {
@@ -377,11 +424,23 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleUnload(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /javaskript unload <script|folder>").color(NamedTextColor.RED));
+          Component.text("Usage: /javaskript unload <script|folder|all>")
+              .color(NamedTextColor.RED));
       return;
     }
 
     String rawTarget = joinArgs(args, 1);
+
+    if (rawTarget.equalsIgnoreCase("all")) {
+      int count = plugin.getScriptManager().getLoadedScripts().size();
+      sender.sendMessage(
+          Component.text("Unloading all " + count + " script(s)...").color(NamedTextColor.YELLOW));
+      plugin.getScriptManager().unloadAllScripts();
+      sender.sendMessage(
+          Component.text("Successfully unloaded " + count + " script(s)!")
+              .color(NamedTextColor.GREEN));
+      return;
+    }
 
     // Check if target is a directory
     if (plugin.getScriptManager().isDirectory(rawTarget)) {
@@ -471,26 +530,40 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleEnable(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /javaskript enable <script|folder>").color(NamedTextColor.RED));
+          Component.text("Usage: /javaskript enable <script|folder|all>")
+              .color(NamedTextColor.RED));
       return;
     }
 
     String rawTarget = joinArgs(args, 1);
+
+    if (rawTarget.equalsIgnoreCase("all")) {
+      sender.sendMessage(Component.text("Enabling all scripts...").color(NamedTextColor.YELLOW));
+      int count = plugin.getScriptManager().enableAllScripts();
+      sender.sendMessage(
+          Component.text("Successfully enabled all scripts (" + count + " script(s) loaded)!")
+              .color(NamedTextColor.GREEN));
+      return;
+    }
 
     // Check if target is a directory
     if (plugin.getScriptManager().isDirectory(rawTarget)) {
       File dir = plugin.getScriptManager().resolveDirectory(rawTarget);
       sender.sendMessage(
           Component.text("Enabling folder: " + rawTarget).color(NamedTextColor.YELLOW));
-      boolean success = plugin.getScriptManager().enableDirectory(dir);
-      if (success) {
+      int count = plugin.getScriptManager().enableDirectory(dir);
+      if (count >= 0) {
         sender.sendMessage(
-            Component.text("Successfully enabled folder: " + rawTarget)
+            Component.text(
+                    "Successfully enabled folder: "
+                        + rawTarget
+                        + " ("
+                        + count
+                        + " script(s) loaded)")
                 .color(NamedTextColor.GREEN));
       } else {
         sender.sendMessage(
-            Component.text("Failed to enable folder (not disabled or error): " + rawTarget)
-                .color(NamedTextColor.RED));
+            Component.text("Failed to enable folder: " + rawTarget).color(NamedTextColor.RED));
       }
       return;
     }
@@ -524,11 +597,21 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void handleDisable(CommandSender sender, String[] args) {
     if (args.length < 2) {
       sender.sendMessage(
-          Component.text("Usage: /javaskript disable <script|folder>").color(NamedTextColor.RED));
+          Component.text("Usage: /javaskript disable <script|folder|all>")
+              .color(NamedTextColor.RED));
       return;
     }
 
     String rawTarget = joinArgs(args, 1);
+
+    if (rawTarget.equalsIgnoreCase("all")) {
+      sender.sendMessage(Component.text("Disabling all scripts...").color(NamedTextColor.YELLOW));
+      int count = plugin.getScriptManager().disableAllScripts();
+      sender.sendMessage(
+          Component.text("Successfully disabled " + count + " script(s)!")
+              .color(NamedTextColor.GREEN));
+      return;
+    }
 
     // Check if target is a directory
     if (plugin.getScriptManager().isDirectory(rawTarget)) {
@@ -934,10 +1017,11 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
   private void sendHelp(CommandSender sender) {
     sender.sendMessage(Component.text("JavaSkript Commands:").color(NamedTextColor.GOLD));
     sender.sendMessage(
-        Component.text("  /js reload <script|all> - Reload a script or all scripts")
+        Component.text("  /js reload <script|folder|all> - Reload a script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
-        Component.text("  /js restart <script|all> - Restart a script or all scripts")
+        Component.text(
+                "  /js restart <script|folder|all> - Restart a script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js configreload - Reload the configuration file")
@@ -949,16 +1033,18 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         Component.text("  /js list - List all scripts (loaded and disabled)")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
-        Component.text("  /js load <script|folder> - Load a script or entire folder")
+        Component.text("  /js load <script|folder|all> - Load a script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
-        Component.text("  /js unload <script|folder> - Unload a script or entire folder")
+        Component.text("  /js unload <script|folder|all> - Unload a script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
-        Component.text("  /js enable <script|folder> - Enable a disabled script or folder")
+        Component.text(
+                "  /js enable <script|folder|all> - Enable a disabled script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
-        Component.text("  /js disable <script|folder> - Disable a script or folder")
+        Component.text(
+                "  /js disable <script|folder|all> - Disable a script, folder, or all scripts")
             .color(NamedTextColor.YELLOW));
     sender.sendMessage(
         Component.text("  /js info <script> - Show script information")
@@ -1089,13 +1175,10 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
             .collect(Collectors.toList());
       }
 
-      if (subCommand.equals("unload")
-          || subCommand.equals("info")
-          || subCommand.equals("disable")) {
+      if (subCommand.equals("unload")) {
         List<String> suggestions = new ArrayList<>();
-        if (!subCommand.equals("info")) {
-          suggestions.addAll(subdirs);
-        }
+        suggestions.add("all");
+        suggestions.addAll(subdirs);
         suggestions.addAll(
             plugin.getScriptManager().getLoadedScripts().keySet().stream()
                 .map(s -> s.replace(".java", ""))
@@ -1106,8 +1189,37 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
             .collect(Collectors.toList());
       }
 
+      if (subCommand.equals("info")) {
+        List<String> suggestions = new ArrayList<>();
+        suggestions.addAll(
+            plugin.getScriptManager().getAllScriptKeys().stream()
+                .map(s -> s.replace(".java", ""))
+                .collect(Collectors.toList()));
+
+        return suggestions.stream()
+            .filter(s -> s.toLowerCase().startsWith(partial))
+            .collect(Collectors.toList());
+      }
+
+      if (subCommand.equals("disable")) {
+        List<String> suggestions = new ArrayList<>();
+        suggestions.add("all");
+        suggestions.addAll(subdirs);
+        suggestions.addAll(
+            plugin.getScriptManager().getAllScriptKeys().stream()
+                .filter(key -> !plugin.getScriptManager().isScriptDisabled(key))
+                .map(s -> s.replace(".java", ""))
+                .collect(Collectors.toList()));
+
+        return suggestions.stream()
+            .filter(s -> s.toLowerCase().startsWith(partial))
+            .collect(Collectors.toList());
+      }
+
       if (subCommand.equals("enable")) {
-        List<String> suggestions = new ArrayList<>(subdirs);
+        List<String> suggestions = new ArrayList<>();
+        suggestions.add("all");
+        suggestions.addAll(subdirs);
         suggestions.addAll(
             plugin.getScriptManager().getDisabledScripts().stream()
                 .map(s -> s.replace(".java", ""))
@@ -1119,7 +1231,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
       }
 
       if (subCommand.equals("load")) {
-        List<String> suggestions = new ArrayList<>(subdirs);
+        List<String> suggestions = new ArrayList<>();
+        suggestions.add("all");
+        suggestions.addAll(subdirs);
         suggestions.addAll(
             plugin.getScriptManager().getAllScriptKeys().stream()
                 .filter(key -> !plugin.getScriptManager().isScriptDisabled(key))

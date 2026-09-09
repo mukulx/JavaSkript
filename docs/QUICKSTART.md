@@ -90,11 +90,12 @@ public class MyScript implements Listener {
 ## Commands
 
 - `/js reload [script|folder|all]` - Reload all scripts, a specific script, or an entire folder
+- `/js restart [script|folder|all]` - Restart all scripts, a specific script, or an entire folder
 - `/js list` - Display directory tree of all scripts (loaded and disabled)
-- `/js load <script|folder>` - Load a specific script or entire folder
-- `/js unload <script|folder>` - Unload a specific script or entire folder
-- `/js enable <script|folder>` - Enable a disabled script or folder
-- `/js disable <script|folder>` - Disable a script or folder
+- `/js load <script|folder|all>` - Load a specific script, entire folder, or all scripts
+- `/js unload <script|folder|all>` - Unload a specific script, entire folder, or all scripts
+- `/js enable <script|folder|all>` - Enable a disabled script, folder, or all scripts
+- `/js disable <script|folder|all>` - Disable a script, folder, or all scripts
 - `/js info <script>` - Show script details & Folia status
 - `/js profile [start|stop|top|<script>|dump]` - Real-time nano profiler for events, tasks, and commands
 - `/js benchmark <script> [iterations]` - Run high-speed synthetic benchmark on a script

@@ -232,8 +232,15 @@ public class ScriptManager {
   /** Unload all loaded scripts in a directory. */
   public int unloadDirectory(String dirKey) {
     dirKey = dirKey.replace('\\', '/');
-    if (dirKey.endsWith("/")) dirKey = dirKey.substring(0, dirKey.length() - 1);
-    if (dirKey.startsWith("-")) dirKey = dirKey.substring(1);
+    while (dirKey.startsWith("/")) dirKey = dirKey.substring(1);
+    while (dirKey.endsWith("/")) dirKey = dirKey.substring(0, dirKey.length() - 1);
+    String[] parts = dirKey.split("/");
+    for (int i = 0; i < parts.length; i++) {
+      while (parts[i].startsWith("-")) {
+        parts[i] = parts[i].substring(1);
+      }
+    }
+    dirKey = String.join("/", parts);
 
     String prefix = dirKey.isEmpty() ? "" : dirKey + "/";
     List<String> toUnload = new ArrayList<>();
@@ -267,18 +274,132 @@ public class ScriptManager {
     return dir.renameTo(newDir);
   }
 
-  /** Enable an entire directory by renaming it to remove the leading dash. */
-  public boolean enableDirectory(File dir) {
-    if (dir == null || !dir.isDirectory()) return false;
+  /** Enable an entire directory by un-dashing it (if dashed) and enabling all scripts inside. */
+  public int enableDirectory(File dir) {
+    if (dir == null || !dir.isDirectory()) return -1;
+    File targetDir = dir;
     String name = dir.getName();
-    if (!name.startsWith("-")) return false; // Not disabled
-
-    File newDir = new File(dir.getParentFile(), name.substring(1));
-    if (dir.renameTo(newDir)) {
-      loadDirectory(newDir);
-      return true;
+    if (name.startsWith("-")) {
+      File newDir = new File(dir.getParentFile(), name.substring(1));
+      if (dir.renameTo(newDir)) {
+        targetDir = newDir;
+      }
     }
-    return false;
+
+    final File finalTargetDir = targetDir;
+    final Path targetPath = targetDir.toPath();
+
+    // Un-dash all dashed files and subdirectories inside targetDir depth-first
+    try (Stream<Path> paths = Files.walk(targetPath)) {
+      List<Path> allPaths =
+          paths
+              .filter(p -> !p.equals(targetPath))
+              .sorted(Comparator.comparingInt(Path::getNameCount).reversed())
+              .collect(java.util.stream.Collectors.toList());
+
+      for (Path p : allPaths) {
+        String baseName = p.getFileName().toString();
+        if (baseName.startsWith("-")) {
+          File f = p.toFile();
+          File parent = f.getParentFile();
+          if (parent != null) {
+            File unDashed = new File(parent, baseName.substring(1));
+            f.renameTo(unDashed);
+          }
+        }
+      }
+    } catch (IOException e) {
+      plugin
+          .getLogger()
+          .log(Level.SEVERE, "Error un-dashing directory contents: " + finalTargetDir.getName(), e);
+    }
+
+    // Remove any script keys in targetDir from disabledScripts
+    String dirKey = getScriptKey(finalTargetDir);
+    String prefix = dirKey.isEmpty() ? "" : dirKey + "/";
+    boolean changed = disabledScripts.removeIf(key -> key.startsWith(prefix) || key.equals(dirKey));
+    if (changed) {
+      saveDisabledScripts();
+    }
+
+    return loadDirectory(finalTargetDir);
+  }
+
+  /**
+   * Enable all scripts across all directories: un-dashes all files and folders, clears
+   * disabled-scripts.json, and loads all scripts.
+   */
+  public int enableAllScripts() {
+    if (!scriptsFolder.exists() || !scriptsFolder.isDirectory()) {
+      return 0;
+    }
+
+    try (Stream<Path> paths = Files.walk(scriptsFolder.toPath())) {
+      List<Path> allPaths =
+          paths
+              .filter(p -> !p.equals(scriptsFolder.toPath()))
+              .sorted(Comparator.comparingInt(Path::getNameCount).reversed())
+              .collect(java.util.stream.Collectors.toList());
+
+      for (Path p : allPaths) {
+        String baseName = p.getFileName().toString();
+        if (baseName.startsWith("-")) {
+          File f = p.toFile();
+          File parent = f.getParentFile();
+          if (parent != null) {
+            File unDashed = new File(parent, baseName.substring(1));
+            f.renameTo(unDashed);
+          }
+        }
+      }
+    } catch (IOException e) {
+      plugin.getLogger().log(Level.SEVERE, "Error enabling all scripts on disk", e);
+    }
+
+    disabledScripts.clear();
+    saveDisabledScripts();
+
+    loadAllScripts();
+    return loadedScripts.size();
+  }
+
+  /**
+   * Disable all scripts: renames all non-dashed .java files to have a '-' prefix, and unloads all
+   * scripts.
+   */
+  public int disableAllScripts() {
+    if (!scriptsFolder.exists() || !scriptsFolder.isDirectory()) {
+      return 0;
+    }
+
+    int disabledCount = 0;
+    try (Stream<Path> paths = Files.walk(scriptsFolder.toPath())) {
+      List<File> files =
+          paths
+              .filter(Files::isRegularFile)
+              .filter(p -> p.toString().endsWith(".java"))
+              .map(Path::toFile)
+              .filter(f -> !f.getName().startsWith("-"))
+              .collect(java.util.stream.Collectors.toList());
+
+      for (File file : files) {
+        File parent = file.getParentFile();
+        File dashed = new File(parent, "-" + file.getName());
+        if (file.renameTo(dashed)) {
+          disabledCount++;
+        } else {
+          disabledScripts.add(getScriptKey(file));
+          disabledCount++;
+        }
+      }
+    } catch (IOException e) {
+      plugin.getLogger().log(Level.SEVERE, "Error disabling all scripts on disk", e);
+    }
+
+    saveDisabledScripts();
+    int unloaded = loadedScripts.size();
+    unloadAllScripts();
+    return Math.max(disabledCount, unloaded);
   }
 
   // ==========================================
@@ -765,7 +886,19 @@ public class ScriptManager {
               path -> {
                 String relative =
                     scriptsFolder.toPath().relativize(path).toString().replace('\\', '/');
-                dirs.add(relative);
+                if (!dirs.contains(relative)) {
+                  dirs.add(relative);
+                }
+                String[] parts = relative.split("/");
+                for (int i = 0; i < parts.length; i++) {
+                  while (parts[i].startsWith("-")) {
+                    parts[i] = parts[i].substring(1);
+                  }
+                }
+                String clean = String.join("/", parts);
+                if (!dirs.contains(clean)) {
+                  dirs.add(clean);
+                }
               });
     } catch (IOException ignored) {
     }
