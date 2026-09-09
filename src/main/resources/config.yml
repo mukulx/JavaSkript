@@ -65,3 +65,33 @@ economy:
     name-singular: "Coin"
     name-plural: "Coins"
     starting-balance: 0.0
+
+# Team / Clan Engine Settings
+teams:
+  # Enable or disable the native team subsystem
+  enabled: true
+
+  # Default team configurations
+  defaults:
+    # Maximum members per team (0 = unlimited)
+    max-size: 0
+    # Friendly fire enabled by default
+    friendly-fire: false
+    # Open to join without invite by default
+    open: false
+
+  # Tab list and Nametag visual integration
+  # Compatible with vanilla Minecraft and the famous TAB plugin (by NEZNAMY)
+  tab:
+    # Master toggle for automatic tab list formatting
+    enabled: true
+    # Synchronize vanilla scoreboards if the TAB plugin is NOT installed
+    # (Automatically keeps nametags updated; avoids conflicts when TAB is present)
+    sync-vanilla-scoreboard: true
+    # Force vanilla scoreboard even if TAB plugin is installed
+    force-vanilla-with-tab: false
+    # Tab list name format when team prefix or suffix is configured
+    # Placeholders: {prefix}, {suffix}, {tag}, {team}, {role}, {player}
+    # IMPORTANT: Prefixes and suffixes are empty by default; formatting only applies when configured
+    player-format: "{prefix}{player}{suffix}"
+
