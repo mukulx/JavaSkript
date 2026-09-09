@@ -36,6 +36,11 @@ public final class Economy {
     return instance;
   }
 
+  /** Check if the economy subsystem is enabled and has an active provider. */
+  public static boolean isEnabled() {
+    return instance != null && instance.isEnabled();
+  }
+
   /** Get active economy provider name (e.g. "Vault (Essentials)", "JavaSkript"). */
   public static String getProviderName() {
     return get().getProvider().getName();

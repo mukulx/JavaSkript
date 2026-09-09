@@ -28,6 +28,7 @@ public class EconomyHelper {
   private final Map<String, EconomyProvider> customCurrencies;
   private EconomyProvider primaryProvider;
   private BuiltinEconomyProvider builtinProvider;
+  private boolean enabled;
 
   public EconomyHelper(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -35,24 +36,44 @@ public class EconomyHelper {
     initProvider();
   }
 
+  /** Check if the economy subsystem is enabled in configuration and active. */
+  public boolean isEnabled() {
+    return enabled && !(primaryProvider instanceof DisabledEconomyProvider);
+  }
+
+  /** Reload the economy subsystem according to the latest config.yml values. */
+  public synchronized void reload() {
+    shutdown();
+    initProvider();
+  }
+
   private void initProvider() {
-    String mode = plugin.getConfig().getString("economy.mode", "auto").toLowerCase();
+    boolean isConfigEnabled = plugin.getConfig().getBoolean("economy.enabled", false);
+    String mode = plugin.getConfig().getString("economy.mode", "vault").toLowerCase();
+
+    if (!isConfigEnabled || "disabled".equals(mode)) {
+      this.enabled = false;
+      this.primaryProvider =
+          new DisabledEconomyProvider(
+              "Economy subsystem is disabled in config.yml (set economy.enabled: true to enable)");
+      this.builtinProvider = null;
+      plugin
+          .getLogger()
+          .info(
+              "Economy subsystem is disabled (set economy.enabled: true in config.yml to enable)");
+      return;
+    }
+
+    this.enabled = true;
     String symbol = plugin.getConfig().getString("economy.currency.symbol", "$");
     String singular = plugin.getConfig().getString("economy.currency.name-singular", "Coin");
     String plural = plugin.getConfig().getString("economy.currency.name-plural", "Coins");
     double startBal = plugin.getConfig().getDouble("economy.currency.starting-balance", 0.0);
     boolean registerVaultService =
-        plugin.getConfig().getBoolean("economy.register-vault-service", true);
-
-    if ("disabled".equals(mode)) {
-      plugin.getLogger().info("Economy subsystem is disabled in config.yml");
-      return;
-    }
-
-    // Initialize built-in provider
-    this.builtinProvider = new BuiltinEconomyProvider(plugin, symbol, singular, plural, startBal);
+        plugin.getConfig().getBoolean("economy.register-vault-service", false);
 
     if ("builtin".equals(mode)) {
+      this.builtinProvider = new BuiltinEconomyProvider(plugin, symbol, singular, plural, startBal);
       this.primaryProvider = builtinProvider;
       plugin.getLogger().info("Using built-in SQLite persistent economy engine");
       if (registerVaultService) {
@@ -61,25 +82,33 @@ public class EconomyHelper {
       return;
     }
 
-    // Try Vault (for mode "auto" or "vault")
+    // Try Vault (for mode "vault" or "auto")
     boolean vaultHooked = hookVault();
 
     if (vaultHooked) {
       plugin.getLogger().info("Successfully hooked into " + primaryProvider.getName());
     } else {
       if ("vault".equals(mode)) {
+        this.primaryProvider =
+            new DisabledEconomyProvider(
+                "No active Vault economy provider found on the server (e.g. EssentialsX, CMI)");
         plugin
             .getLogger()
             .warning(
-                "Vault mode was forced in config.yml, but no active Vault provider was found!");
-      }
-      // Fallback to built-in SQLite engine
-      this.primaryProvider = builtinProvider;
-      plugin
-          .getLogger()
-          .info("No external economy found — using built-in SQLite persistent economy");
-      if (registerVaultService) {
-        registerAsVaultService();
+                "Economy is enabled with mode 'vault', but no external Vault economy provider was"
+                    + " found! JavaSkript will hook into Vault once an economy plugin becomes"
+                    + " available.");
+      } else {
+        // Fallback to built-in SQLite engine (for mode "auto")
+        this.builtinProvider =
+            new BuiltinEconomyProvider(plugin, symbol, singular, plural, startBal);
+        this.primaryProvider = builtinProvider;
+        plugin
+            .getLogger()
+            .info("No external economy found — using built-in SQLite persistent economy");
+        if (registerVaultService) {
+          registerAsVaultService();
+        }
       }
     }
   }
@@ -117,7 +146,16 @@ public class EconomyHelper {
 
   /** Get the active primary economy provider. */
   public EconomyProvider getProvider() {
-    return primaryProvider != null ? primaryProvider : builtinProvider;
+    if (enabled && primaryProvider instanceof DisabledEconomyProvider) {
+      // Lazy attempt to hook Vault if an external economy plugin registered after startup
+      String mode = plugin.getConfig().getString("economy.mode", "vault").toLowerCase();
+      if ("vault".equals(mode) || "auto".equals(mode)) {
+        if (hookVault()) {
+          plugin.getLogger().info("Successfully hooked into " + primaryProvider.getName());
+        }
+      }
+    }
+    return primaryProvider != null ? primaryProvider : new DisabledEconomyProvider();
   }
 
   /** Get the built-in SQLite provider instance (if needed directly). */
@@ -248,6 +286,7 @@ public class EconomyHelper {
   public void shutdown() {
     if (builtinProvider != null) {
       builtinProvider.close();
+      builtinProvider = null;
     }
     customCurrencies.clear();
   }

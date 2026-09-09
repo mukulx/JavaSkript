@@ -279,6 +279,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     try {
       plugin.reloadConfig();
+      if (plugin.getEconomyHelper() != null) {
+        plugin.getEconomyHelper().reload();
+      }
       sender.sendMessage(
           Component.text("Configuration reloaded successfully!").color(NamedTextColor.GREEN));
       sender.sendMessage(

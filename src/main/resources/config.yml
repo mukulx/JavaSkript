@@ -44,18 +44,22 @@ dependencies:
 # Economy Settings
 # Supports Vault (EssentialsX, CMI, UltraEconomy, etc.) and Built-in SQLite Persistent Economy
 economy:
-  # Mode: 'auto', 'vault', 'builtin', or 'disabled'
-  # - auto: Use Vault if available, otherwise automatically fallback to built-in SQLite engine
-  # - vault: Force Vault provider (e.g. EssentialsX, CMI)
+  # Master toggle - Disabled by default.
+  # When false, the economy subsystem does not load and will not touch any files or databases.
+  enabled: false
+
+  # Mode: 'vault', 'auto', or 'builtin'
+  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy, etc.) via Vault
+  # - auto: Hook into Vault if an external economy plugin exists; fallback to built-in SQLite if none found
   # - builtin: Always use JavaSkript's built-in SQLite persistent economy
-  # - disabled: Disable economy features
-  mode: "auto"
+  mode: "vault"
 
   # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
   # Allows other plugins (ChestShop, AuctionHouse, ShopGUI+, etc.) to use JavaSkript's economy
-  register-vault-service: true
+  # Only active if economy.enabled is true and mode is 'builtin' or 'auto' (without external economy)
+  register-vault-service: false
 
-  # Default Currency Settings
+  # Default Currency Settings (used when mode is 'builtin' or 'auto' fallback)
   currency:
     symbol: "$"
     name-singular: "Coin"

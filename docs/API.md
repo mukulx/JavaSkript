@@ -2157,6 +2157,25 @@ recipes.stonecutting("carved_andesite", new ItemStack(Material.POLISHED_ANDESITE
 
 A complete, zero-compromise Economy engine that bridges **Vault** (EssentialsX, CMI, UltraEconomy, etc.), JavaSkript's **Built-in SQLite Persistent Storage**, and **Custom Multi-Currencies** (Gems, Tokens, Credits).
 
+### Configuration (`config.yml`)
+The economy subsystem is disabled by default so it does not load or touch any databases until enabled. When enabled, it hooks into your server's existing economy plugins via Vault:
+
+```yaml
+economy:
+  # Master toggle - Disabled by default.
+  # When false, the economy subsystem does not load or touch any files/databases.
+  enabled: false
+
+  # Mode: 'vault', 'auto', or 'builtin'
+  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy) via Vault
+  # - auto: Hook into Vault if present; fallback to built-in SQLite if none found
+  # - builtin: Always use JavaSkript's built-in SQLite persistent economy
+  mode: "vault"
+
+  # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
+  register-vault-service: false
+```
+
 ### Auto-Injection & Static Facade
 ```java
 // Option A: Auto-injected in any script
