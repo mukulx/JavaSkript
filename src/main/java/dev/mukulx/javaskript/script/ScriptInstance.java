@@ -317,6 +317,9 @@ public class ScriptInstance {
               field.set(instance, http);
             } else if (dev.mukulx.javaskript.api.team.TeamHelper.class.isAssignableFrom(type)) {
               field.set(instance, teams);
+            } else if (dev.mukulx.javaskript.api.message.MessageManager.class.isAssignableFrom(
+                type)) {
+              field.set(instance, plugin.getMessageManager());
             }
             // 2. Match by Name / Alias
             else if (name.equals("plugin") || name.equals("javaskript")) {
@@ -407,6 +410,10 @@ public class ScriptInstance {
                 || name.equals("clan")
                 || name.equals("party")) {
               field.set(instance, teams);
+            } else if (name.equals("messages")
+                || name.equals("messagemanager")
+                || name.equals("messagehelper")) {
+              field.set(instance, plugin.getMessageManager());
             } else {
               // Check external addons and plugins for custom registered field injectors
               Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
