@@ -740,106 +740,128 @@ public class ScriptInstance {
     int cleanedCount = 0;
 
     try {
-      // Get all fields from the script class
-      Field[] fields = scriptClass.getDeclaredFields();
+      // Walk the class hierarchy (matches injectAPIs) so inherited resources also clean up.
+      Class<?> current = scriptClass;
+      while (current != null && current != Object.class) {
+        for (Field field : current.getDeclaredFields()) {
+          try {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+              continue;
+            }
+            field.setAccessible(true);
+            Object value = field.get(instance);
 
-      for (Field field : fields) {
-        try {
-          field.setAccessible(true);
-          Object value = field.get(instance);
+            if (value == null) {
+              continue;
+            }
 
-          if (value == null) {
-            continue;
-          }
+            // Skip framework-owned helpers: they are cleaned explicitly above, and some
+            // (economy, variables, http, teams) are shared across scripts — closing them
+            // here would break every other script.
+            Class<?> valueType = value.getClass();
+            String typeName = valueType.getName();
+            if (typeName.startsWith("dev.mukulx.javaskript.")
+                || valueType == JavaSkriptPlugin.class) {
+              continue;
+            }
 
-          // Check for HikariDataSource (HikariCP)
-          if (value.getClass().getName().equals("com.zaxxer.hikari.HikariDataSource")) {
-            try {
-              // Check if already closed
-              var isClosedMethod = value.getClass().getMethod("isClosed");
-              boolean isClosed = (boolean) isClosedMethod.invoke(value);
+            // Check for HikariDataSource (HikariCP)
+            if (typeName.equals("com.zaxxer.hikari.HikariDataSource")) {
+              try {
+                // Check if already closed
+                var isClosedMethod = value.getClass().getMethod("isClosed");
+                boolean isClosed = (boolean) isClosedMethod.invoke(value);
 
-              if (!isClosed) {
-                var closeMethod = value.getClass().getMethod("close");
-                closeMethod.invoke(value);
+                if (!isClosed) {
+                  var closeMethod = value.getClass().getMethod("close");
+                  closeMethod.invoke(value);
+                  plugin
+                      .getLogger()
+                      .info(
+                          "Auto-closed HikariDataSource in field '"
+                              + field.getName()
+                              + "' for: "
+                              + scriptName);
+                  cleanedCount++;
+                }
+              } catch (Exception e) {
+                // Ignore - might already be closed
+              }
+            }
+
+            // Check for ExecutorService
+            if (value instanceof java.util.concurrent.ExecutorService) {
+              try {
+                java.util.concurrent.ExecutorService executor =
+                    (java.util.concurrent.ExecutorService) value;
+                if (!executor.isShutdown()) {
+                  executor.shutdown();
+                  try {
+                    if (!executor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                      executor.shutdownNow();
+                    }
+                  } catch (InterruptedException ie) {
+                    executor.shutdownNow();
+                    Thread.currentThread().interrupt();
+                  }
+                  plugin
+                      .getLogger()
+                      .info(
+                          "Auto-shutdown ExecutorService in field '"
+                              + field.getName()
+                              + "' for: "
+                              + scriptName);
+                  cleanedCount++;
+                }
+              } catch (Exception e) {
+                // Ignore
+              }
+            }
+
+            // Check for Thread
+            if (value instanceof Thread) {
+              try {
+                Thread thread = (Thread) value;
+                if (thread.isAlive()) {
+                  thread.interrupt();
+                  plugin
+                      .getLogger()
+                      .info(
+                          "Auto-interrupted Thread in field '"
+                              + field.getName()
+                              + "' for: "
+                              + scriptName);
+                  cleanedCount++;
+                }
+              } catch (Exception e) {
+                // Ignore
+              }
+            }
+
+            // Check for Closeable/AutoCloseable (but skip HikariDataSource since handled above)
+            if (value instanceof AutoCloseable
+                && !typeName.equals("com.zaxxer.hikari.HikariDataSource")) {
+              try {
+                ((AutoCloseable) value).close();
                 plugin
                     .getLogger()
                     .info(
-                        "Auto-closed HikariDataSource in field '"
+                        "Auto-closed "
+                            + value.getClass().getSimpleName()
+                            + " in field '"
                             + field.getName()
                             + "' for: "
                             + scriptName);
                 cleanedCount++;
+              } catch (Exception e) {
+                // Ignore - might already be closed
               }
-            } catch (Exception e) {
-              // Ignore - might already be closed
             }
+          } catch (Exception e) {
+            // Ignore individual field errors
           }
-
-          // Check for ExecutorService
-          if (value instanceof java.util.concurrent.ExecutorService) {
-            try {
-              java.util.concurrent.ExecutorService executor =
-                  (java.util.concurrent.ExecutorService) value;
-              if (!executor.isShutdown()) {
-                executor.shutdown();
-                plugin
-                    .getLogger()
-                    .info(
-                        "Auto-shutdown ExecutorService in field '"
-                            + field.getName()
-                            + "' for: "
-                            + scriptName);
-                cleanedCount++;
-              }
-            } catch (Exception e) {
-              // Ignore
-            }
-          }
-
-          // Check for Thread
-          if (value instanceof Thread) {
-            try {
-              Thread thread = (Thread) value;
-              if (thread.isAlive()) {
-                thread.interrupt();
-                plugin
-                    .getLogger()
-                    .info(
-                        "Auto-interrupted Thread in field '"
-                            + field.getName()
-                            + "' for: "
-                            + scriptName);
-                cleanedCount++;
-              }
-            } catch (Exception e) {
-              // Ignore
-            }
-          }
-
-          // Check for Closeable/AutoCloseable (but skip HikariDataSource since we handled it above)
-          if (value instanceof AutoCloseable
-              && !value.getClass().getName().equals("com.zaxxer.hikari.HikariDataSource")) {
-            try {
-              ((AutoCloseable) value).close();
-              plugin
-                  .getLogger()
-                  .info(
-                      "Auto-closed "
-                          + value.getClass().getSimpleName()
-                          + " in field '"
-                          + field.getName()
-                          + "' for: "
-                          + scriptName);
-              cleanedCount++;
-            } catch (Exception e) {
-              // Ignore - might already be closed
-            }
-          }
-
-        } catch (Exception e) {
-          // Ignore individual field errors
         }
+        current = current.getSuperclass();
       }
 
       if (cleanedCount > 0) {
@@ -847,7 +869,6 @@ public class ScriptInstance {
             .getLogger()
             .info("Auto-cleaned " + cleanedCount + " custom resource(s) for: " + scriptName);
       }
-
     } catch (Exception e) {
       plugin
           .getLogger()

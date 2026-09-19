@@ -22,7 +22,7 @@ public class FileWatcher implements Runnable {
   private volatile boolean running = false;
   private Thread watchThread;
   private ScheduledExecutorService debounceExecutor;
-  private final long reloadDelay;
+  private volatile long reloadDelay;
 
   public FileWatcher(JavaSkriptPlugin plugin, File scriptsFolder) {
     this.plugin = plugin;
@@ -240,5 +240,11 @@ public class FileWatcher implements Runnable {
 
   public boolean isRunning() {
     return running;
+  }
+
+  /** Refresh the debounce delay from config.yml without restarting the watcher thread. */
+  public void refreshSettings() {
+    this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
+    plugin.debug("File watcher settings refreshed (reload-delay=" + reloadDelay + "ms)");
   }
 }

@@ -291,6 +291,49 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     return teamHelper;
   }
 
+  /**
+   * Reload config.yml and refresh all cached runtime settings derived from it. Call this instead of
+   * Bukkit's reloadConfig() so the cached debug flag, message bundle, economy provider, team
+   * subsystem, and file-watcher delay stay in sync with disk.
+   */
+  public synchronized void reloadPluginConfig() {
+    reloadConfig();
+    this.debugMode = getConfig().getBoolean("debug.enabled", false);
+    if (debugMode) {
+      getLogger().info("Debug mode is ENABLED. Enjoy the log pollution.");
+    }
+    if (messageManager != null) {
+      messageManager.reload();
+    }
+    if (economyHelper != null) {
+      economyHelper.reload();
+    }
+    reloadTeamHelper();
+    boolean watcherEnabled = getConfig().getBoolean("file-watcher.enabled", true);
+    if (fileWatcher != null) {
+      if (!watcherEnabled && fileWatcher.isRunning()) {
+        fileWatcher.stop();
+      } else if (watcherEnabled && fileWatcher.isRunning()) {
+        fileWatcher.refreshSettings();
+      } else if (watcherEnabled) {
+        // A stopped watcher cannot restart (executor and WatchService are closed), recreate it.
+        try {
+          fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
+          fileWatcher.start();
+        } catch (Throwable t) {
+          getLogger().warning("Failed to restart file watcher: " + t.getMessage());
+        }
+      }
+    } else if (watcherEnabled && scriptManager != null) {
+      try {
+        fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
+        fileWatcher.start();
+      } catch (Throwable t) {
+        getLogger().warning("Failed to start file watcher: " + t.getMessage());
+      }
+    }
+  }
+
   /** Dynamically reloads or enables/disables the Team subsystem based on config.yml. */
   public synchronized void reloadTeamHelper() {
     boolean enabled = getConfig().getBoolean("teams.enabled", true);

@@ -719,19 +719,18 @@ public class ScriptManager {
     int unloadedCount = 0;
 
     for (String scriptName : scriptNames) {
-      ScriptInstance instance = loadedScripts.remove(scriptName);
-      if (instance != null) {
-        try {
-          instance.unload();
+      try {
+        if (unloadScript(scriptName)) {
           unloadedCount++;
-        } catch (Exception e) {
-          plugin.getLogger().log(Level.SEVERE, "Error unloading script: " + scriptName, e);
         }
+      } catch (Exception e) {
+        plugin.getLogger().log(Level.SEVERE, "Error unloading script: " + scriptName, e);
       }
     }
 
     plugin.debug("Unloaded " + unloadedCount + " scripts");
     scriptDependencies.clear();
+    compilationCache.clear();
     loadAllScripts();
   }
 
