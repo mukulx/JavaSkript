@@ -33,6 +33,7 @@ public class Team {
   private volatile boolean open;
   private volatile int maxSize;
   private volatile Location home;
+  private volatile String homeWorldName;
   private volatile double balance;
   private final Map<String, Object> metadata;
   private final long createdAt;
@@ -81,7 +82,8 @@ public class Team {
     this.friendlyFire = friendlyFire;
     this.open = open;
     this.maxSize = Math.max(0, maxSize);
-    this.home = home;
+    this.home = home != null ? home.clone() : null;
+    this.homeWorldName = home != null && home.getWorld() != null ? home.getWorld().getName() : null;
     this.balance = Math.max(0.0, balance);
     this.metadata = new ConcurrentHashMap<>();
     this.createdAt = createdAt;
@@ -240,11 +242,31 @@ public class Team {
   }
 
   public Location getHome() {
-    return home;
+    return home != null ? home.clone() : null;
   }
 
   public void setHome(Location home) {
     this.home = home != null ? home.clone() : null;
+    if (home != null && home.getWorld() != null) {
+      this.homeWorldName = home.getWorld().getName();
+    } else if (home == null) {
+      this.homeWorldName = null;
+    }
+    // If home has a null world we keep the old world name so a reload does not wipe it.
+  }
+
+  /** World name for the home, kept even while the world is unloaded. */
+  public String getHomeWorldName() {
+    if (home != null && home.getWorld() != null) {
+      return home.getWorld().getName();
+    }
+    return homeWorldName;
+  }
+
+  /** Set home with an explicit world name (used when loading from storage). */
+  public void setHomeWithWorldName(Location home, String worldName) {
+    this.home = home != null ? home.clone() : null;
+    this.homeWorldName = worldName;
   }
 
   public double getBalance() {

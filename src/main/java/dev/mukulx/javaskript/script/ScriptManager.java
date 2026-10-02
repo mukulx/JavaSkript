@@ -491,40 +491,58 @@ public class ScriptManager {
         return false;
       }
 
-      // Read metadata annotations and spawn async threads to pull external Maven dependencies
+      // Read metadata annotations and pull external Maven dependencies.
+      // Downloads run off the game thread so the server never freezes while Maven responds.
       List<String> dependencies = extractDependencies(scriptContent);
       List<File> dependencyFiles = new ArrayList<>();
 
       if (!dependencies.isEmpty()) {
+        boolean onGameThread = false;
+        try {
+          onGameThread = org.bukkit.Bukkit.isPrimaryThread();
+        } catch (Throwable ignored) {
+          onGameThread = false;
+        }
+        if (onGameThread) {
+          final String queuedKey = scriptKey;
+          final File queuedFile = scriptFile;
+          plugin
+              .getLogger()
+              .info(
+                  "Resolving "
+                      + dependencies.size()
+                      + " dependencies for "
+                      + scriptKey
+                      + " in the background");
+          java.util.concurrent.CompletableFuture.supplyAsync(
+                  () -> resolveDependenciesBlocking(dependencies, queuedKey))
+              .thenAccept(
+                  resolved -> {
+                    scriptDependencies.put(queuedKey, resolved);
+                    dev.mukulx.javaskript.util.ServerUtil.runSync(
+                        plugin,
+                        () -> {
+                          try {
+                            loadScript(queuedFile);
+                          } catch (Throwable t) {
+                            plugin
+                                .getLogger()
+                                .warning(
+                                    "Background dependency load failed for "
+                                        + queuedKey
+                                        + ": "
+                                        + t.getMessage());
+                          }
+                        });
+                  });
+          // Queued in the background; the second pass finishes the load without blocking.
+          return false;
+        }
+
         plugin
             .getLogger()
             .info("Resolving " + dependencies.size() + " dependencies for " + scriptKey);
-
-        List<java.util.concurrent.CompletableFuture<List<File>>> futures =
-            dependencies.stream()
-                .map(
-                    dep ->
-                        java.util.concurrent.CompletableFuture.supplyAsync(
-                            () -> plugin.getDependencyManager().resolveDependency(dep)))
-                .collect(java.util.stream.Collectors.toList());
-
-        java.util.concurrent.CompletableFuture.allOf(
-                futures.toArray(new java.util.concurrent.CompletableFuture[0]))
-            .join();
-
-        for (java.util.concurrent.CompletableFuture<List<File>> future : futures) {
-          try {
-            List<File> resolved = future.get();
-            if (resolved.isEmpty()) {
-              plugin.getLogger().warning("Failed to resolve a dependency");
-            } else {
-              dependencyFiles.addAll(resolved);
-            }
-          } catch (Exception e) {
-            plugin.getLogger().warning("Error resolving dependency: " + e.getMessage());
-          }
-        }
-
+        dependencyFiles = resolveDependenciesBlocking(dependencies, scriptKey);
         scriptDependencies.put(scriptKey, dependencyFiles);
       }
 
@@ -1120,6 +1138,38 @@ public class ScriptManager {
     }
 
     return dependencies;
+  }
+
+  /** Resolve Maven coordinates off the game thread. Never call this on the main thread. */
+  private List<File> resolveDependenciesBlocking(List<String> dependencies, String scriptKey) {
+    List<File> dependencyFiles = new ArrayList<>();
+    List<java.util.concurrent.CompletableFuture<List<File>>> futures =
+        dependencies.stream()
+            .map(
+                dep ->
+                    java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> plugin.getDependencyManager().resolveDependency(dep)))
+            .collect(java.util.stream.Collectors.toList());
+
+    java.util.concurrent.CompletableFuture.allOf(
+            futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+        .join();
+
+    for (java.util.concurrent.CompletableFuture<List<File>> future : futures) {
+      try {
+        List<File> resolved = future.get(5, java.util.concurrent.TimeUnit.MINUTES);
+        if (resolved == null || resolved.isEmpty()) {
+          plugin.getLogger().warning("Failed to resolve a dependency for " + scriptKey);
+        } else {
+          dependencyFiles.addAll(resolved);
+        }
+      } catch (Exception e) {
+        plugin
+            .getLogger()
+            .warning("Error resolving dependency for " + scriptKey + ": " + e.getMessage());
+      }
+    }
+    return dependencyFiles;
   }
 
   private String computeHash(String content) {

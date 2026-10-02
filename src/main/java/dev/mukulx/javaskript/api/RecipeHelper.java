@@ -98,7 +98,7 @@ public class RecipeHelper {
                     result[0] = registerSync(recipe, key);
                     return result[0];
                   })
-              .get();
+              .get(10, java.util.concurrent.TimeUnit.SECONDS);
           return result[0];
         } catch (Exception e) {
           plugin

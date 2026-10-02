@@ -90,67 +90,73 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
   }
 
   private void sendHelp(Player player, String label) {
-    player.sendMessage(messages.parse("<gold><bold>=== Team Commands ===</bold></gold>"));
+    player.sendMessage(messages.parse("<color:#FF8C00><bold>=== Team Commands ===</bold></color>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/" + label + " create <name></yellow> <gray>- Create a new team</gray>"));
-    player.sendMessage(
-        messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " invite <player></yellow> <gray>- Invite player to team (Captain+)</gray>"));
+                + " create <name></color> <gray>- Create a new team</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " join <team></yellow> <gray>- Join an open or invited team</gray>"));
+                + " invite <player></color> <gray>- Invite player to team (Captain+)</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/" + label + " leave</yellow> <gray>- Leave your current team</gray>"));
-    player.sendMessage(
-        messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " kick <player></yellow> <gray>- Kick a member (Captain+)</gray>"));
+                + " join <team></color> <gray>- Join an open or invited team</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/" + label + " leave</color> <gray>- Leave your current team</gray>"));
+    player.sendMessage(
+        messages.parse(
+            "<color:#FFA726>/"
                 + label
-                + " disband</yellow> <gray>- Disband the team (Leader only)</gray>"));
+                + " kick <player></color> <gray>- Kick a member (Captain+)</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " transfer <player></yellow> <gray>- Transfer leadership (Leader only)</gray>"));
+                + " disband</color> <gray>- Disband the team (Leader only)</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " sethome</yellow> <gray>- Set team home waypoint (Captain+)</gray>"));
+                + " transfer <player></color> <gray>- Transfer leadership (Leader only)</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/" + label + " home</yellow> <gray>- Teleport to team home</gray>"));
-    player.sendMessage(
-        messages.parse(
-            "<yellow>/" + label + " chat <msg></yellow> <gray>- Send message to teammates</gray>"));
-    player.sendMessage(
-        messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " deposit <amount></yellow> <gray>- Deposit funds into team bank</gray>"));
+                + " sethome</color> <gray>- Set team home waypoint (Captain+)</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/" + label + " home</color> <gray>- Teleport to team home</gray>"));
+    player.sendMessage(
+        messages.parse(
+            "<color:#FFA726>/"
                 + label
-                + " withdraw <amount></yellow> <gray>- Withdraw funds from team bank (Captain+)</gray>"));
+                + " chat <msg></color> <gray>- Send message to teammates</gray>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>/" + label + " ff</yellow> <gray>- Toggle friendly fire (Captain+)</gray>"));
-    player.sendMessage(
-        messages.parse(
-            "<yellow>/"
+            "<color:#FFA726>/"
                 + label
-                + " info [team]</yellow> <gray>- View team information and roster</gray>"));
+                + " deposit <amount></color> <gray>- Deposit funds into team bank</gray>"));
+    player.sendMessage(
+        messages.parse(
+            "<color:#FFA726>/"
+                + label
+                + " withdraw <amount></color> <gray>- Withdraw funds from team bank (Captain+)</gray>"));
+    player.sendMessage(
+        messages.parse(
+            "<color:#FFA726>/"
+                + label
+                + " ff</color> <gray>- Toggle friendly fire (Captain+)</gray>"));
+    player.sendMessage(
+        messages.parse(
+            "<color:#FFA726>/"
+                + label
+                + " info [team]</color> <gray>- View team information and roster</gray>"));
   }
 
   private void handleCreate(Player player, String[] args) {
@@ -185,7 +191,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
       messages.send(
           player,
           "teams.team-already-exists",
-          "<red>A team named <gold>{team}</gold> already exists!</red>",
+          "<red>A team named <color:#FF8C00>{team}</color> already exists!</red>",
           "{team}",
           id);
       return;
@@ -196,7 +202,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
       messages.send(
           player,
           "teams.created",
-          "<green>Team <gold>{team}</gold> has been created!</green>",
+          "<green>Team <color:#FF8C00>{team}</color> has been created!</green>",
           "{team}",
           team.getName());
     } else {
@@ -251,7 +257,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
       messages.send(
           player,
           "teams.team-not-found",
-          "<red>Team <gold>{team}</gold> was not found.</red>",
+          "<red>Team <color:#FF8C00>{team}</color> was not found.</red>",
           "{team}",
           teamId);
       return;
@@ -262,7 +268,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
       messages.send(
           player,
           "teams.team-full",
-          "<red>Team <gold>{team}</gold> is full.</red>",
+          "<red>Team <color:#FF8C00>{team}</color> is full.</red>",
           "{team}",
           team.getName());
       return;
@@ -556,7 +562,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
         messages.send(
             player,
             "teams.team-not-found",
-            "<red>Team <gold>{team}</gold> was not found.</red>",
+            "<red>Team <color:#FF8C00>{team}</color> was not found.</red>",
             "{team}",
             args[1]);
         return;
@@ -573,41 +579,48 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
     OfflinePlayer leaderPlayer = Bukkit.getOfflinePlayer(team.getLeader());
     String leaderName = leaderPlayer.getName() != null ? leaderPlayer.getName() : "Unknown";
+    String safeTeamName = MessageManager.escapeMiniMessage(team.getName());
+    String safeTeamId = MessageManager.escapeMiniMessage(team.getId());
+    String safeLeader = MessageManager.escapeMiniMessage(leaderName);
 
     player.sendMessage(
-        messages.parse("<gold><bold>=== Team: " + team.getName() + " ===</bold></gold>"));
-    player.sendMessage(messages.parse("<yellow>ID:</yellow> <white>" + team.getId() + "</white>"));
+        messages.parse("<color:#FF8C00><bold>=== Team: " + safeTeamName + " ===</bold></color>"));
     player.sendMessage(
-        messages.parse("<yellow>Leader:</yellow> <white>" + leaderName + "</white>"));
+        messages.parse("<color:#FFA726>ID:</color> <white>" + safeTeamId + "</white>"));
+    player.sendMessage(
+        messages.parse("<color:#FFA726>Leader:</color> <white>" + safeLeader + "</white>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>Members:</yellow> <white>"
+            "<color:#FFA726>Members:</color> <white>"
                 + team.getSize()
                 + (team.getMaxSize() > 0 ? " / " + team.getMaxSize() : "")
                 + "</white>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>Bank Balance:</yellow> <green>$"
+            "<color:#FFA726>Bank Balance:</color> <green>$"
                 + String.format("%.2f", team.getBalance())
                 + "</green>"));
     player.sendMessage(
         messages.parse(
-            "<yellow>Friendly Fire:</yellow> "
+            "<color:#FFA726>Friendly Fire:</color> "
                 + (team.isFriendlyFireEnabled()
                     ? "<green>Enabled</green>"
                     : "<red>Disabled</red>")));
     player.sendMessage(
         messages.parse(
-            "<yellow>Open Join:</yellow> "
+            "<color:#FFA726>Open Join:</color> "
                 + (team.isOpen() ? "<green>Yes</green>" : "<red>No</red>")));
 
-    // Online players
-    List<String> onlineNames = team.getOnlinePlayers().stream().map(Player::getName).toList();
+    // Online players (escape names so they cannot inject formatting)
+    List<String> onlineNames =
+        team.getOnlinePlayers().stream()
+            .map(p -> MessageManager.escapeMiniMessage(p.getName()))
+            .toList();
     player.sendMessage(
         messages.parse(
-            "<yellow>Online ("
+            "<color:#FFA726>Online ("
                 + onlineNames.size()
-                + "):</yellow> <white>"
+                + "):</color> <white>"
                 + (onlineNames.isEmpty() ? "None" : String.join(", ", onlineNames))
                 + "</white>"));
   }

@@ -182,20 +182,18 @@ public class GUI {
    * @param event The click event
    */
   public void handleClick(InventoryClickEvent event) {
+    // Harden every click path: shift-click, number keys, offhand swap, double-click collect
+    // and drags can all move items when only the top slot is guarded.
+    if (cancelAllClicks) {
+      event.setCancelled(true);
+    }
     if (event.getClickedInventory() == null) {
-      if (cancelAllClicks) {
-        event.setCancelled(true);
-      }
       return;
     }
 
     boolean isTopInventory = event.getClickedInventory().equals(inventory);
-
-    if (cancelAllClicks) {
-      if (isTopInventory || event.isShiftClick()) {
-        event.setCancelled(true);
-      }
-    }
+    // Number-key swaps, offhand swaps and collects act on the top inventory even when the
+    // clicked slot is in the bottom inventory, so they are already cancelled above.
 
     if (isTopInventory) {
       int slot = event.getSlot();

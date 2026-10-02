@@ -150,20 +150,21 @@ public class TeamStorage {
             }
           }
 
+          // Keep home coordinates even when the world is not loaded yet.
+          // The world is resolved again on teleport, so a late-loading world does not wipe the
+          // home.
           Location home = null;
           String worldName = rs.getString("home_world");
           if (worldName != null && !worldName.isBlank()) {
             World world = Bukkit.getWorld(worldName);
-            if (world != null) {
-              home =
-                  new Location(
-                      world,
-                      rs.getDouble("home_x"),
-                      rs.getDouble("home_y"),
-                      rs.getDouble("home_z"),
-                      rs.getFloat("home_yaw"),
-                      rs.getFloat("home_pitch"));
-            }
+            home =
+                new Location(
+                    world,
+                    rs.getDouble("home_x"),
+                    rs.getDouble("home_y"),
+                    rs.getDouble("home_z"),
+                    rs.getFloat("home_yaw"),
+                    rs.getFloat("home_pitch"));
           }
 
           Team team =
@@ -181,6 +182,7 @@ public class TeamStorage {
                   home,
                   balance,
                   createdAt);
+          team.setHomeWithWorldName(home, worldName);
           teams.put(id, team);
         }
       }
@@ -272,8 +274,12 @@ public class TeamStorage {
         stmt.setInt(10, team.getMaxSize());
 
         Location home = team.getHome();
-        if (home != null && home.getWorld() != null) {
-          stmt.setString(11, home.getWorld().getName());
+        String homeWorld = team.getHomeWorldName();
+        if (homeWorld == null && home != null && home.getWorld() != null) {
+          homeWorld = home.getWorld().getName();
+        }
+        if (home != null && homeWorld != null) {
+          stmt.setString(11, homeWorld);
           stmt.setDouble(12, home.getX());
           stmt.setDouble(13, home.getY());
           stmt.setDouble(14, home.getZ());

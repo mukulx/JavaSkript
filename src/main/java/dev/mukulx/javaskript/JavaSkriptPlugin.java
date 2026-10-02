@@ -137,10 +137,23 @@ public final class JavaSkriptPlugin extends JavaPlugin {
             return true;
           });
 
-      // Synchronous boot-time execution of stored scripts
+      // Boot-time scripts load one tick later so enable finishes fast and never
+      // blocks the server while compiling. Heavy compile work stays off the enable path.
       if (getConfig().getBoolean("scripts.auto-load", true)) {
         try {
-          scriptManager.loadAllScripts();
+          dev.mukulx.javaskript.util.ServerUtil.runLaterSync(
+              this,
+              () -> {
+                try {
+                  scriptManager.loadAllScripts();
+                } catch (Throwable t) {
+                  getLogger()
+                      .severe(
+                          "Error occurred during script auto-load (plugin remains running): "
+                              + t.getMessage());
+                }
+              },
+              1L);
         } catch (Throwable t) {
           getLogger()
               .severe(
@@ -182,6 +195,14 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   @Override
   public void onDisable() {
+    // Close open menus first so click handlers still exist, then drop the registry.
+    // Without this players keep ghost menus they can take items from after reload.
+    try {
+      dev.mukulx.javaskript.api.gui.GUIManager.closeAll();
+    } catch (Throwable t) {
+      debug("Error closing GUIs: " + t.getMessage());
+    }
+
     // Close open NIO watch keys
     try {
       if (fileWatcher != null) {
@@ -271,6 +292,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     } catch (Throwable t) {
       debug("Error shutting down addon registry: " + t.getMessage());
     }
+
+    // Drop static reference so a reload cannot reuse a disabled plugin instance.
+    instance = null;
 
     getLogger().info("JavaSkript has been disabled!");
   }

@@ -251,11 +251,7 @@ public class DynamicCommandRegistry {
 
   public void syncCommands() {
     if (syncPending.compareAndSet(false, true)) {
-      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
-        Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task -> runSyncCommands(), 5L);
-      } else {
-        Bukkit.getScheduler().runTaskLater(plugin, this::runSyncCommands, 5L);
-      }
+      dev.mukulx.javaskript.util.ServerUtil.runLaterSync(plugin, this::runSyncCommands, 5L);
     }
   }
 

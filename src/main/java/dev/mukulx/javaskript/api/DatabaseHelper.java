@@ -80,6 +80,7 @@ public class DatabaseHelper {
    * @return Number of rows affected
    */
   public synchronized int executeUpdate(String sql, Object... params) {
+    warnIfBlocking(sql);
     connect();
 
     try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -101,6 +102,7 @@ public class DatabaseHelper {
    * @return List of rows (each row is a Map of column name to value)
    */
   public synchronized List<Map<String, Object>> executeQuery(String sql, Object... params) {
+    warnIfBlocking(sql);
     connect();
     List<Map<String, Object>> results = new ArrayList<>();
 
@@ -199,7 +201,34 @@ public class DatabaseHelper {
    * @param columns Column definitions (e.g., "id INTEGER PRIMARY KEY", "name TEXT")
    * @return true if successful
    */
+  private static final java.util.regex.Pattern SAFE_IDENTIFIER =
+      java.util.regex.Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+  private static boolean isSafeIdentifier(String name) {
+    return name != null && SAFE_IDENTIFIER.matcher(name).matches();
+  }
+
+  private void warnIfBlocking(String sql) {
+    try {
+      if (org.bukkit.Bukkit.isPrimaryThread()) {
+        plugin
+            .getLogger()
+            .warning(
+                "["
+                    + scriptName
+                    + "] Database call on the main thread will lag players, use executeQueryAsync/executeUpdateAsync. SQL: "
+                    + sql);
+      }
+    } catch (Throwable ignored) {
+      // Unit tests have no Bukkit server
+    }
+  }
+
   public boolean createTable(String tableName, String... columns) {
+    if (!isSafeIdentifier(tableName)) {
+      plugin.getLogger().warning("[" + scriptName + "] Refused unsafe table name: " + tableName);
+      return false;
+    }
     if (tableExists(tableName)) {
       return true;
     }
@@ -219,8 +248,18 @@ public class DatabaseHelper {
     if (data.isEmpty()) {
       return false;
     }
+    if (!isSafeIdentifier(tableName)) {
+      plugin.getLogger().warning("[" + scriptName + "] Refused unsafe table name: " + tableName);
+      return false;
+    }
 
     List<String> columns = new ArrayList<>(data.keySet());
+    for (String col : columns) {
+      if (!isSafeIdentifier(col)) {
+        plugin.getLogger().warning("[" + scriptName + "] Refused unsafe column name: " + col);
+        return false;
+      }
+    }
     List<Object> values = new ArrayList<>(data.values());
 
     String columnStr = String.join(", ", columns);
@@ -243,6 +282,16 @@ public class DatabaseHelper {
       String tableName, Map<String, Object> data, String where, Object... whereParams) {
     if (data.isEmpty()) {
       return 0;
+    }
+    if (!isSafeIdentifier(tableName)) {
+      plugin.getLogger().warning("[" + scriptName + "] Refused unsafe table name: " + tableName);
+      return 0;
+    }
+    for (String col : data.keySet()) {
+      if (!isSafeIdentifier(col)) {
+        plugin.getLogger().warning("[" + scriptName + "] Refused unsafe column name: " + col);
+        return 0;
+      }
     }
 
     List<String> setClauses = new ArrayList<>();
@@ -271,6 +320,10 @@ public class DatabaseHelper {
    * @return Number of rows deleted
    */
   public int delete(String tableName, String where, Object... params) {
+    if (!isSafeIdentifier(tableName)) {
+      plugin.getLogger().warning("[" + scriptName + "] Refused unsafe table name: " + tableName);
+      return 0;
+    }
     String sql = "DELETE FROM " + tableName + " WHERE " + where;
     return executeUpdate(sql, params);
   }

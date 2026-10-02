@@ -69,7 +69,8 @@ public class MessageManager {
         String key = replacements[i];
         String val = replacements[i + 1];
         if (key != null && val != null) {
-          raw = raw.replace(key, val);
+          // Escape player-controlled text so it cannot inject MiniMessage tags or click events.
+          raw = raw.replace(key, escapeMiniMessage(val));
         }
       }
     }
@@ -87,8 +88,8 @@ public class MessageManager {
     if (placeholders != null) {
       for (Map.Entry<String, String> entry : placeholders.entrySet()) {
         if (entry.getKey() != null && entry.getValue() != null) {
-          raw = raw.replace("{" + entry.getKey() + "}", entry.getValue());
-          raw = raw.replace(entry.getKey(), entry.getValue());
+          String safeValue = escapeMiniMessage(entry.getValue());
+          raw = raw.replace("{" + entry.getKey() + "}", safeValue);
         }
       }
     }
@@ -102,6 +103,16 @@ public class MessageManager {
     if (sender == null) return;
     Component component = get(path, defaultMessage, replacements);
     sender.sendMessage(component);
+  }
+
+  /**
+   * Escape MiniMessage tags in player-controlled text so names and chat cannot inject formatting or
+   * click events that run commands.
+   */
+  public static String escapeMiniMessage(String input) {
+    if (input == null) return "";
+    // Escape backslash first, then angle bracket that opens MiniMessage tags.
+    return input.replace("\\", "\\\\").replace("<", "\\<");
   }
 
   /** Parse MiniMessage or legacy formatting into a Component. */

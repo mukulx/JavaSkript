@@ -56,6 +56,8 @@ public class TeamHelper implements Listener {
   private final Map<String, TeamInvite> pendingInvites;
   private volatile boolean enabled = true;
 
+  private Object inviteCleanupTask;
+
   public TeamHelper(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
     this.storage = new TeamStorage(plugin);
@@ -83,7 +85,25 @@ public class TeamHelper implements Listener {
       tabBridge.updatePlayer(online);
     }
 
+    // Expired invites never cleaned themselves, so purge them every minute.
+    // Without this the map grows forever when players ignore invites.
+    try {
+      this.inviteCleanupTask =
+          dev.mukulx.javaskript.util.ServerUtil.runTimerSync(
+              plugin, this::purgeExpiredInvites, 1200L, 1200L);
+    } catch (Throwable ignored) {
+      this.inviteCleanupTask = null;
+    }
+
     plugin.getLogger().info("Team engine initialized (" + teamsById.size() + " active teams)");
+  }
+
+  /** Remove expired invites so the pending map cannot grow forever. */
+  public void purgeExpiredInvites() {
+    if (!enabled) return;
+    pendingInvites
+        .entrySet()
+        .removeIf(entry -> entry.getValue() == null || entry.getValue().isExpired());
   }
 
   /** Checks if the team subsystem is active. */
@@ -433,7 +453,7 @@ public class TeamHelper implements Listener {
           .send(
               player,
               "team.left",
-              "<yellow>You have left <aqua>{team}</aqua>.</yellow>",
+              "<color:#FFA726>You have left <aqua>{team}</aqua>.</color>",
               "{team}",
               team.getName());
     }
@@ -445,7 +465,7 @@ public class TeamHelper implements Listener {
             .getMessageManager()
             .get(
                 "team.member-left",
-                "<yellow>{player} has left the team.</yellow>",
+                "<color:#FFA726>{player} has left the team.</color>",
                 "{player}",
                 name));
 
@@ -643,7 +663,7 @@ public class TeamHelper implements Listener {
         .send(
             target,
             "team.invite-received",
-            "<yellow>{player} invited you to join <aqua>{team}</aqua>! Type /team join {team}</yellow>",
+            "<color:#FFA726>{player} invited you to join <aqua>{team}</aqua>! Type /team join {team}</color>",
             "{player}",
             sender.getName(),
             "{team}",
@@ -778,17 +798,30 @@ public class TeamHelper implements Listener {
             .getMessageManager()
             .getRaw(
                 "team.chat-format",
-                "<dark_gray>[<aqua>Team</aqua>]</dark_gray> <gray>{role}</gray> <white>{player}</white><gray>:</gray> <white>{message}</white>");
-
-    String formatted =
-        format
-            .replace("{role}", roleName)
-            .replace("{player}", sender.getName())
-            .replace("{team}", team.getName())
-            .replace("{tag}", team.getTag())
-            .replace("{message}", event.getMessage());
-
-    Component component = plugin.getMessageManager().parse(formatted);
+                "<dark_gray>[<aqua>Team</aqua>]</dark_gray> <gray><role></gray> <white><player></white><gray>:</gray> <white><message></white>");
+    // Use safe placeholders so player names, team names and chat text cannot inject
+    // MiniMessage tags or click events that run commands.
+    Component component;
+    try {
+      component =
+          net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+              .deserialize(
+                  format,
+                  net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                      "role", roleName != null ? roleName : "Member"),
+                  net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                      "player", sender.getName() != null ? sender.getName() : "Unknown"),
+                  net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                      "team", team.getName() != null ? team.getName() : team.getId()),
+                  net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                      "tag", team.getTag() != null ? team.getTag() : ""),
+                  net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(
+                      "message", event.getMessage() != null ? event.getMessage() : ""));
+    } catch (Exception e) {
+      component =
+          Component.text(
+              "[" + team.getName() + "] " + sender.getName() + ": " + event.getMessage());
+    }
     for (Player recipient : event.getRecipients()) {
       recipient.sendMessage(component);
     }
@@ -819,8 +852,35 @@ public class TeamHelper implements Listener {
     if (event.isCancelled()) {
       return false;
     }
+    double finalAmount = event.getAmount();
+    if (finalAmount <= 0) return false;
 
-    team.deposit(event.getAmount());
+    // Take from the player first so money cannot be created from thin air.
+    // If the economy is off, fall back to team-only points.
+    try {
+      if (plugin.getEconomyHelper() != null && plugin.getEconomyHelper().isEnabled()) {
+        dev.mukulx.javaskript.api.economy.EconomyResult taken =
+            plugin.getEconomyHelper().withdraw(player, finalAmount);
+        if (!taken.isSuccess()) {
+          plugin
+              .getMessageManager()
+              .send(
+                  player,
+                  "team.bank-insufficient",
+                  "<red>Insufficient funds! You need {balance}.</red>",
+                  "{balance}",
+                  String.format("%.2f", finalAmount));
+          return false;
+        }
+      }
+    } catch (Throwable t) {
+      plugin.getLogger().warning("Team deposit economy check failed: " + t.getMessage());
+      return false;
+    }
+
+    synchronized (team) {
+      team.deposit(finalAmount);
+    }
     storage.saveTeamAsync(team);
 
     plugin
@@ -828,9 +888,9 @@ public class TeamHelper implements Listener {
         .send(
             player,
             "team.bank-deposit",
-            "<green>Deposited <gold>{amount}</gold> into the team bank!</green>",
+            "<green>Deposited <color:#FF8C00>{amount}</color> into the team bank!</green>",
             "{amount}",
-            String.format("%.2f", event.getAmount()));
+            String.format("%.2f", finalAmount));
     return true;
   }
 
@@ -864,20 +924,51 @@ public class TeamHelper implements Listener {
     if (event.isCancelled()) {
       return false;
     }
+    double finalAmount = event.getAmount();
+    if (finalAmount <= 0) return false;
 
-    if (team.withdraw(event.getAmount())) {
+    boolean removed;
+    synchronized (team) {
+      removed = team.withdraw(finalAmount);
+    }
+    if (!removed) {
+      return false;
+    }
+    storage.saveTeamAsync(team);
+
+    // Give the money to the player. If that fails, refund the team so nothing is lost or duped.
+    try {
+      if (plugin.getEconomyHelper() != null && plugin.getEconomyHelper().isEnabled()) {
+        dev.mukulx.javaskript.api.economy.EconomyResult given =
+            plugin.getEconomyHelper().deposit(player, finalAmount);
+        if (!given.isSuccess()) {
+          synchronized (team) {
+            team.deposit(finalAmount);
+          }
+          storage.saveTeamAsync(team);
+          return false;
+        }
+      }
+    } catch (Throwable t) {
+      synchronized (team) {
+        team.deposit(finalAmount);
+      }
       storage.saveTeamAsync(team);
       plugin
-          .getMessageManager()
-          .send(
-              player,
-              "team.bank-withdraw",
-              "<green>Withdrew <gold>{amount}</gold> from the team bank.</green>",
-              "{amount}",
-              String.format("%.2f", event.getAmount()));
-      return true;
+          .getLogger()
+          .warning("Team withdraw refund issued after economy failure: " + t.getMessage());
+      return false;
     }
-    return false;
+
+    plugin
+        .getMessageManager()
+        .send(
+            player,
+            "team.bank-withdraw",
+            "<green>Withdrew <color:#FF8C00>{amount}</color> from the team bank.</green>",
+            "{amount}",
+            String.format("%.2f", finalAmount));
+    return true;
   }
 
   /** Sets the team home location. */
@@ -897,22 +988,61 @@ public class TeamHelper implements Listener {
   public boolean teleportHome(Team team, Player player) {
     if (!enabled || team == null || player == null) return false;
     Location home = team.getHome();
-    if (home == null || home.getWorld() == null) {
+    if (home == null) {
       plugin
           .getMessageManager()
           .send(player, "team.home-not-set", "<red>Your team does not have a home set!</red>");
       return false;
     }
-
-    try {
-      player.teleportAsync(home);
-    } catch (Throwable t) {
-      player.teleport(home);
+    // The world may have been null at load time; resolve it now by stored name.
+    Location target = home.clone();
+    if (target.getWorld() == null) {
+      String worldName = team.getHomeWorldName();
+      org.bukkit.World world = worldName != null ? Bukkit.getWorld(worldName) : null;
+      if (world == null) {
+        plugin
+            .getMessageManager()
+            .send(
+                player, "team.home-not-set", "<red>Your team home world is not loaded yet.</red>");
+        return false;
+      }
+      target.setWorld(world);
+    }
+    if (player.getVehicle() != null) {
+      plugin
+          .getMessageManager()
+          .send(player, "team.home-not-set", "<red>Leave your vehicle first.</red>");
+      return false;
     }
 
-    plugin
-        .getMessageManager()
-        .send(player, "team.teleported-home", "<green>Teleported to team home!</green>");
+    try {
+      player
+          .teleportAsync(target)
+          .thenAccept(
+              ok -> {
+                if (Boolean.TRUE.equals(ok)) {
+                  plugin
+                      .getMessageManager()
+                      .send(
+                          player,
+                          "team.teleported-home",
+                          "<green>Teleported to team home!</green>");
+                } else {
+                  plugin
+                      .getMessageManager()
+                      .send(player, "team.home-not-set", "<red>Teleport failed.</red>");
+                }
+              });
+    } catch (Throwable t) {
+      try {
+        player.teleport(target);
+      } catch (Throwable ignored) {
+        return false;
+      }
+      plugin
+          .getMessageManager()
+          .send(player, "team.teleported-home", "<green>Teleported to team home!</green>");
+    }
     return true;
   }
 
@@ -941,6 +1071,16 @@ public class TeamHelper implements Listener {
   public void shutdown() {
     this.enabled = false;
     HandlerList.unregisterAll(this);
+    try {
+      if (inviteCleanupTask instanceof org.bukkit.scheduler.BukkitTask bukkitTask) {
+        bukkitTask.cancel();
+      } else if (inviteCleanupTask != null) {
+        inviteCleanupTask.getClass().getMethod("cancel").invoke(inviteCleanupTask);
+      }
+    } catch (Exception ignored) {
+      // Task already cancelled
+    }
+    inviteCleanupTask = null;
     tabBridge.shutdown();
     storage.close();
     teamsById.clear();
@@ -1022,6 +1162,18 @@ public class TeamHelper implements Listener {
   public void onPlayerQuit(PlayerQuitEvent event) {
     if (!enabled) return;
     Player player = event.getPlayer();
+    UUID uuid = player.getUniqueId();
+    // Invites involving a player who left can never be accepted, drop them right away.
+    pendingInvites
+        .entrySet()
+        .removeIf(
+            entry -> {
+              TeamInvite invite = entry.getValue();
+              return invite == null
+                  || invite.isExpired()
+                  || uuid.equals(invite.getTargetUuid())
+                  || uuid.equals(invite.getInviterUuid());
+            });
     getTeam(player)
         .ifPresent(
             team -> {
