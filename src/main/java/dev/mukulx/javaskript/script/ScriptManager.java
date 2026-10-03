@@ -1181,18 +1181,20 @@ public class ScriptManager {
                         () -> plugin.getDependencyManager().resolveDependency(dep)))
             .collect(java.util.stream.Collectors.toList());
 
-    java.util.concurrent.CompletableFuture.allOf(
-            futures.toArray(new java.util.concurrent.CompletableFuture[0]))
-        .join();
-
+    // One shared deadline, so a hung download can't block the load forever
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MINUTES.toNanos(5);
     for (java.util.concurrent.CompletableFuture<List<File>> future : futures) {
       try {
-        List<File> resolved = future.get(5, java.util.concurrent.TimeUnit.MINUTES);
+        long remaining = Math.max(1L, deadline - System.nanoTime());
+        List<File> resolved = future.get(remaining, java.util.concurrent.TimeUnit.NANOSECONDS);
         if (resolved == null || resolved.isEmpty()) {
           plugin.getLogger().warning("Failed to resolve a dependency for " + scriptKey);
         } else {
           dependencyFiles.addAll(resolved);
         }
+      } catch (java.util.concurrent.TimeoutException e) {
+        future.cancel(true);
+        plugin.getLogger().warning("Timed out resolving a dependency for " + scriptKey);
       } catch (Exception e) {
         plugin
             .getLogger()

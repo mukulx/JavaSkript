@@ -2,7 +2,6 @@ package dev.mukulx.javaskript.dependency;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.*;
-import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
 import java.util.*;
@@ -93,6 +92,46 @@ public class DependencyManager {
     }
   }
 
+  /** Open a connection that can never hang a script load indefinitely. */
+  private URLConnection openConnection(String urlString) throws IOException {
+    URLConnection connection = java.net.URI.create(urlString).toURL().openConnection();
+    connection.setConnectTimeout(10_000);
+    connection.setReadTimeout(30_000);
+    return connection;
+  }
+
+  /**
+   * Compare the file with the SHA-1 Maven Central publishes next to every artifact. Returns false
+   * only on a real mismatch. If the checksum cannot be fetched, the download is accepted with a
+   * warning so mirrors and older artifacts without checksums keep working.
+   */
+  private boolean matchesPublishedChecksum(File file, String artifactUrl) throws Exception {
+    String expected;
+    try (InputStream in = openConnection(artifactUrl + ".sha1").getInputStream()) {
+      expected = new String(in.readNBytes(256), java.nio.charset.StandardCharsets.UTF_8).trim();
+    } catch (IOException e) {
+      plugin
+          .getLogger()
+          .warning("No published checksum for " + artifactUrl + ", skipping verification");
+      return true;
+    }
+    // Some checksum files append the file name after the hash
+    int space = expected.indexOf(' ');
+    if (space > 0) {
+      expected = expected.substring(0, space);
+    }
+
+    java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-1");
+    try (InputStream in = Files.newInputStream(file.toPath())) {
+      byte[] buffer = new byte[8192];
+      int read;
+      while ((read = in.read(buffer)) != -1) {
+        digest.update(buffer, 0, read);
+      }
+    }
+    return HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(expected);
+  }
+
   private File downloadArtifact(String groupId, String artifactId, String version) {
     File tempFile = null;
     try {
@@ -114,14 +153,17 @@ public class DependencyManager {
 
       plugin.getLogger().info("Downloading: " + urlString);
 
-      tempFile = new File(libsDirectory, jarName + ".tmp." + System.currentTimeMillis());
+      // Unique name, so two scripts resolving the same artifact never write the same temp file
+      tempFile = Files.createTempFile(libsDirectory.toPath(), jarName, ".tmp").toFile();
 
-      URL url = java.net.URI.create(urlString).toURL();
-      URLConnection connection = url.openConnection();
-      connection.setConnectTimeout(10_000);
-      connection.setReadTimeout(30_000);
-      try (InputStream in = connection.getInputStream()) {
+      try (InputStream in = openConnection(urlString).getInputStream()) {
         Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      }
+
+      if (!matchesPublishedChecksum(tempFile, urlString)) {
+        plugin.getLogger().severe("Checksum mismatch for " + jarName + ", discarding the download");
+        tempFile.delete();
+        return null;
       }
 
       if (tempFile.exists() && tempFile.length() > 0) {
@@ -173,8 +215,7 @@ public class DependencyManager {
           MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + pomName;
 
       Document pom;
-      URL url = java.net.URI.create(urlString).toURL();
-      try (InputStream in = url.openStream()) {
+      try (InputStream in = openConnection(urlString).getInputStream()) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
