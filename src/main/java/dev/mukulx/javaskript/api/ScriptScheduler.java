@@ -326,7 +326,8 @@ public class ScriptScheduler {
   private Object runLaterFolia(Runnable runnable, long delayTicks) {
     try {
       Object task =
-          Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> runnable.run(), delayTicks);
+          Bukkit.getGlobalRegionScheduler()
+              .runDelayed(plugin, t -> runnable.run(), Math.max(1L, delayTicks));
       track(task);
       return task;
     } catch (Exception e) {
@@ -339,7 +340,11 @@ public class ScriptScheduler {
     try {
       Object task =
           Bukkit.getGlobalRegionScheduler()
-              .runAtFixedRate(plugin, t -> runnable.run(), delayTicks, periodTicks);
+              .runAtFixedRate(
+                  plugin,
+                  t -> runnable.run(),
+                  Math.max(1L, delayTicks),
+                  Math.max(1L, periodTicks));
       track(task);
       return task;
     } catch (Exception e) {
@@ -361,7 +366,7 @@ public class ScriptScheduler {
 
   private Object runLaterAsyncFolia(Runnable runnable, long delayTicks) {
     try {
-      long delayMs = delayTicks * 50; // Convert ticks to milliseconds
+      long delayMs = Math.max(0L, delayTicks) * 50; // Convert ticks to milliseconds
       Object task =
           Bukkit.getAsyncScheduler()
               .runDelayed(plugin, t -> runnable.run(), delayMs, TimeUnit.MILLISECONDS);
@@ -375,8 +380,8 @@ public class ScriptScheduler {
 
   private Object runTimerAsyncFolia(Runnable runnable, long delayTicks, long periodTicks) {
     try {
-      long delayMs = delayTicks * 50;
-      long periodMs = periodTicks * 50;
+      long delayMs = Math.max(0L, delayTicks) * 50;
+      long periodMs = Math.max(1L, periodTicks) * 50;
       Object task =
           Bukkit.getAsyncScheduler()
               .runAtFixedRate(
@@ -393,7 +398,8 @@ public class ScriptScheduler {
 
   private Object runAtEntityFolia(Entity entity, Runnable runnable) {
     try {
-      Object task = entity.getScheduler().run(plugin, t -> runnable.run(), null);
+      Runnable profiled = wrap("runAtEntity", runnable);
+      Object task = entity.getScheduler().run(plugin, t -> profiled.run(), null);
       track(task);
       return task;
     } catch (Exception e) {
@@ -404,7 +410,11 @@ public class ScriptScheduler {
 
   private Object runAtEntityLaterFolia(Entity entity, Runnable runnable, long delayTicks) {
     try {
-      Object task = entity.getScheduler().runDelayed(plugin, t -> runnable.run(), null, delayTicks);
+      Runnable profiled = wrap("runAtEntityLater", runnable);
+      Object task =
+          entity
+              .getScheduler()
+              .runDelayed(plugin, t -> profiled.run(), null, Math.max(1L, delayTicks));
       track(task);
       return task;
     } catch (Exception e) {
