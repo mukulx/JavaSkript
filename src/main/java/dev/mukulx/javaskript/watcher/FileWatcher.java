@@ -160,6 +160,10 @@ public class FileWatcher implements Runnable {
           // Only process .java files
           String fileNameStr = filename.toString();
           if (!fileNameStr.endsWith(".java")) {
+            // A folder that was renamed or removed leaves watch keys pointing at its old path
+            if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+              forgetDirectory(fullPath);
+            }
             continue;
           }
 
@@ -186,6 +190,24 @@ public class FileWatcher implements Runnable {
         }
       }
     }
+  }
+
+  /**
+   * Drop watch keys registered under a path that no longer exists. Their events would resolve
+   * against the old path, so edits inside a renamed folder looked like deleted scripts. If the
+   * folder reappears under a new name, its create event registers it again.
+   */
+  private void forgetDirectory(Path dir) {
+    watchKeys
+        .entrySet()
+        .removeIf(
+            entry -> {
+              if (entry.getValue().startsWith(dir)) {
+                entry.getKey().cancel();
+                return true;
+              }
+              return false;
+            });
   }
 
   private void scheduleExistingScripts(Path dir) {
