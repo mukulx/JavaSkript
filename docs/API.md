@@ -30,6 +30,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
 25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
 26. [MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)](#mannequinhelper--mannequins-paper-12111-npcs--statues)
+27. [AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)](#advancementhelper--advancements-paper-12111-toasts--custom-advancements)
 
 ---
 
@@ -2904,6 +2905,119 @@ mannequins.removeAll();
 // Wrap existing Bukkit entity:
 CustomMannequin wrapped = mannequins.wrap(bukkitMannequin);
 ```
+
+---
+
+## AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)
+
+The Advancement subsystem gives scripts full control over PaperMC 1.21.11+ native Minecraft Advancements without writing datapacks or running `/minecraft:reload`. It includes instant custom toast notifications (the top-right popup), custom root tabs with backgrounds, multi-criteria requirements, completion reward callbacks, and automatic cleanup on script reload/unload.
+
+### Auto-Injection & Static Facade
+```java
+// Option 1: Automatic field injection
+@Inject private AdvancementHelper advancements;
+
+// Option 2: 1-Line static facade anywhere
+Advancements.toast(player, Material.NETHER_STAR, "<gold>Level 100!", Frame.CHALLENGE);
+```
+
+### 1. Instant Custom Toasts (Top-Right Popups)
+Paper has no native `player.sendToast()` API. JavaSkript provides zero-boilerplate toast notifications that display custom icons, rich Adventure MiniMessage titles, and frames without creating permanent player advancements:
+```java
+// Simple toast (Task frame):
+advancements.toast(player, Material.DIAMOND, "<green>Quest Step Complete!");
+
+// Stylized frames (TASK, GOAL, CHALLENGE):
+advancements.toast(player, Material.NETHER_STAR, "<gradient:#ffaa00:#ff5555><bold>Boss Slain!</bold></gradient>", Frame.CHALLENGE);
+
+// Broadcast toast to all online players:
+advancements.toastAll(Material.GOLDEN_APPLE, "<yellow>Server Event Started!", Frame.GOAL);
+```
+
+### 2. Custom Advancement Tabs & Root Backgrounds
+Create custom root advancement tabs with vanilla background textures:
+```java
+advancements.createRoot("rpg_root", CustomAdvancement.Backgrounds.ADVENTURE)
+    .title("<gold><bold>Server Achievements</bold></gold>")
+    .description("<yellow>Track your epic journey</yellow>")
+    .icon(Material.NETHERITE_SWORD)
+    .task()
+    .toast(false)
+    .announce(false)
+    .register();
+```
+
+### 3. Child Advancements & Tree Hierarchy
+Link child advancements to custom or vanilla root trees:
+```java
+advancements.create("kill_dragon")
+    .title("<dark_purple><bold>Dragon Slayer</bold></dark_purple>")
+    .description("<gray>Slay the Ender Dragon</gray>")
+    .icon(Material.DRAGON_HEAD)
+    .challenge()
+    .parent(advancements.createKey("rpg_root")) // or "minecraft:story/root"
+    .register();
+```
+
+### 4. Multi-Criteria & Requirements Logic (AND / OR)
+Define multi-step advancements requiring all or any criteria:
+```java
+// Requires both diamond AND netherite:
+advancements.create("master_miner")
+    .title("<aqua>Master Miner</aqua>")
+    .description("<gray>Mine diamond and netherite</gray>")
+    .icon(Material.DIAMOND_PICKAXE)
+    .goal()
+    .criteria("mine_diamond", "mine_netherite")
+    .requireAll()
+    .register();
+
+// Requires finding either ruby OR sapphire:
+advancements.create("gem_finder")
+    .title("<light_purple>Gem Seeker</light_purple>")
+    .icon(Material.EMERALD)
+    .criteria("find_ruby", "find_sapphire")
+    .requireAny()
+    .register();
+```
+
+### 5. Completion Reward Callbacks
+Trigger callbacks when a player completes an advancement:
+```java
+advancements.create("champion")
+    .title("<gold>Server Champion</gold>")
+    .icon(Material.BEACON)
+    .challenge()
+    .onComplete((player, adv) -> {
+        player.sendMessage("§6[Quest] §aYou earned 1,000 Coins and the Champion tag!");
+        economy.deposit(player, 1000);
+    })
+    .register();
+```
+
+### 6. Progression Management (Grant, Revoke, Percent)
+Manage criteria and progress with 1-liners:
+```java
+// Grant full advancement:
+advancements.grant(player, "kill_dragon");
+
+// Grant individual criterion:
+advancements.grant(player, "master_miner", "mine_diamond");
+
+// Check completion & percentage:
+boolean done = advancements.has(player, "master_miner");
+double percent = advancements.getProgressPercent(player, advancements.createKey("master_miner"));
+
+// Revoke:
+advancements.revoke(player, "kill_dragon");
+```
+
+### 7. Automatic Script Lifecycle Cleanup
+When a script unloads or reloads:
+- All custom advancements created by the script are removed from the server registry (`removeAdvancement`).
+- Online players have active criteria revoked to prevent phantom records.
+- Client tabs are refreshed immediately via `updateResources()`.
+- Zero memory leaks or dangling advancement entries.
 
 ---
 
