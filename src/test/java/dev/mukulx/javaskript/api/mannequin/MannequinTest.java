@@ -5,11 +5,9 @@ import static org.mockito.Mockito.*;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.MannequinHelper;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Mannequin;
@@ -83,19 +81,21 @@ class MannequinTest {
     when(mockSword.getType()).thenReturn(Material.DIAMOND_SWORD);
     when(mockSword.clone()).thenReturn(mockSword);
 
-    CustomMannequin mannequin = helper.create(null)
-        .name("<gold>Shopkeeper</gold>")
-        .description("<gray>Sells rare artifacts</gray>")
-        .skin("Notch")
-        .sneaking()
-        .leftHanded()
-        .helmet(mockHelmet)
-        .chestplate(mockChestplate)
-        .mainHandItem(mockSword)
-        .tag("merchant")
-        .tag("quest_npc")
-        .cape(false)
-        .glowing(true);
+    CustomMannequin mannequin =
+        helper
+            .create(null)
+            .name("<gold>Shopkeeper</gold>")
+            .description("<gray>Sells rare artifacts</gray>")
+            .skin("Notch")
+            .sneaking()
+            .leftHanded()
+            .helmet(mockHelmet)
+            .chestplate(mockChestplate)
+            .mainHandItem(mockSword)
+            .tag("merchant")
+            .tag("quest_npc")
+            .cape(false)
+            .glowing(true);
 
     assertNotNull(mannequin.name());
     assertNotNull(mannequin.description());

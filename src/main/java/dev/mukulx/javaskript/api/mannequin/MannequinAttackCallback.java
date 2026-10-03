@@ -2,9 +2,7 @@ package dev.mukulx.javaskript.api.mannequin;
 
 import org.bukkit.entity.Player;
 
-/**
- * Functional callback invoked when a player attacks (left-clicks) a custom mannequin.
- */
+/** Functional callback invoked when a player attacks (left-clicks) a custom mannequin. */
 @FunctionalInterface
 public interface MannequinAttackCallback {
 

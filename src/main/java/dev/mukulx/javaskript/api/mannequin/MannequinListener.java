@@ -1,6 +1,8 @@
 package dev.mukulx.javaskript.api.mannequin;
 
+import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,14 +13,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent;
-import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
-/**
- * Event listener managing player interactions and attacks on custom JavaSkript mannequins.
- */
+/** Event listener managing player interactions and attacks on custom JavaSkript mannequins. */
 public class MannequinListener implements Listener {
 
   private final JavaSkriptPlugin plugin;

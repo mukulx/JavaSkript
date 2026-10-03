@@ -5,7 +5,6 @@ import com.destroystokyo.paper.profile.PlayerProfile;
 import com.destroystokyo.paper.profile.ProfileProperty;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.MannequinHelper;
-import dev.mukulx.javaskript.util.ServerUtil;
 import dev.mukulx.javaskript.util.TextUtil;
 import io.papermc.paper.datacomponent.item.ResolvableProfile;
 import java.util.*;
@@ -13,7 +12,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.EntityEffect;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -110,7 +108,8 @@ public class CustomMannequin {
     this.location = location != null ? location.clone() : null;
   }
 
-  public CustomMannequin(JavaSkriptPlugin plugin, MannequinHelper helper, Mannequin existingEntity) {
+  public CustomMannequin(
+      JavaSkriptPlugin plugin, MannequinHelper helper, Mannequin existingEntity) {
     this.plugin = plugin;
     this.helper = helper;
     this.entity = existingEntity;
@@ -162,16 +161,12 @@ public class CustomMannequin {
   // Display & Name
   // ==========================================
 
-  /**
-   * Set custom name using MiniMessage, legacy formatting, or plain text.
-   */
+  /** Set custom name using MiniMessage, legacy formatting, or plain text. */
   public CustomMannequin name(String name) {
     return name(name != null ? TextUtil.parse(name) : null);
   }
 
-  /**
-   * Set custom name using Adventure Component.
-   */
+  /** Set custom name using Adventure Component. */
   public CustomMannequin name(Component name) {
     this.customName = name;
     if (spawned && entity != null) {
@@ -181,16 +176,12 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Get the current custom name component.
-   */
+  /** Get the current custom name component. */
   public Component name() {
     return spawned && entity != null ? entity.customName() : customName;
   }
 
-  /**
-   * Set whether the custom name is visible above the mannequin.
-   */
+  /** Set whether the custom name is visible above the mannequin. */
   public CustomMannequin nameVisible(boolean visible) {
     this.customNameVisible = visible;
     if (spawned && entity != null) {
@@ -199,9 +190,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Check if the custom name is set to visible.
-   */
+  /** Check if the custom name is set to visible. */
   public boolean nameVisible() {
     return spawned && entity != null ? entity.isCustomNameVisible() : customNameVisible;
   }
@@ -211,16 +200,14 @@ public class CustomMannequin {
   // ==========================================
 
   /**
-   * Set the description text appearing directly below the mannequin's name. Supports MiniMessage and
-   * legacy formatting.
+   * Set the description text appearing directly below the mannequin's name. Supports MiniMessage
+   * and legacy formatting.
    */
   public CustomMannequin description(String text) {
     return description(text != null ? TextUtil.parse(text) : null);
   }
 
-  /**
-   * Set the description Component appearing directly below the mannequin's name.
-   */
+  /** Set the description Component appearing directly below the mannequin's name. */
   public CustomMannequin description(Component text) {
     this.description = text;
     if (spawned && entity != null) {
@@ -229,16 +216,12 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Get the current description component.
-   */
+  /** Get the current description component. */
   public Component description() {
     return spawned && entity != null ? entity.getDescription() : description;
   }
 
-  /**
-   * Reset description to Paper's default mannequin description.
-   */
+  /** Reset description to Paper's default mannequin description. */
   public CustomMannequin defaultDescription() {
     try {
       return description(Mannequin.defaultDescription());
@@ -251,9 +234,7 @@ public class CustomMannequin {
   // Profile & Skin
   // ==========================================
 
-  /**
-   * Set skin by player name (e.g. "Notch", "Mukulx").
-   */
+  /** Set skin by player name (e.g. "Notch", "Mukulx"). */
   public CustomMannequin skin(String playerNameOrUuid) {
     if (playerNameOrUuid == null || playerNameOrUuid.isBlank()) {
       return defaultSkin();
@@ -274,9 +255,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Set skin by player UUID.
-   */
+  /** Set skin by player UUID. */
   public CustomMannequin skin(UUID uuid) {
     if (uuid == null) {
       return defaultSkin();
@@ -292,9 +271,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Set skin directly from an online Player's current profile.
-   */
+  /** Set skin directly from an online Player's current profile. */
   public CustomMannequin skin(Player player) {
     if (player == null) {
       return defaultSkin();
@@ -306,9 +283,7 @@ public class CustomMannequin {
     }
   }
 
-  /**
-   * Set skin from a Paper PlayerProfile.
-   */
+  /** Set skin from a Paper PlayerProfile. */
   public CustomMannequin skin(PlayerProfile playerProfile) {
     if (playerProfile == null) {
       return defaultSkin();
@@ -320,9 +295,7 @@ public class CustomMannequin {
     }
   }
 
-  /**
-   * Set skin directly from a ResolvableProfile.
-   */
+  /** Set skin directly from a ResolvableProfile. */
   public CustomMannequin skin(ResolvableProfile resolvableProfile) {
     this.profile = resolvableProfile;
     this.skinName = null;
@@ -335,9 +308,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Set skin with raw base64 texture value and optional signature.
-   */
+  /** Set skin with raw base64 texture value and optional signature. */
   public CustomMannequin skin(String textureBase64, String signature) {
     this.profile = null;
     this.skinName = null;
@@ -350,9 +321,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Reset skin to default mannequin skin profile.
-   */
+  /** Reset skin to default mannequin skin profile. */
   public CustomMannequin defaultSkin() {
     this.skinName = null;
     this.skinUuid = null;
@@ -369,9 +338,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Get current ResolvableProfile. Resolves on-demand if built via skin(name/uuid).
-   */
+  /** Get current ResolvableProfile. Resolves on-demand if built via skin(name/uuid). */
   public ResolvableProfile profile() {
     if (spawned && entity != null) {
       return entity.getProfile();
@@ -379,9 +346,7 @@ public class CustomMannequin {
     return resolveProfile();
   }
 
-  /**
-   * Resolves the profile based on the configured skin properties.
-   */
+  /** Resolves the profile based on the configured skin properties. */
   public ResolvableProfile resolveProfile() {
     if (profile != null) return profile;
     try {
@@ -392,11 +357,13 @@ public class CustomMannequin {
         return ResolvableProfile.resolvableProfile().name(skinName).build();
       }
       if (textureBase64 != null) {
-        var builder = ResolvableProfile.resolvableProfile().name(
-            customName != null ? "Mannequin" : "CustomMannequin");
-        ProfileProperty prop = (textureSignature != null && !textureSignature.isBlank())
-            ? new ProfileProperty("textures", textureBase64, textureSignature)
-            : new ProfileProperty("textures", textureBase64);
+        var builder =
+            ResolvableProfile.resolvableProfile()
+                .name(customName != null ? "Mannequin" : "CustomMannequin");
+        ProfileProperty prop =
+            (textureSignature != null && !textureSignature.isBlank())
+                ? new ProfileProperty("textures", textureBase64, textureSignature)
+                : new ProfileProperty("textures", textureBase64);
         builder.addProperty(prop);
         return builder.build();
       }
@@ -417,9 +384,7 @@ public class CustomMannequin {
   // Pose
   // ==========================================
 
-  /**
-   * Set the mannequin pose. Locks the pose automatically so gravity/physics will not reset it.
-   */
+  /** Set the mannequin pose. Locks the pose automatically so gravity/physics will not reset it. */
   public CustomMannequin pose(Pose pose) {
     this.pose = pose != null ? pose : Pose.STANDING;
     if (spawned && entity != null) {
@@ -428,9 +393,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Get current pose.
-   */
+  /** Get current pose. */
   public Pose pose() {
     return spawned && entity != null ? entity.getPose() : pose;
   }
@@ -463,9 +426,7 @@ public class CustomMannequin {
     return pose(Pose.SLEEPING);
   }
 
-  /**
-   * Returns all valid poses supported by Mannequins in Paper 1.21.11.
-   */
+  /** Returns all valid poses supported by Mannequins in Paper 1.21.11. */
   public static Set<Pose> validPoses() {
     try {
       return Mannequin.validPoses();
@@ -616,10 +577,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Lock equipment so players cannot equip/swap items when interacting.
-   * Default is true.
-   */
+  /** Lock equipment so players cannot equip/swap items when interacting. Default is true. */
   public CustomMannequin lockEquipment(boolean lock) {
     this.equipmentLocked = lock;
     return this;
@@ -1077,7 +1035,9 @@ public class CustomMannequin {
       try {
         callback.onInteract(player, this, hand);
       } catch (Throwable t) {
-        plugin.getLogger().warning("Error executing mannequin interact callback: " + t.getMessage());
+        plugin
+            .getLogger()
+            .warning("Error executing mannequin interact callback: " + t.getMessage());
       }
     }
   }
@@ -1132,11 +1092,15 @@ public class CustomMannequin {
   }
 
   public boolean hasTag(String tag) {
-    return spawned && entity != null ? entity.getScoreboardTags().contains(tag) : tags.contains(tag);
+    return spawned && entity != null
+        ? entity.getScoreboardTags().contains(tag)
+        : tags.contains(tag);
   }
 
   public Set<String> tags() {
-    return spawned && entity != null ? entity.getScoreboardTags() : Collections.unmodifiableSet(tags);
+    return spawned && entity != null
+        ? entity.getScoreboardTags()
+        : Collections.unmodifiableSet(tags);
   }
 
   public CustomMannequin pdc(String key, String value) {
@@ -1168,7 +1132,9 @@ public class CustomMannequin {
   // ==========================================
 
   public Location location() {
-    return spawned && entity != null ? entity.getLocation() : (location != null ? location.clone() : null);
+    return spawned && entity != null
+        ? entity.getLocation()
+        : (location != null ? location.clone() : null);
   }
 
   public CustomMannequin location(Location loc) {
@@ -1201,9 +1167,7 @@ public class CustomMannequin {
   // Lifecycle: Spawn & Remove
   // ==========================================
 
-  /**
-   * Spawn this mannequin into the world.
-   */
+  /** Spawn this mannequin into the world. */
   public CustomMannequin spawn() {
     if (spawned && entity != null && entity.isValid()) {
       return this;
@@ -1215,69 +1179,75 @@ public class CustomMannequin {
     }
 
     try {
-      this.entity = location.getWorld().spawn(location, Mannequin.class, m -> {
-        // Name & Visibility
-        if (customName != null) {
-          m.customName(customName);
-          m.setCustomNameVisible(customNameVisible);
-        }
+      this.entity =
+          location
+              .getWorld()
+              .spawn(
+                  location,
+                  Mannequin.class,
+                  m -> {
+                    // Name & Visibility
+                    if (customName != null) {
+                      m.customName(customName);
+                      m.setCustomNameVisible(customNameVisible);
+                    }
 
-        // Description
-        if (description != null) {
-          m.setDescription(description);
-        }
+                    // Description
+                    if (description != null) {
+                      m.setDescription(description);
+                    }
 
-        // Profile / Skin
-        ResolvableProfile resolved = resolveProfile();
-        if (resolved != null) {
-          m.setProfile(resolved);
-        }
+                    // Profile / Skin
+                    ResolvableProfile resolved = resolveProfile();
+                    if (resolved != null) {
+                      m.setProfile(resolved);
+                    }
 
-        // Pose
-        m.setPose(pose, true);
+                    // Pose
+                    m.setPose(pose, true);
 
-        // Hand
-        m.setMainHand(mainHand);
+                    // Hand
+                    m.setMainHand(mainHand);
 
-        // Physics & AI
-        m.setImmovable(immovable);
-        m.setInvulnerable(invulnerable);
-        m.setGravity(gravity);
-        m.setSilent(silent);
-        m.setCollidable(collidable);
-        m.setGlowing(glowing);
-        m.setInvisible(invisible);
-        m.setPersistent(persistent);
+                    // Physics & AI
+                    m.setImmovable(immovable);
+                    m.setInvulnerable(invulnerable);
+                    m.setGravity(gravity);
+                    m.setSilent(silent);
+                    m.setCollidable(collidable);
+                    m.setGlowing(glowing);
+                    m.setInvisible(invisible);
+                    m.setPersistent(persistent);
 
-        // Skin parts
-        SkinParts.Mutable parts = m.getSkinParts();
-        if (parts != null) {
-          parts.setCapeEnabled(cape);
-          parts.setJacketEnabled(jacket);
-          parts.setLeftSleeveEnabled(leftSleeve);
-          parts.setRightSleeveEnabled(rightSleeve);
-          parts.setLeftPantsEnabled(leftPants);
-          parts.setRightPantsEnabled(rightPants);
-          parts.setHatsEnabled(hats);
-          m.setSkinParts(parts);
-        }
+                    // Skin parts
+                    SkinParts.Mutable parts = m.getSkinParts();
+                    if (parts != null) {
+                      parts.setCapeEnabled(cape);
+                      parts.setJacketEnabled(jacket);
+                      parts.setLeftSleeveEnabled(leftSleeve);
+                      parts.setRightSleeveEnabled(rightSleeve);
+                      parts.setLeftPantsEnabled(leftPants);
+                      parts.setRightPantsEnabled(rightPants);
+                      parts.setHatsEnabled(hats);
+                      m.setSkinParts(parts);
+                    }
 
-        // Equipment
-        EntityEquipment eq = m.getEquipment();
-        if (eq != null) {
-          if (helmet != null) eq.setHelmet(helmet);
-          if (chestplate != null) eq.setChestplate(chestplate);
-          if (leggings != null) eq.setLeggings(leggings);
-          if (boots != null) eq.setBoots(boots);
-          if (mainHandItem != null) eq.setItemInMainHand(mainHandItem);
-          if (offHandItem != null) eq.setItemInOffHand(offHandItem);
-        }
+                    // Equipment
+                    EntityEquipment eq = m.getEquipment();
+                    if (eq != null) {
+                      if (helmet != null) eq.setHelmet(helmet);
+                      if (chestplate != null) eq.setChestplate(chestplate);
+                      if (leggings != null) eq.setLeggings(leggings);
+                      if (boots != null) eq.setBoots(boots);
+                      if (mainHandItem != null) eq.setItemInMainHand(mainHandItem);
+                      if (offHandItem != null) eq.setItemInOffHand(offHandItem);
+                    }
 
-        // Scoreboard tags
-        for (String tag : tags) {
-          m.addScoreboardTag(tag);
-        }
-      });
+                    // Scoreboard tags
+                    for (String tag : tags) {
+                      m.addScoreboardTag(tag);
+                    }
+                  });
 
       this.spawned = true;
       MannequinListener.register(this);
@@ -1291,9 +1261,7 @@ public class CustomMannequin {
     return this;
   }
 
-  /**
-   * Remove and despawn the mannequin from the world.
-   */
+  /** Remove and despawn the mannequin from the world. */
   public void remove() {
     MannequinListener.unregister(this);
     if (helper != null) {
@@ -1309,9 +1277,7 @@ public class CustomMannequin {
     spawned = false;
   }
 
-  /**
-   * Alias for {@link #remove()}.
-   */
+  /** Alias for {@link #remove()}. */
   public void destroy() {
     remove();
   }

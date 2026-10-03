@@ -40,37 +40,27 @@ public class MannequinHelper {
     return new CustomMannequin(plugin, this, location);
   }
 
-  /**
-   * Create a new fluent CustomMannequin builder with a custom name.
-   */
+  /** Create a new fluent CustomMannequin builder with a custom name. */
   public CustomMannequin create(Location location, String name) {
     return create(location).name(name);
   }
 
-  /**
-   * Create a new fluent CustomMannequin builder with an Adventure Component name.
-   */
+  /** Create a new fluent CustomMannequin builder with an Adventure Component name. */
   public CustomMannequin create(Location location, Component name) {
     return create(location).name(name);
   }
 
-  /**
-   * Create and immediately spawn a mannequin with a name and player skin.
-   */
+  /** Create and immediately spawn a mannequin with a name and player skin. */
   public CustomMannequin spawn(Location location, String name, String skinPlayerName) {
     return create(location).name(name).skin(skinPlayerName).standing().spawn();
   }
 
-  /**
-   * Create and immediately spawn a mannequin with a Component name and player skin.
-   */
+  /** Create and immediately spawn a mannequin with a Component name and player skin. */
   public CustomMannequin spawn(Location location, Component name, String skinPlayerName) {
     return create(location).name(name).skin(skinPlayerName).standing().spawn();
   }
 
-  /**
-   * Wrap an existing Bukkit/Paper Mannequin entity into a CustomMannequin controller.
-   */
+  /** Wrap an existing Bukkit/Paper Mannequin entity into a CustomMannequin controller. */
   public CustomMannequin wrap(Mannequin entity) {
     if (entity == null) {
       throw new IllegalArgumentException("Mannequin entity cannot be null");
@@ -80,27 +70,21 @@ public class MannequinHelper {
     return custom;
   }
 
-  /**
-   * Track an active mannequin for automatic script cleanup.
-   */
+  /** Track an active mannequin for automatic script cleanup. */
   public void track(CustomMannequin mannequin) {
     if (mannequin != null && !activeMannequins.contains(mannequin)) {
       activeMannequins.add(mannequin);
     }
   }
 
-  /**
-   * Stop tracking an active mannequin.
-   */
+  /** Stop tracking an active mannequin. */
   public void untrack(CustomMannequin mannequin) {
     if (mannequin != null) {
       activeMannequins.remove(mannequin);
     }
   }
 
-  /**
-   * Remove and despawn a specific mannequin.
-   */
+  /** Remove and despawn a specific mannequin. */
   public void remove(CustomMannequin mannequin) {
     if (mannequin != null) {
       mannequin.remove();
@@ -124,16 +108,12 @@ public class MannequinHelper {
     plugin.debug("Removed all mannequins for script: " + scriptKey);
   }
 
-  /**
-   * Get all active mannequins tracked by this helper.
-   */
+  /** Get all active mannequins tracked by this helper. */
   public Collection<CustomMannequin> getAll() {
     return Collections.unmodifiableList(activeMannequins);
   }
 
-  /**
-   * Find mannequins near a given location.
-   */
+  /** Find mannequins near a given location. */
   public List<CustomMannequin> getNearby(Location location, double radius) {
     if (location == null || location.getWorld() == null || radius <= 0) {
       return Collections.emptyList();
@@ -146,40 +126,28 @@ public class MannequinHelper {
         .collect(Collectors.toList());
   }
 
-  /**
-   * Find tracked mannequins with a specific scoreboard tag.
-   */
+  /** Find tracked mannequins with a specific scoreboard tag. */
   public List<CustomMannequin> findByTag(String tag) {
     if (tag == null || tag.isBlank()) {
       return Collections.emptyList();
     }
-    return activeMannequins.stream()
-        .filter(m -> m.hasTag(tag))
-        .collect(Collectors.toList());
+    return activeMannequins.stream().filter(m -> m.hasTag(tag)).collect(Collectors.toList());
   }
 
-  /**
-   * Find a tracked mannequin by its entity UUID.
-   */
+  /** Find a tracked mannequin by its entity UUID. */
   public Optional<CustomMannequin> findById(UUID uuid) {
     if (uuid == null) {
       return Optional.empty();
     }
-    return activeMannequins.stream()
-        .filter(m -> uuid.equals(m.getUniqueId()))
-        .findFirst();
+    return activeMannequins.stream().filter(m -> uuid.equals(m.getUniqueId())).findFirst();
   }
 
-  /**
-   * Valid poses supported by Mannequins in Paper 1.21.11+.
-   */
+  /** Valid poses supported by Mannequins in Paper 1.21.11+. */
   public static Set<Pose> validPoses() {
     return CustomMannequin.validPoses();
   }
 
-  /**
-   * Default mannequin profile.
-   */
+  /** Default mannequin profile. */
   public static io.papermc.paper.datacomponent.item.ResolvableProfile defaultProfile() {
     try {
       return Mannequin.defaultProfile();
@@ -188,9 +156,7 @@ public class MannequinHelper {
     }
   }
 
-  /**
-   * Default mannequin description component.
-   */
+  /** Default mannequin description component. */
   public static Component defaultDescription() {
     try {
       return Mannequin.defaultDescription();

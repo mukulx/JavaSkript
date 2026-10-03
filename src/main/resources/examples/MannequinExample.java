@@ -1,7 +1,6 @@
 package examples;
 
 import dev.mukulx.javaskript.api.MannequinHelper;
-import dev.mukulx.javaskript.api.mannequin.CustomMannequin;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -9,7 +8,6 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Pose;
-import org.bukkit.inventory.ItemStack;
 
 /**
  * Modern Paper 1.21.11+ Mannequin API Example for JavaSkript.
@@ -40,8 +38,12 @@ public class MannequinExample implements CommandExecutor {
     if (args.length == 0) {
       player.sendMessage("§6--- Mannequin Commands ---");
       player.sendMessage("§e/" + label + " npc §7- Spawn an interactive NPC merchant");
-      player.sendMessage("§e/" + label + " statue <pose> §7- Spawn a statue (standing, sneaking, swimming, sleeping, gliding)");
-      player.sendMessage("§e/" + label + " skin <name> §7- Spawn a mannequin with a specific player's skin");
+      player.sendMessage(
+          "§e/"
+              + label
+              + " statue <pose> §7- Spawn a statue (standing, sneaking, swimming, sleeping, gliding)");
+      player.sendMessage(
+          "§e/" + label + " skin <name> §7- Spawn a mannequin with a specific player's skin");
       player.sendMessage("§e/" + label + " clear §7- Remove all mannequins spawned by this script");
       return true;
     }
@@ -50,7 +52,8 @@ public class MannequinExample implements CommandExecutor {
 
     switch (args[0].toLowerCase()) {
       case "npc" -> {
-        mannequins.create(loc)
+        mannequins
+            .create(loc)
             .name("<gradient:#ffaa00:#ff5555><bold>Quest Master</bold></gradient>")
             .description("<gray>Right-click to talk | Left-click to spar</gray>")
             .skin(player)
@@ -64,29 +67,36 @@ public class MannequinExample implements CommandExecutor {
             .immovable()
             .invulnerable()
             .tag("quest_npc")
-            .onClick((p, m) -> {
-              p.sendMessage("§a[Quest Master] §fGreetings, §e" + p.getName() + "§f! Are you ready for an adventure?");
-              m.swingMainHand();
-            })
-            .onAttack((p, m) -> {
-              p.sendMessage("§c[Quest Master] §fHey! Watch your sword!");
-              m.swingOffHand();
-            })
+            .onClick(
+                (p, m) -> {
+                  p.sendMessage(
+                      "§a[Quest Master] §fGreetings, §e"
+                          + p.getName()
+                          + "§f! Are you ready for an adventure?");
+                  m.swingMainHand();
+                })
+            .onAttack(
+                (p, m) -> {
+                  p.sendMessage("§c[Quest Master] §fHey! Watch your sword!");
+                  m.swingOffHand();
+                })
             .spawn();
 
         player.sendMessage("§aSpawned interactive Quest Master NPC!");
       }
       case "statue" -> {
         String poseName = args.length > 1 ? args[1].toLowerCase() : "standing";
-        Pose targetPose = switch (poseName) {
-          case "sneaking", "crouch", "crouching" -> Pose.SNEAKING;
-          case "swimming", "swim" -> Pose.SWIMMING;
-          case "sleeping", "sleep" -> Pose.SLEEPING;
-          case "gliding", "flying" -> Pose.FALL_FLYING;
-          default -> Pose.STANDING;
-        };
+        Pose targetPose =
+            switch (poseName) {
+              case "sneaking", "crouch", "crouching" -> Pose.SNEAKING;
+              case "swimming", "swim" -> Pose.SWIMMING;
+              case "sleeping", "sleep" -> Pose.SLEEPING;
+              case "gliding", "flying" -> Pose.FALL_FLYING;
+              default -> Pose.STANDING;
+            };
 
-        mannequins.create(loc)
+        mannequins
+            .create(loc)
             .name("<aqua>Statue of Valor</aqua>")
             .description("<dark_gray>Pose: " + targetPose.name() + "</dark_gray>")
             .skin("Mukulx")
