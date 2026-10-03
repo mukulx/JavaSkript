@@ -70,6 +70,19 @@ public class ScriptInstance {
   }
 
   public boolean initialize() {
+    boolean initialized = false;
+    try {
+      initialized = doInitialize();
+      return initialized;
+    } finally {
+      if (!initialized) {
+        // onEnable may already have scheduled tasks or registered events, commands and the like
+        releaseResources();
+      }
+    }
+  }
+
+  private boolean doInitialize() {
     try {
       // Check Folia compatibility
       if (!checkFoliaCompatibility()) {
@@ -564,6 +577,16 @@ public class ScriptInstance {
         dev.mukulx.javaskript.util.ScriptErrorFormatter.log(plugin, scriptName, "onDisable()", e);
       }
     }
+
+    releaseResources();
+  }
+
+  /**
+   * Release everything the script registered with the server. Runs on unload and when
+   * initialization fails part way through.
+   */
+  private void releaseResources() {
+    String scriptName = scriptFile.getName();
 
     // Cancel all scheduled tasks (force it)
     try {
