@@ -29,6 +29,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 23. [VariableHelper, ScriptVariables, & Variables (State Storage)](#variablehelper--variables-shared-state)
 24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
 25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
+26. [MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)](#mannequinhelper--mannequins-paper-12111-npcs--statues)
 
 ---
 
@@ -2760,6 +2761,149 @@ Scripts and plugins can listen to native team events:
 - `TeamDamageTeammateEvent` (Cancellable)
 - `TeamChatEvent` (Cancellable)
 - `TeamBankTransactionEvent` (Cancellable)
+
+---
+
+## MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)
+
+JavaSkript provides first-class support for native Minecraft **Mannequins** introduced in Paper 1.21.11+. Mannequins are native player-model entities capable of wearing equipment, displaying player skins, custom descriptions below the name tag, locking into poses, and handling interactive click events without requiring Citizens or armor stands.
+
+### 1. Auto-Injection & Shorthand Facade
+
+```java
+// Automatic per-script injection (tracks and auto-despawns on script reload/unload)
+@Inject private MannequinHelper mannequins;
+
+// Shorthand static facade available anywhere
+Mannequins.create(location)...
+```
+
+### 2. Creating & Spawning Mannequins
+
+```java
+// Create and customize with fluent builder:
+CustomMannequin npc = mannequins.create(location)
+    .name("<gold><bold>Merchant</bold></gold>")
+    .description("<gray>Click to open marketplace</gray>")
+    .skin("Steve")
+    .helmet(Material.GOLDEN_HELMET)
+    .chestplate(Material.DIAMOND_CHESTPLATE)
+    .mainHandItem(Material.EMERALD)
+    .standing()
+    .immovable()
+    .invulnerable()
+    .onClick((player, mannequin) -> {
+        player.sendMessage("Welcome to the market!");
+        mannequin.swingMainHand();
+    })
+    .spawn();
+
+// Quick 1-line spawner:
+mannequins.spawn(location, "<yellow>Notch</yellow>", "Notch");
+```
+
+### 3. Skin & Profile Resolution
+
+Mannequins can display any player's skin:
+```java
+// By player username (resolves dynamically)
+mannequin.skin("Mukulx");
+
+// By player UUID
+mannequin.skin(playerUUID);
+
+// From an online player's current profile
+mannequin.skin(player);
+
+// From custom base64 skin texture & signature
+mannequin.skin(base64Texture, signature);
+
+// Reset to default mannequin skin
+mannequin.defaultSkin();
+```
+
+### 4. Poses & Handedness
+
+Paper mannequins support locked poses:
+```java
+mannequin.standing();
+mannequin.sneaking();   // Crouching pose
+mannequin.swimming();   // Horizontal swimming pose
+mannequin.sleeping();   // Lying down sleeping pose
+mannequin.fallFlying(); // Elytra gliding pose
+
+// Handedness:
+mannequin.rightHanded(); // Default
+mannequin.leftHanded();
+```
+
+### 5. Description Text (Paper 1.21.11+)
+
+Mannequins feature a dedicated description field displayed right beneath the custom name:
+```java
+mannequin.description("<gray>Level 50 Boss Guard</gray>");
+mannequin.description(Component.text("Interactive NPC", NamedTextColor.AQUA));
+```
+
+### 6. Equipment & Skin Layer Controls
+
+```java
+// Armor & Weapons:
+mannequin.helmet(Material.NETHERITE_HELMET);
+mannequin.chestplate(Material.NETHERITE_CHESTPLATE);
+mannequin.leggings(Material.NETHERITE_LEGGINGS);
+mannequin.boots(Material.NETHERITE_BOOTS);
+mannequin.mainHandItem(Material.DIAMOND_SWORD);
+mannequin.offHandItem(Material.SHIELD);
+
+// Prevents survival players from stealing/swapping equipment
+mannequin.lockEquipment(true); // Default true
+
+// Skin layer visibility:
+mannequin.cape(false);
+mannequin.jacket(true);
+mannequin.hat(true);
+mannequin.sleeves(true);
+mannequin.pants(true);
+mannequin.allSkinParts();
+mannequin.noSkinParts();
+```
+
+### 7. Interactive Callbacks
+
+Attach click, attack, and interaction handlers directly in scripts:
+```java
+mannequin.onClick((player, target) -> {
+    player.sendMessage("You right-clicked " + target.name());
+    target.swingMainHand();
+});
+
+mannequin.onAttack((player, target) -> {
+    player.sendMessage("Hey! Don't hit me!");
+    target.swingOffHand();
+});
+
+mannequin.onInteract((player, target, hand) -> {
+    // Hand-specific interaction (HAND or OFF_HAND)
+});
+```
+
+### 8. Querying & Lifecycle Management
+
+All mannequins spawned by a script are tracked and automatically removed when the script unloads or reloads:
+```java
+// Query tracked mannequins:
+Collection<CustomMannequin> all = mannequins.getAll();
+List<CustomMannequin> nearby = mannequins.getNearby(player.getLocation(), 10.0);
+List<CustomMannequin> tagged = mannequins.findByTag("quest_giver");
+
+// Manual despawn:
+mannequin.remove();
+mannequins.removeAll();
+
+// Wrap existing Bukkit entity:
+CustomMannequin wrapped = mannequins.wrap(bukkitMannequin);
+```
 
 ---
 
