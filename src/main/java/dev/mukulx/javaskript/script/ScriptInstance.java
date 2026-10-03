@@ -29,6 +29,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
+import org.bukkit.plugin.RegisteredListener;
 
 public class ScriptInstance {
 
@@ -663,6 +664,15 @@ public class ScriptInstance {
       plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
     }
 
+    // Listeners the script created and registered itself (inner classes, helper objects)
+    try {
+      unregisterScriptListeners();
+    } catch (Exception e) {
+      plugin
+          .getLogger()
+          .warning("Error unregistering script listeners (continuing): " + e.getMessage());
+    }
+
     // Unregister commands (force each one individually)
     for (Map.Entry<String, Command> entry : new ArrayList<>(registeredCommands.entrySet())) {
       String commandName = entry.getKey();
@@ -912,6 +922,24 @@ public class ScriptInstance {
       plugin
           .getLogger()
           .warning("Error scanning for custom resources (continuing): " + e.getMessage());
+    }
+  }
+
+  /**
+   * Remove every event handler whose listener class was defined by this script's classloader.
+   * Unregistering only the main instance left other listener objects the script registered with the
+   * plugin manager running after unload, and reloads stacked duplicates of them.
+   */
+  private void unregisterScriptListeners() {
+    if (classLoader == null) {
+      return;
+    }
+    for (HandlerList handlerList : HandlerList.getHandlerLists()) {
+      for (RegisteredListener registered : handlerList.getRegisteredListeners()) {
+        if (registered.getListener().getClass().getClassLoader() == classLoader) {
+          handlerList.unregister(registered);
+        }
+      }
     }
   }
 
