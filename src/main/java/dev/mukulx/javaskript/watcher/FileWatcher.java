@@ -149,6 +149,8 @@ public class FileWatcher implements Runnable {
             try {
               registerTree(fullPath);
               plugin.debug("Registered new subfolder in watcher: " + fullPath);
+              // Files copied, moved or extracted in with the folder never raise their own events
+              scheduleExistingScripts(fullPath);
             } catch (IOException e) {
               plugin.getLogger().warning("Failed to watch new folder: " + fullPath);
             }
@@ -183,6 +185,17 @@ public class FileWatcher implements Runnable {
           plugin.getLogger().log(Level.SEVERE, "Error in file watcher", e);
         }
       }
+    }
+  }
+
+  private void scheduleExistingScripts(Path dir) {
+    try (var paths = Files.walk(dir)) {
+      paths
+          .filter(Files::isRegularFile)
+          .filter(path -> path.toString().endsWith(".java"))
+          .forEach(path -> scheduleReload(StandardWatchEventKinds.ENTRY_CREATE, path.toFile()));
+    } catch (IOException e) {
+      plugin.getLogger().warning("Failed to scan new folder: " + dir + " (" + e.getMessage() + ")");
     }
   }
 
