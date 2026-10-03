@@ -95,12 +95,23 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       try {
         getServer()
             .getPluginManager()
-            .registerEvents(
-                new dev.mukulx.javaskript.api.mannequin.MannequinListener(this), this);
+            .registerEvents(new dev.mukulx.javaskript.api.mannequin.MannequinListener(this), this);
       } catch (Throwable t) {
         getLogger().warning("Failed to register Mannequin listener: " + t.getMessage());
       }
       dev.mukulx.javaskript.api.mannequin.Mannequins.setInstance(this.api.getMannequinHelper());
+
+      // Register Advancement completion listener & static facade
+      try {
+        getServer()
+            .getPluginManager()
+            .registerEvents(
+                new dev.mukulx.javaskript.api.advancement.AdvancementListener(this), this);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to register Advancement listener: " + t.getMessage());
+      }
+      dev.mukulx.javaskript.api.advancement.Advancements.setInstance(
+          this.api.getAdvancementHelper());
 
       // Inter-script event bus
       this.eventBus = new dev.mukulx.javaskript.api.event.ScriptEventBus(this);

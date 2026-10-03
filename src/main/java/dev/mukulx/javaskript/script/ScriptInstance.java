@@ -51,6 +51,7 @@ public class ScriptInstance {
   private PDCHelper pdc;
   private HologramHelper holograms;
   private dev.mukulx.javaskript.api.MannequinHelper mannequins;
+  private dev.mukulx.javaskript.api.AdvancementHelper advancements;
   private CommandHelper commands;
   private ItemHelper items;
   private CooldownHelper cooldowns;
@@ -130,6 +131,8 @@ public class ScriptInstance {
       context.own("holograms", holograms::removeAll);
       this.mannequins = new dev.mukulx.javaskript.api.MannequinHelper(plugin, scriptKey);
       context.own("mannequins", mannequins::removeAll);
+      this.advancements = new dev.mukulx.javaskript.api.AdvancementHelper(plugin, scriptKey);
+      context.own("advancements", advancements::removeAll);
       this.commands = new CommandHelper(plugin, scriptKey);
       context.own("fluent commands", commands::unregisterAll);
       this.items = new ItemHelper(plugin);
@@ -331,6 +334,8 @@ public class ScriptInstance {
               field.set(instance, holograms);
             } else if (dev.mukulx.javaskript.api.MannequinHelper.class.isAssignableFrom(type)) {
               field.set(instance, mannequins);
+            } else if (dev.mukulx.javaskript.api.AdvancementHelper.class.isAssignableFrom(type)) {
+              field.set(instance, advancements);
             } else if (CommandHelper.class.isAssignableFrom(type)) {
               field.set(instance, commands);
             } else if (ItemHelper.class.isAssignableFrom(type)) {
@@ -413,6 +418,12 @@ public class ScriptInstance {
                 || name.equals("statue")
                 || name.equals("statues")) {
               field.set(instance, mannequins);
+            } else if (name.equals("advancement")
+                || name.equals("advancements")
+                || name.equals("advancementhelper")
+                || name.equals("toasts")
+                || name.equals("toast")) {
+              field.set(instance, advancements);
             } else if (name.equals("commands")
                 || name.equals("commandhelper")
                 || name.equals("commandapi")
@@ -636,6 +647,7 @@ public class ScriptInstance {
     recipes = null;
     holograms = null;
     mannequins = null;
+    advancements = null;
     events = null;
     chat = null;
     config = null;
@@ -952,6 +964,14 @@ public class ScriptInstance {
 
   public dev.mukulx.javaskript.api.MannequinHelper getMannequinHelper() {
     return mannequins;
+  }
+
+  public dev.mukulx.javaskript.api.AdvancementHelper getAdvancements() {
+    return advancements;
+  }
+
+  public dev.mukulx.javaskript.api.AdvancementHelper getAdvancementHelper() {
+    return advancements;
   }
 
   public CommandHelper getCommands() {

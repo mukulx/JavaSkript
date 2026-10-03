@@ -17,6 +17,7 @@ public class JavaSkriptAPI {
   private final PDCHelper pdcHelper;
   private final HologramHelper hologramHelper;
   private final MannequinHelper mannequinHelper;
+  private final AdvancementHelper advancementHelper;
   private final dev.mukulx.javaskript.api.addon.AddonRegistry addonRegistry;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
@@ -29,6 +30,7 @@ public class JavaSkriptAPI {
     this.pdcHelper = new PDCHelper(plugin);
     this.hologramHelper = new HologramHelper(plugin);
     this.mannequinHelper = new MannequinHelper(plugin);
+    this.advancementHelper = new AdvancementHelper(plugin);
     this.addonRegistry = new dev.mukulx.javaskript.api.addon.AddonRegistry(plugin);
   }
 
@@ -165,6 +167,24 @@ public class JavaSkriptAPI {
    */
   public MannequinHelper mannequins() {
     return mannequinHelper;
+  }
+
+  /**
+   * Get the Advancement helper for toasts, progression, and custom advancements
+   *
+   * @return AdvancementHelper instance
+   */
+  public AdvancementHelper getAdvancementHelper() {
+    return advancementHelper;
+  }
+
+  /**
+   * Get the Advancement helper alias
+   *
+   * @return AdvancementHelper instance
+   */
+  public AdvancementHelper advancements() {
+    return advancementHelper;
   }
 
   /**
