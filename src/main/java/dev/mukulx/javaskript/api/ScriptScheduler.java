@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.util.ServerUtil;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -20,7 +21,10 @@ import org.bukkit.scheduler.BukkitTask;
 public class ScriptScheduler {
 
   private final JavaSkriptPlugin plugin;
+  private static final int PRUNE_THRESHOLD = 128;
+
   private final List<Object> tasks; // BukkitTask or Folia ScheduledTask
+  private volatile int pruneAt = PRUNE_THRESHOLD;
   private final boolean isFolia;
   private final String scriptKey;
 
@@ -33,6 +37,33 @@ public class ScriptScheduler {
     this.scriptKey = scriptKey != null ? scriptKey : "unknown";
     this.tasks = new CopyOnWriteArrayList<>();
     this.isFolia = ServerUtil.isFolia();
+  }
+
+  /**
+   * Remember a task so unload can cancel it. One-shot tasks never remove themselves, so drop
+   * finished ones whenever the list has grown well past what the last prune left behind.
+   */
+  private void track(Object task) {
+    if (task == null) return;
+    tasks.add(task);
+    if (tasks.size() >= pruneAt) {
+      tasks.removeIf(this::isFinished);
+      pruneAt = Math.max(PRUNE_THRESHOLD, tasks.size() * 2);
+    }
+  }
+
+  private boolean isFinished(Object task) {
+    if (task instanceof BukkitTask bukkitTask) {
+      if (bukkitTask.isCancelled()) return true;
+      int id = bukkitTask.getTaskId();
+      return !Bukkit.getScheduler().isQueued(id) && !Bukkit.getScheduler().isCurrentlyRunning(id);
+    }
+    if (task instanceof ScheduledTask foliaTask) {
+      ScheduledTask.ExecutionState state = foliaTask.getExecutionState();
+      return state == ScheduledTask.ExecutionState.FINISHED
+          || state == ScheduledTask.ExecutionState.CANCELLED;
+    }
+    return false;
   }
 
   private Runnable wrap(String type, Runnable runnable) {
@@ -64,7 +95,7 @@ public class ScriptScheduler {
       return runLaterFolia(profiled, delayTicks);
     } else {
       BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, profiled, delayTicks);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -89,7 +120,7 @@ public class ScriptScheduler {
     } else {
       BukkitTask task =
           Bukkit.getScheduler().runTaskTimer(plugin, profiled, delayTicks, periodTicks);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -106,7 +137,7 @@ public class ScriptScheduler {
       return runLaterFolia(profiled, 1L);
     } else {
       BukkitTask task = Bukkit.getScheduler().runTask(plugin, profiled);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -123,7 +154,7 @@ public class ScriptScheduler {
       return runAsyncFolia(profiled);
     } else {
       BukkitTask task = Bukkit.getScheduler().runTaskAsynchronously(plugin, profiled);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -142,7 +173,7 @@ public class ScriptScheduler {
     } else {
       BukkitTask task =
           Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, profiled, delayTicks);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -163,7 +194,7 @@ public class ScriptScheduler {
       BukkitTask task =
           Bukkit.getScheduler()
               .runTaskTimerAsynchronously(plugin, profiled, delayTicks, periodTicks);
-      tasks.add(task);
+      track(task);
       return task;
     }
   }
@@ -296,7 +327,7 @@ public class ScriptScheduler {
     try {
       Object task =
           Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> runnable.run(), delayTicks);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia task: " + e.getMessage());
@@ -309,7 +340,7 @@ public class ScriptScheduler {
       Object task =
           Bukkit.getGlobalRegionScheduler()
               .runAtFixedRate(plugin, t -> runnable.run(), delayTicks, periodTicks);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia repeating task: " + e.getMessage());
@@ -320,7 +351,7 @@ public class ScriptScheduler {
   private Object runAsyncFolia(Runnable runnable) {
     try {
       Object task = Bukkit.getAsyncScheduler().runNow(plugin, t -> runnable.run());
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia async task: " + e.getMessage());
@@ -334,7 +365,7 @@ public class ScriptScheduler {
       Object task =
           Bukkit.getAsyncScheduler()
               .runDelayed(plugin, t -> runnable.run(), delayMs, TimeUnit.MILLISECONDS);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia async delayed task: " + e.getMessage());
@@ -350,7 +381,7 @@ public class ScriptScheduler {
           Bukkit.getAsyncScheduler()
               .runAtFixedRate(
                   plugin, t -> runnable.run(), delayMs, periodMs, TimeUnit.MILLISECONDS);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin
@@ -363,7 +394,7 @@ public class ScriptScheduler {
   private Object runAtEntityFolia(Entity entity, Runnable runnable) {
     try {
       Object task = entity.getScheduler().run(plugin, t -> runnable.run(), null);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia entity task: " + e.getMessage());
@@ -374,7 +405,7 @@ public class ScriptScheduler {
   private Object runAtEntityLaterFolia(Entity entity, Runnable runnable, long delayTicks) {
     try {
       Object task = entity.getScheduler().runDelayed(plugin, t -> runnable.run(), null, delayTicks);
-      tasks.add(task);
+      track(task);
       return task;
     } catch (Exception e) {
       plugin.getLogger().warning("Failed to schedule Folia entity delayed task: " + e.getMessage());
