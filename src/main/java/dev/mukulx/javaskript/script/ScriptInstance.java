@@ -50,6 +50,7 @@ public class ScriptInstance {
   private DialogHelper dialog;
   private PDCHelper pdc;
   private HologramHelper holograms;
+  private dev.mukulx.javaskript.api.MannequinHelper mannequins;
   private CommandHelper commands;
   private ItemHelper items;
   private CooldownHelper cooldowns;
@@ -127,6 +128,8 @@ public class ScriptInstance {
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
       context.own("holograms", holograms::removeAll);
+      this.mannequins = new dev.mukulx.javaskript.api.MannequinHelper(plugin, scriptKey);
+      context.own("mannequins", mannequins::removeAll);
       this.commands = new CommandHelper(plugin, scriptKey);
       context.own("fluent commands", commands::unregisterAll);
       this.items = new ItemHelper(plugin);
@@ -326,6 +329,8 @@ public class ScriptInstance {
               field.set(instance, pdc);
             } else if (HologramHelper.class.isAssignableFrom(type)) {
               field.set(instance, holograms);
+            } else if (dev.mukulx.javaskript.api.MannequinHelper.class.isAssignableFrom(type)) {
+              field.set(instance, mannequins);
             } else if (CommandHelper.class.isAssignableFrom(type)) {
               field.set(instance, commands);
             } else if (ItemHelper.class.isAssignableFrom(type)) {
@@ -400,6 +405,14 @@ public class ScriptInstance {
                 || name.equals("holo")
                 || name.equals("displays")) {
               field.set(instance, holograms);
+            } else if (name.equals("mannequin")
+                || name.equals("mannequins")
+                || name.equals("mannequinhelper")
+                || name.equals("npc")
+                || name.equals("npcs")
+                || name.equals("statue")
+                || name.equals("statues")) {
+              field.set(instance, mannequins);
             } else if (name.equals("commands")
                 || name.equals("commandhelper")
                 || name.equals("commandapi")
@@ -622,6 +635,7 @@ public class ScriptInstance {
     placeholders = null;
     recipes = null;
     holograms = null;
+    mannequins = null;
     events = null;
     chat = null;
     config = null;
@@ -930,6 +944,14 @@ public class ScriptInstance {
 
   public HologramHelper getHologramHelper() {
     return holograms;
+  }
+
+  public dev.mukulx.javaskript.api.MannequinHelper getMannequins() {
+    return mannequins;
+  }
+
+  public dev.mukulx.javaskript.api.MannequinHelper getMannequinHelper() {
+    return mannequins;
   }
 
   public CommandHelper getCommands() {

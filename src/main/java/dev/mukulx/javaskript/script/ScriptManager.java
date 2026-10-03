@@ -1301,6 +1301,7 @@ public class ScriptManager {
       "EconomyExample.java",
       "SharedVariablesAndEventsExample.java",
       "HttpAndDiscordExample.java",
+      "MannequinExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

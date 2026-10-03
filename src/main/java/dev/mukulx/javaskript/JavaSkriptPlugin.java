@@ -91,6 +91,17 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       dev.mukulx.javaskript.api.player.Players.setInstance(
           new dev.mukulx.javaskript.api.player.PlayerHelper(this));
 
+      // Register Mannequin interaction listener & static facade
+      try {
+        getServer()
+            .getPluginManager()
+            .registerEvents(
+                new dev.mukulx.javaskript.api.mannequin.MannequinListener(this), this);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to register Mannequin listener: " + t.getMessage());
+      }
+      dev.mukulx.javaskript.api.mannequin.Mannequins.setInstance(this.api.getMannequinHelper());
+
       // Inter-script event bus
       this.eventBus = new dev.mukulx.javaskript.api.event.ScriptEventBus(this);
 
@@ -293,6 +304,14 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       }
     } catch (Throwable t) {
       debug("Error shutting down addon registry: " + t.getMessage());
+    }
+
+    // Clean up global mannequins
+    try {
+      dev.mukulx.javaskript.api.mannequin.Mannequins.removeAll();
+      dev.mukulx.javaskript.api.mannequin.MannequinListener.clearRegistry();
+    } catch (Throwable t) {
+      debug("Error clearing mannequins on disable: " + t.getMessage());
     }
 
     // Drop static reference so a reload cannot reuse a disabled plugin instance.

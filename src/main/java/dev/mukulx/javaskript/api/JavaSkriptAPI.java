@@ -16,6 +16,7 @@ public class JavaSkriptAPI {
   private final DialogHelper dialogHelper;
   private final PDCHelper pdcHelper;
   private final HologramHelper hologramHelper;
+  private final MannequinHelper mannequinHelper;
   private final dev.mukulx.javaskript.api.addon.AddonRegistry addonRegistry;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
@@ -27,6 +28,7 @@ public class JavaSkriptAPI {
     this.dialogHelper = new DialogHelper(plugin);
     this.pdcHelper = new PDCHelper(plugin);
     this.hologramHelper = new HologramHelper(plugin);
+    this.mannequinHelper = new MannequinHelper(plugin);
     this.addonRegistry = new dev.mukulx.javaskript.api.addon.AddonRegistry(plugin);
   }
 
@@ -145,6 +147,24 @@ public class JavaSkriptAPI {
    */
   public HologramHelper getHologramHelper() {
     return hologramHelper;
+  }
+
+  /**
+   * Get the Mannequin helper for creating and managing Paper 1.21.11+ mannequins
+   *
+   * @return MannequinHelper instance
+   */
+  public MannequinHelper getMannequinHelper() {
+    return mannequinHelper;
+  }
+
+  /**
+   * Get the Mannequin helper alias
+   *
+   * @return MannequinHelper instance
+   */
+  public MannequinHelper mannequins() {
+    return mannequinHelper;
   }
 
   /**

@@ -91,4 +91,13 @@ public final class JavaSkript {
   public static dev.mukulx.javaskript.api.http.HttpHelper getHttp() {
     return getAPI().getHttpHelper();
   }
+
+  /**
+   * Get the MannequinHelper for creating and controlling Paper mannequins.
+   *
+   * @return MannequinHelper instance
+   */
+  public static dev.mukulx.javaskript.api.MannequinHelper getMannequins() {
+    return getAPI().getMannequinHelper();
+  }
 }
