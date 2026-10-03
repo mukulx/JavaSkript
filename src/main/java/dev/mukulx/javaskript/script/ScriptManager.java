@@ -1014,6 +1014,9 @@ public class ScriptManager {
       "EventAndPlayerExample.java",
       "ChatAPIExample.java",
       "TeamExample.java",
+      "EconomyExample.java",
+      "SharedVariablesAndEventsExample.java",
+      "HttpAndDiscordExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");
