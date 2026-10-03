@@ -8,6 +8,11 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 public class DependencyManager {
 
@@ -93,7 +98,8 @@ public class DependencyManager {
     try {
       String groupPath = groupId.replace('.', '/');
       String remoteName = artifactId + "-" + version + ".jar";
-      // Local cache name carries the group so same-named artifacts from different groups don't clash
+      // Local cache name carries the group so same-named artifacts from different groups don't
+      // clash
       String jarName = groupId.replace('.', '_') + "-" + remoteName;
       File localFile = new File(libsDirectory, jarName);
 
@@ -166,69 +172,69 @@ public class DependencyManager {
       String urlString =
           MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + pomName;
 
+      Document pom;
       URL url = java.net.URI.create(urlString).toURL();
-      try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
-        StringBuilder pomContent = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-          pomContent.append(line).append("\n");
+      try (InputStream in = url.openStream()) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        pom = factory.newDocumentBuilder().parse(in);
+      }
+
+      Element project = pom.getDocumentElement();
+      Map<String, String> properties = readProperties(project, groupId, version);
+
+      // Only the project's own <dependencies>. Walking the whole document would also pick up
+      // <dependencyManagement>, plugin dependencies and profiles.
+      Element dependenciesElement = childElement(project, "dependencies");
+      if (dependenciesElement == null) {
+        return dependencies;
+      }
+
+      for (Node node = dependenciesElement.getFirstChild();
+          node != null;
+          node = node.getNextSibling()) {
+        if (!(node instanceof Element dependency)
+            || !dependency.getTagName().equals("dependency")) {
+          continue;
         }
 
-        // Simple XML parsing for dependencies
-        String pom = pomContent.toString();
-        int depStart = pom.indexOf("<dependencies>");
-        int depEnd = pom.indexOf("</dependencies>");
+        String depGroupId = resolveProperties(childText(dependency, "groupId"), properties);
+        String depArtifactId = resolveProperties(childText(dependency, "artifactId"), properties);
+        String depVersion = resolveProperties(childText(dependency, "version"), properties);
+        String scope = childText(dependency, "scope");
+        String optional = childText(dependency, "optional");
 
-        if (depStart != -1 && depEnd != -1) {
-          String depsSection = pom.substring(depStart, depEnd);
+        if (depGroupId == null || depArtifactId == null || depVersion == null) {
+          // Versions managed by a parent POM are not resolved here
+          continue;
+        }
 
-          // Extract each dependency
-          int pos = 0;
-          while ((pos = depsSection.indexOf("<dependency>", pos)) != -1) {
-            int endPos = depsSection.indexOf("</dependency>", pos);
-            if (endPos == -1) break;
+        if (depGroupId.equals("org.slf4j")
+            || depGroupId.equals("org.bukkit")
+            || depGroupId.equals("io.papermc.paper")) {
+          continue;
+        }
 
-            String depBlock = depsSection.substring(pos, endPos);
+        if (depGroupId.contains("${")
+            || depArtifactId.contains("${")
+            || depVersion.contains("${")
+            || depVersion.startsWith("[")
+            || depVersion.startsWith("(")) {
+          plugin
+              .getLogger()
+              .fine(
+                  "Skipping dependency with unresolved version: "
+                      + depGroupId
+                      + ":"
+                      + depArtifactId
+                      + ":"
+                      + depVersion);
+          continue;
+        }
 
-            String depGroupId = extractXmlTag(depBlock, "groupId");
-            String depArtifactId = extractXmlTag(depBlock, "artifactId");
-            String depVersion = extractXmlTag(depBlock, "version");
-            String scope = extractXmlTag(depBlock, "scope");
-            String optional = extractXmlTag(depBlock, "optional");
-
-            if (depGroupId != null
-                && (depGroupId.equals("org.slf4j")
-                    || depGroupId.equals("org.bukkit")
-                    || depGroupId.equals("io.papermc.paper"))) {
-              pos = endPos;
-              continue;
-            }
-
-            if (depVersion != null && depVersion.contains("${")) {
-              plugin
-                  .getLogger()
-                  .fine(
-                      "Skipping dependency with property placeholder: "
-                          + depGroupId
-                          + ":"
-                          + depArtifactId
-                          + ":"
-                          + depVersion);
-              pos = endPos;
-              continue;
-            }
-
-            if (depGroupId != null
-                && depArtifactId != null
-                && depVersion != null
-                && !"test".equals(scope)
-                && !"provided".equals(scope)
-                && !"true".equals(optional)) {
-              dependencies.add(depGroupId + ":" + depArtifactId + ":" + depVersion);
-            }
-
-            pos = endPos;
-          }
+        if (!"test".equals(scope) && !"provided".equals(scope) && !"true".equals(optional)) {
+          dependencies.add(depGroupId + ":" + depArtifactId + ":" + depVersion);
         }
       }
 
@@ -239,18 +245,55 @@ public class DependencyManager {
     return dependencies;
   }
 
-  private String extractXmlTag(String xml, String tagName) {
-    String startTag = "<" + tagName + ">";
-    String endTag = "</" + tagName + ">";
+  /** Properties usable in ${...} placeholders: the POM's <properties> plus its own coordinates. */
+  private Map<String, String> readProperties(Element project, String groupId, String version) {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("project.groupId", groupId);
+    properties.put("project.version", version);
+    properties.put("pom.version", version);
 
-    int start = xml.indexOf(startTag);
-    int end = xml.indexOf(endTag);
-
-    if (start != -1 && end != -1 && end > start) {
-      return xml.substring(start + startTag.length(), end).trim();
+    Element propertiesElement = childElement(project, "properties");
+    if (propertiesElement != null) {
+      for (Node node = propertiesElement.getFirstChild();
+          node != null;
+          node = node.getNextSibling()) {
+        if (node instanceof Element property) {
+          properties.put(property.getTagName(), property.getTextContent().trim());
+        }
+      }
     }
+    return properties;
+  }
 
+  private String resolveProperties(String value, Map<String, String> properties) {
+    if (value == null) {
+      return null;
+    }
+    // A few passes cover properties defined in terms of other properties
+    for (int pass = 0; pass < 3 && value.contains("${"); pass++) {
+      for (Map.Entry<String, String> property : properties.entrySet()) {
+        value = value.replace("${" + property.getKey() + "}", property.getValue());
+      }
+    }
+    return value;
+  }
+
+  private Element childElement(Element parent, String tagName) {
+    for (Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+      if (node instanceof Element element && element.getTagName().equals(tagName)) {
+        return element;
+      }
+    }
     return null;
+  }
+
+  private String childText(Element parent, String tagName) {
+    Element child = childElement(parent, tagName);
+    if (child == null) {
+      return null;
+    }
+    String text = child.getTextContent().trim();
+    return text.isEmpty() ? null : text;
   }
 
   public List<File> resolveDependencies(List<String> coordinates) {
