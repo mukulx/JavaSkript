@@ -205,26 +205,36 @@ public class ScriptCompiler {
     return name;
   }
 
-  private String cachedBaseClasspath = null;
+  // Rebuilt whenever the set of loaded plugins changes, so plugins that load after the first
+  // compile are visible to scripts as well
+  private volatile String cachedBaseClasspath = null;
+  private volatile Set<String> cachedPluginNames = Collections.emptySet();
 
   private String getBaseClasspath() {
-    if (cachedBaseClasspath != null) {
-      return cachedBaseClasspath;
+    Set<String> pluginNames = new HashSet<>();
+    for (var loadedPlugin : plugin.getServer().getPluginManager().getPlugins()) {
+      pluginNames.add(loadedPlugin.getName());
     }
 
-    StringBuilder classpath = new StringBuilder();
+    String cached = cachedBaseClasspath;
+    if (cached != null && pluginNames.equals(cachedPluginNames)) {
+      return cached;
+    }
+
+    // A set of exact paths, so one path never hides another that merely contains it as text
+    Set<String> entries = new LinkedHashSet<>();
 
     try {
       // Add Bukkit/Paper API
-      addToClasspath(classpath, org.bukkit.Bukkit.class);
+      addToClasspath(entries, org.bukkit.Bukkit.class);
 
       // Add Adventure API (Component, etc.)
-      addToClasspath(classpath, net.kyori.adventure.text.Component.class);
+      addToClasspath(entries, net.kyori.adventure.text.Component.class);
 
       // Add Adventure Examination API (required by Component)
       try {
         Class<?> examinableClass = Class.forName("net.kyori.examination.Examinable");
-        addToClasspath(classpath, examinableClass);
+        addToClasspath(entries, examinableClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Adventure Examination API not found in classpath");
       }
@@ -233,7 +243,7 @@ public class ScriptCompiler {
       try {
         Class<?> miniMessageClass =
             Class.forName("net.kyori.adventure.text.minimessage.MiniMessage");
-        addToClasspath(classpath, miniMessageClass);
+        addToClasspath(entries, miniMessageClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("MiniMessage not found in classpath");
       }
@@ -241,7 +251,7 @@ public class ScriptCompiler {
       // Add BungeeCord Chat API (required by Paper)
       try {
         Class<?> bungeeChatClass = Class.forName("net.md_5.bungee.api.chat.BaseComponent");
-        addToClasspath(classpath, bungeeChatClass);
+        addToClasspath(entries, bungeeChatClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("BungeeCord Chat API not found in classpath");
       }
@@ -249,7 +259,7 @@ public class ScriptCompiler {
       // Add Google Gson API
       try {
         Class<?> gsonClass = Class.forName("com.google.gson.Gson");
-        addToClasspath(classpath, gsonClass);
+        addToClasspath(entries, gsonClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Gson not found in classpath");
       }
@@ -257,53 +267,27 @@ public class ScriptCompiler {
       // Add Google Guava API
       try {
         Class<?> guavaClass = Class.forName("com.google.common.collect.ImmutableList");
-        addToClasspath(classpath, guavaClass);
+        addToClasspath(entries, guavaClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Guava not found in classpath");
       }
 
       // Add plugin jar itself (contains bundled dependencies)
-      String pluginJar = null;
-      try {
-        var loc = plugin.getClass().getProtectionDomain().getCodeSource().getLocation();
-        if (loc != null) {
-          pluginJar = new File(loc.toURI()).getAbsolutePath();
-        }
-      } catch (Exception e) {
-        pluginJar = plugin.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-      }
-
-      if (pluginJar != null && !pluginJar.isEmpty()) {
-        if (classpath.length() > 0) {
-          classpath.append(File.pathSeparator);
-        }
-        classpath.append(pluginJar);
-      }
+      addToClasspath(entries, plugin.getClass());
 
       // Add all loaded plugin jars (for cross-plugin compatibility)
       for (var loadedPlugin : plugin.getServer().getPluginManager().getPlugins()) {
-        try {
-          var loc = loadedPlugin.getClass().getProtectionDomain().getCodeSource().getLocation();
-          if (loc != null) {
-            String path = new File(loc.toURI()).getAbsolutePath();
-            if (!classpath.toString().contains(path)) {
-              if (classpath.length() > 0) {
-                classpath.append(File.pathSeparator);
-              }
-              classpath.append(path);
-            }
-          }
-        } catch (Exception e) {
-          // Skip plugins that can't provide their path
-        }
+        addToClasspath(entries, loadedPlugin.getClass());
       }
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to build base classpath", e);
     }
 
-    cachedBaseClasspath = classpath.toString();
-    return cachedBaseClasspath;
+    String classpath = String.join(File.pathSeparator, entries);
+    cachedPluginNames = pluginNames;
+    cachedBaseClasspath = classpath;
+    return classpath;
   }
 
   private String buildClasspath(List<File> dependencyFiles) {
@@ -325,17 +309,11 @@ public class ScriptCompiler {
     return classpath.toString();
   }
 
-  private void addToClasspath(StringBuilder classpath, Class<?> clazz) {
+  private void addToClasspath(Set<String> entries, Class<?> clazz) {
     try {
       var loc = clazz.getProtectionDomain().getCodeSource().getLocation();
       if (loc != null) {
-        String path = new File(loc.toURI()).getAbsolutePath();
-        if (!classpath.toString().contains(path)) {
-          if (classpath.length() > 0) {
-            classpath.append(File.pathSeparator);
-          }
-          classpath.append(path);
-        }
+        entries.add(new File(loc.toURI()).getAbsolutePath());
       }
     } catch (Exception e) {
       plugin
