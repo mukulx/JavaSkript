@@ -234,6 +234,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     try {
       if (commandRegistry != null) {
         commandRegistry.unregisterAll();
+        commandRegistry.syncCommandsNow();
       }
     } catch (Throwable t) {
       getLogger().warning("Error unregistering commands on disable: " + t.getMessage());

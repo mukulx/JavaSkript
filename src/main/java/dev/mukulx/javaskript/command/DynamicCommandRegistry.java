@@ -266,9 +266,25 @@ public class DynamicCommandRegistry {
       new java.util.concurrent.atomic.AtomicBoolean(false);
 
   public void syncCommands() {
-    if (syncPending.compareAndSet(false, true)) {
-      dev.mukulx.javaskript.util.ServerUtil.runLaterSync(plugin, this::runSyncCommands, 5L);
+    // Schedulers refuse new tasks once the plugin is disabled. During onDisable the owner calls
+    // syncCommandsNow() once after all commands are gone instead.
+    if (!plugin.isEnabled()) {
+      return;
     }
+    if (syncPending.compareAndSet(false, true)) {
+      try {
+        dev.mukulx.javaskript.util.ServerUtil.runLaterSync(plugin, this::runSyncCommands, 5L);
+      } catch (Throwable t) {
+        // Never leave the flag stuck, or every later sync would be skipped
+        syncPending.set(false);
+        plugin.debug("Could not schedule command sync: " + t.getMessage());
+      }
+    }
+  }
+
+  /** Push the command tree to players immediately, without scheduling a task. */
+  public void syncCommandsNow() {
+    runSyncCommands();
   }
 
   private void runSyncCommands() {
