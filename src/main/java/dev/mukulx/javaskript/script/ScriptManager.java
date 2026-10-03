@@ -29,6 +29,8 @@ public class ScriptManager {
   private static final Pattern DEPENDENCY_COMMENT_PATTERN =
       Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
 
+  private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
+
   private final JavaSkriptPlugin plugin;
   private final File scriptsFolder;
   private final Map<String, ScriptInstance> loadedScripts;
@@ -1110,30 +1112,19 @@ public class ScriptManager {
       return;
     }
 
-    // Manual string parsing loops to extract items out of basic JSON array lines
     try {
       String content = Files.readString(disabledFile.toPath());
-
-      content = content.trim();
-      if (content.startsWith("[") && content.endsWith("]")) {
-        content = content.substring(1, content.length() - 1);
-
-        if (!content.trim().isEmpty()) {
-          String[] scripts = content.split(",");
-          for (String script : scripts) {
-            script = script.trim();
-            if (script.startsWith("\"") && script.endsWith("\"")) {
-              script = script.substring(1, script.length() - 1);
-            }
-            if (!script.isEmpty()) {
-              disabledScripts.add(script);
-            }
+      String[] scripts = GSON.fromJson(content, String[].class);
+      if (scripts != null) {
+        for (String script : scripts) {
+          if (script != null && !script.isEmpty()) {
+            disabledScripts.add(script);
           }
         }
       }
 
       plugin.debug("Loaded " + disabledScripts.size() + " disabled script(s)");
-    } catch (IOException e) {
+    } catch (IOException | com.google.gson.JsonParseException e) {
       plugin.getLogger().log(Level.WARNING, "Failed to load disabled scripts list", e);
     }
   }
@@ -1144,20 +1135,23 @@ public class ScriptManager {
         plugin.getDataFolder().mkdirs();
       }
 
-      StringBuilder json = new StringBuilder("[\n");
-
-      int i = 0;
-      for (String script : disabledScripts) {
-        if (i > 0) {
-          json.append(",\n");
+      // Write beside the target and move into place, so a crash never leaves a half-written list
+      Path temp = Files.createTempFile(plugin.getDataFolder().toPath(), "disabled-scripts", ".tmp");
+      try {
+        Files.writeString(temp, GSON.toJson(new ArrayList<>(disabledScripts)));
+        try {
+          Files.move(
+              temp,
+              disabledFile.toPath(),
+              java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+              java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+          Files.move(
+              temp, disabledFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
-        json.append("  \"").append(script).append("\"");
-        i++;
+      } finally {
+        Files.deleteIfExists(temp);
       }
-
-      json.append("\n]");
-
-      Files.writeString(disabledFile.toPath(), json.toString());
     } catch (IOException e) {
       plugin.getLogger().log(Level.WARNING, "Failed to save disabled scripts list", e);
     }
