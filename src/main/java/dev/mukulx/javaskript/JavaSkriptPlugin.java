@@ -224,6 +224,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     // Unload active scripts
     try {
       if (scriptManager != null) {
+        scriptManager.shutdown();
         scriptManager.unloadAllScripts();
       }
     } catch (Throwable t) {

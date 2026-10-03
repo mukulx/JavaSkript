@@ -2,6 +2,8 @@ package dev.mukulx.javaskript.command;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.script.ScriptInstance;
+import dev.mukulx.javaskript.script.ScriptLoadResult;
+import dev.mukulx.javaskript.script.compiler.CompileDiagnostics;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
 import java.io.IOException;
@@ -131,15 +133,48 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
         return;
       }
 
-      boolean success = plugin.getScriptManager().loadScript(scriptFile);
+      final String key = scriptKey;
+      plugin
+          .getScriptManager()
+          .loadScriptAsync(
+              scriptFile, result -> sendLoadResult(sender, key, "reloaded", "reload", result));
+    }
+  }
 
-      if (success) {
+  /**
+   * Tell the sender how an async load went. Runs on the server thread once the script has compiled,
+   * so a slow compile no longer freezes the server while the sender waits.
+   */
+  private void sendLoadResult(
+      CommandSender sender, String scriptKey, String past, String verb, ScriptLoadResult result) {
+    switch (result.status()) {
+      case LOADED ->
+          sender.sendMessage(
+              Component.text("Successfully " + past + ": " + scriptKey)
+                  .color(NamedTextColor.GREEN));
+      case FAILED -> {
+        String reason =
+            result.errors().isEmpty()
+                ? scriptKey + " (see console)"
+                : CompileDiagnostics.summary(scriptKey, result.errors());
         sender.sendMessage(
-            Component.text("Successfully reloaded: " + scriptKey).color(NamedTextColor.GREEN));
-      } else {
-        sender.sendMessage(
-            Component.text("Failed to reload: " + scriptKey).color(NamedTextColor.RED));
+            Component.text("Failed to " + verb + ": " + reason).color(NamedTextColor.RED));
+        if (plugin.getScriptManager().getScript(scriptKey) != null) {
+          sender.sendMessage(
+              Component.text("The previous version is still running").color(NamedTextColor.GRAY));
+        }
       }
+      case SKIPPED ->
+          sender.sendMessage(
+              Component.text(
+                      "Skipped "
+                          + scriptKey
+                          + ": it is disabled, marked @Disabled, or was cancelled by another plugin")
+                  .color(NamedTextColor.YELLOW));
+      case SUPERSEDED ->
+          sender.sendMessage(
+              Component.text("The " + verb + " of " + scriptKey + " was replaced by a newer load")
+                  .color(NamedTextColor.GRAY));
     }
   }
 
@@ -411,14 +446,11 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
 
     sender.sendMessage(Component.text("Loading script: " + scriptKey).color(NamedTextColor.YELLOW));
 
-    boolean success = plugin.getScriptManager().loadScript(scriptFile);
-
-    if (success) {
-      sender.sendMessage(
-          Component.text("Successfully loaded: " + scriptKey).color(NamedTextColor.GREEN));
-    } else {
-      sender.sendMessage(Component.text("Failed to load: " + scriptKey).color(NamedTextColor.RED));
-    }
+    final String key = scriptKey;
+    plugin
+        .getScriptManager()
+        .loadScriptAsync(
+            scriptFile, result -> sendLoadResult(sender, key, "loaded", "load", result));
   }
 
   private void handleUnload(CommandSender sender, String[] args) {

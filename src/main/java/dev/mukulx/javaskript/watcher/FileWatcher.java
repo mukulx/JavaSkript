@@ -267,14 +267,23 @@ public class FileWatcher implements Runnable {
           return;
         }
         plugin.getLogger().info("Script modified: " + scriptKey);
-        plugin.getScriptManager().loadScript(file);
+        reloadInBackground(file);
       } else {
         plugin.getLogger().info("New script detected: " + scriptKey);
-        plugin.getScriptManager().loadScript(file);
+        reloadInBackground(file);
       }
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error handling file event for: " + scriptKey, e);
     }
+  }
+
+  /**
+   * Compile off the server thread so saving a big script never stalls the tick. Compile errors are
+   * already logged with line numbers, and a running version is only replaced once the edit
+   * compiles.
+   */
+  private void reloadInBackground(File file) {
+    plugin.getScriptManager().loadScriptAsync(file, result -> {});
   }
 
   public boolean isRunning() {
