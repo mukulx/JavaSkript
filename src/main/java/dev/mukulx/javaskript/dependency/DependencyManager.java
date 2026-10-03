@@ -92,7 +92,9 @@ public class DependencyManager {
     File tempFile = null;
     try {
       String groupPath = groupId.replace('.', '/');
-      String jarName = groupId.replace('.', '_') + "-" + artifactId + "-" + version + ".jar";
+      String remoteName = artifactId + "-" + version + ".jar";
+      // Local cache name carries the group so same-named artifacts from different groups don't clash
+      String jarName = groupId.replace('.', '_') + "-" + remoteName;
       File localFile = new File(libsDirectory, jarName);
 
       // If already downloaded and not empty, return it
@@ -102,7 +104,7 @@ public class DependencyManager {
       }
 
       String urlString =
-          MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + jarName;
+          MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + remoteName;
 
       plugin.getLogger().info("Downloading: " + urlString);
 
