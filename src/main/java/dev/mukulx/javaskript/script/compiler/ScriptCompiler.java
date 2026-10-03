@@ -263,6 +263,14 @@ public class ScriptCompiler {
       // Add Adventure API (Component, etc.)
       addToClasspath(entries, net.kyori.adventure.text.Component.class);
 
+      // Add Adventure Key API (required by Adventure and Paper)
+      try {
+        Class<?> keyClass = Class.forName("net.kyori.adventure.key.Key");
+        addToClasspath(entries, keyClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Adventure Key API not found in classpath");
+      }
+
       // Add Adventure Examination API (required by Component)
       try {
         Class<?> examinableClass = Class.forName("net.kyori.examination.Examinable");
@@ -278,6 +286,15 @@ public class ScriptCompiler {
         addToClasspath(entries, miniMessageClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("MiniMessage not found in classpath");
+      }
+
+      // Add Adventure GSON serializer
+      try {
+        Class<?> gsonSerializerClass =
+            Class.forName("net.kyori.adventure.text.serializer.gson.GsonComponentSerializer");
+        addToClasspath(entries, gsonSerializerClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Adventure Gson serializer not found in classpath");
       }
 
       // Add BungeeCord Chat API (required by Paper)
