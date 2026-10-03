@@ -52,9 +52,30 @@ public class ScriptCompiler {
    */
   public Map<String, byte[]> compileAll(
       String scriptName, String sourceCode, List<File> dependencyFiles) {
+    return compileWithDiagnostics(scriptName, sourceCode, dependencyFiles).classes();
+  }
+
+  /**
+   * Resolve the compiler classpath now, on the calling thread. Compilation can then run on another
+   * thread without touching server state.
+   */
+  public void warmUp() {
+    getBaseClasspath();
+  }
+
+  /**
+   * Compile a script and keep the compiler's errors. Failures are logged once, with line numbers
+   * and the offending source line.
+   *
+   * @param scriptName The script file name
+   * @param sourceCode The source code
+   * @param dependencyFiles List of dependency JAR files to include in classpath
+   */
+  public CompileResult compileWithDiagnostics(
+      String scriptName, String sourceCode, List<File> dependencyFiles) {
     if (sourceCode == null || sourceCode.trim().isEmpty()) {
       plugin.getLogger().warning("Empty source code for script: " + scriptName);
-      return null;
+      return CompileResult.failure(List.of(new CompileError(1, "The script is empty", "", "")));
     }
 
     String mainClassName = extractPublicClassName(sourceCode);
@@ -100,9 +121,16 @@ public class ScriptCompiler {
           BatchCompiler.compile(args, new PrintWriter(System.out), errorPrintWriter, null);
 
       if (!success) {
-        plugin.getLogger().severe("Compilation failed for script: " + scriptName);
-        plugin.getLogger().severe("Errors:\n" + errorWriter.toString());
-        return null;
+        List<CompileError> errors = CompileDiagnostics.parse(errorWriter.toString());
+        if (errors.isEmpty()) {
+          // Unrecognised report format: show it untouched rather than hide the cause
+          plugin.getLogger().severe("Compilation failed for script: " + scriptName);
+          plugin.getLogger().severe("Errors:\n" + errorWriter);
+        } else {
+          plugin.getLogger().severe(CompileDiagnostics.format(scriptName, errors));
+          plugin.debug("Raw compiler output for " + scriptName + ":\n" + errorWriter);
+        }
+        return CompileResult.failure(errors);
       }
 
       // Read all compiled classes from compiler output directory
@@ -132,17 +160,17 @@ public class ScriptCompiler {
 
       if (compiledClasses.isEmpty()) {
         plugin.getLogger().severe("No compiled classes found for script: " + scriptName);
-        return null;
+        return CompileResult.failure(List.of());
       }
 
       plugin.debug(
           "Successfully compiled " + compiledClasses.size() + " class(es) for " + scriptName);
 
-      return compiledClasses;
+      return new CompileResult(compiledClasses, List.of());
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error compiling script: " + scriptName, e);
-      return null;
+      return CompileResult.failure(List.of());
     } finally {
       // Cleanup
       cleanup(sourceFile, outputDir);
