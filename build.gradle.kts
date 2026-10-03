@@ -34,6 +34,7 @@ dependencies {
     implementation("org.bstats:bstats-bukkit:3.2.1")
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.mockito:mockito-core:5.14.2")
     testImplementation("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
