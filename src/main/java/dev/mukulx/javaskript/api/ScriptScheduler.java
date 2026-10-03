@@ -341,10 +341,7 @@ public class ScriptScheduler {
       Object task =
           Bukkit.getGlobalRegionScheduler()
               .runAtFixedRate(
-                  plugin,
-                  t -> runnable.run(),
-                  Math.max(1L, delayTicks),
-                  Math.max(1L, periodTicks));
+                  plugin, t -> runnable.run(), Math.max(1L, delayTicks), Math.max(1L, periodTicks));
       track(task);
       return task;
     } catch (Exception e) {
