@@ -19,6 +19,12 @@ public class ScriptManager {
 
   private static final Pattern DEPENDENCY_ANNOTATION_PATTERN =
       Pattern.compile("@ScriptDependenc(?:y|ies)\\s*\\(([^)]+)\\)");
+  // Only a real marker counts: an annotation (optionally after other annotations) or a comment
+  // that starts its line. A mention of "@Disabled" inside prose or a string must not skip a script.
+  private static final Pattern DISABLED_MARKER_PATTERN =
+      Pattern.compile(
+          "(?m)^\\s*(?:(?:@\\w+(?:\\([^)]*\\))?\\s+)*@Disabled\\b"
+              + "|(?://\\s*|/\\*\\s*)@disabled\\b)");
   private static final Pattern DEPENDENCY_QUOTE_PATTERN = Pattern.compile("\"([^\"]+)\"");
   private static final Pattern DEPENDENCY_COMMENT_PATTERN =
       Pattern.compile("//\\s*@dependency\\s+([^\\s]+)");
@@ -483,10 +489,7 @@ public class ScriptManager {
       scriptContent = preCompileEvent.getSourceCode();
 
       // Early check for @Disabled annotation or // @disabled comment before compiling/resolving
-      if (scriptContent.contains("@Disabled")
-          || scriptContent.contains("@disabled")
-          || scriptContent.contains("// @disabled")
-          || scriptContent.contains("/* @disabled */")) {
+      if (DISABLED_MARKER_PATTERN.matcher(scriptContent).find()) {
         plugin.debug("Script marked as disabled in file, skipping: " + scriptKey);
         if (isReload) {
           unloadScript(scriptKey);
