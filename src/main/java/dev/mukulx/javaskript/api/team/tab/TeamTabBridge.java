@@ -41,6 +41,13 @@ public class TeamTabBridge {
 
   /** Registers rich team placeholders for PlaceholderAPI, TAB, and custom scoreboard plugins. */
   private void registerPlaceholders() {
+    // PlaceholderAPI is an optional dependency. Skip quietly instead of warning once per
+    // placeholder on servers that don't have it.
+    if (!placeholderHelper.isPlaceholderAPIAvailable()) {
+      plugin.debug("PlaceholderAPI not found, skipping built-in team placeholders");
+      return;
+    }
+
     // %javaskript_team% -> Team ID or empty
     placeholderHelper.registerPlaceholder(
         "team",
