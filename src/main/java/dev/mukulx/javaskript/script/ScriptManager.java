@@ -964,6 +964,21 @@ public class ScriptManager {
     return loadedScripts.get(scriptKey);
   }
 
+  /**
+   * True when this exact file is already loaded and has not been modified since it was compiled.
+   * Renames and folder moves keep the modification time, so the watcher uses this to avoid
+   * reloading (and re-running onEnable for) scripts that did not change.
+   */
+  public boolean isLoadedAndUnchanged(File scriptFile) {
+    String scriptKey = getScriptKey(scriptFile);
+    ScriptInstance instance = loadedScripts.get(scriptKey);
+    CachedScript cached = compilationCache.get(scriptKey);
+    return instance != null
+        && cached != null
+        && instance.getScriptFile().toPath().normalize().equals(scriptFile.toPath().normalize())
+        && cached.lastModified == scriptFile.lastModified();
+  }
+
   public Map<String, ScriptInstance> getLoadedScripts() {
     return Collections.unmodifiableMap(loadedScripts);
   }

@@ -262,6 +262,10 @@ public class FileWatcher implements Runnable {
         plugin.getLogger().info("Script deleted: " + scriptKey);
         plugin.getScriptManager().unloadScript(scriptKey);
       } else if (plugin.getScriptManager().getScript(scriptKey) != null) {
+        if (plugin.getScriptManager().isLoadedAndUnchanged(file)) {
+          plugin.debug("Script already loaded and unchanged, skipping: " + scriptKey);
+          return;
+        }
         plugin.getLogger().info("Script modified: " + scriptKey);
         plugin.getScriptManager().loadScript(file);
       } else {
