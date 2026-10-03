@@ -812,14 +812,25 @@ public class ScriptManager {
     // Check for dash-prefixed file and rename it back
     File dashFile = resolveScriptFile(scriptKey);
     if (dashFile.exists() && isDashDisabled(dashFile)) {
-      File parent = dashFile.getParentFile();
-      String normalName = dashFile.getName().substring(1); // Remove leading '-'
-      File normalFile = new File(parent, normalName);
-      if (dashFile.renameTo(normalFile)) {
-        wasDisabled = true;
-        plugin.debug("Un-dashed script: " + scriptKey);
-        // Load the now-enabled script
-        loadScript(normalFile);
+      String fileName = dashFile.getName();
+      if (fileName.startsWith("-")) {
+        File parent = dashFile.getParentFile();
+        File normalFile = new File(parent, fileName.replaceFirst("^-+", ""));
+        if (dashFile.renameTo(normalFile)) {
+          wasDisabled = true;
+          plugin.debug("Un-dashed script: " + scriptKey);
+          // Load the now-enabled script
+          loadScript(normalFile);
+        }
+      } else {
+        // Disabled by a dashed parent folder. Renaming the file would corrupt its name, and
+        // un-dashing the folder would enable every sibling script.
+        plugin
+            .getLogger()
+            .warning(
+                "Cannot enable "
+                    + scriptKey
+                    + " on its own: it sits inside a disabled (dashed) folder. Enable the folder.");
       }
     }
 
