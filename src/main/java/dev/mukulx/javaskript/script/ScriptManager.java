@@ -251,7 +251,7 @@ public class ScriptManager {
               .map(Path::toFile)
               .collect(java.util.stream.Collectors.toList());
 
-      for (File file : files) {
+      for (File file : orderForLoading(files)) {
         if (!isDashDisabled(file) && !disabledScripts.contains(getScriptKey(file))) {
           if (loadScript(file)) {
             count++;
@@ -447,22 +447,50 @@ public class ScriptManager {
 
     // Walk the file system and synchronously pull paths matching the extension criteria
     try (Stream<Path> paths = Files.walk(scriptsFolder.toPath())) {
-      paths
-          .filter(Files::isRegularFile)
-          .filter(path -> path.toString().endsWith(".java"))
-          .forEach(
-              path -> {
-                try {
-                  loadScript(path.toFile());
-                } catch (Exception e) {
-                  plugin
-                      .getLogger()
-                      .log(Level.SEVERE, "Failed to load script: " + path.getFileName(), e);
-                }
-              });
+      List<File> files =
+          paths
+              .filter(Files::isRegularFile)
+              .filter(path -> path.toString().endsWith(".java"))
+              .map(Path::toFile)
+              .collect(java.util.stream.Collectors.toList());
+      for (File file : orderForLoading(files)) {
+        try {
+          loadScript(file);
+        } catch (Exception e) {
+          plugin.getLogger().log(Level.SEVERE, "Failed to load script: " + file.getName(), e);
+        }
+      }
     } catch (IOException e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to scan scripts folder!", e);
     }
+  }
+
+  /**
+   * Order a batch of script files so every script comes after the ones it names in {@link
+   * LoadAfter}. Disabled scripts are not part of the ordering; they stay at the end so loadScript
+   * still unloads any of them that are running.
+   */
+  private List<File> orderForLoading(List<File> files) {
+    List<ScriptLoadOrder.Entry> entries = new ArrayList<>();
+    List<File> disabled = new ArrayList<>();
+    for (File file : files) {
+      String key = getScriptKey(file);
+      if (isDashDisabled(file) || disabledScripts.contains(key)) {
+        disabled.add(file);
+        continue;
+      }
+      List<String> after = Collections.emptyList();
+      try {
+        after = ScriptLoadOrder.parseLoadAfter(Files.readString(file.toPath()));
+      } catch (IOException e) {
+        plugin.debug("Could not read " + key + " for load ordering: " + e.getMessage());
+      }
+      entries.add(new ScriptLoadOrder.Entry(file, key, after));
+    }
+
+    List<File> ordered = ScriptLoadOrder.sort(entries, plugin.getLogger()::warning);
+    ordered.addAll(disabled);
+    return ordered;
   }
 
   public synchronized boolean loadScript(File scriptFile) {

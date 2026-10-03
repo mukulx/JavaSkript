@@ -6,6 +6,7 @@ This guide explains how JavaSkript manages script loading, unloading, and cleanu
 
 - [Lifecycle Overview](#lifecycle-overview)
 - [Lifecycle Methods](#lifecycle-methods)
+- [Load Order](#load-order)
 - [Best Practices](#best-practices)
 - [Resource Management](#resource-management)
 - [Common Patterns](#common-patterns)
@@ -147,6 +148,30 @@ public void onDisable() {
 - Cancel scheduler tasks (automatic)
 - Close database connections (automatic)
 - Unregister placeholders (automatic)
+
+---
+
+## Load Order
+
+By default scripts load in the order the file system lists them, which is not something to rely on. When one script needs another to be ready first (for example it reads shared variables or listens to events the other one registers), declare it with `@LoadAfter`:
+
+```java
+import dev.mukulx.javaskript.script.LoadAfter;
+
+@LoadAfter("Bank")                       // by class name
+public class Shop { }
+
+@LoadAfter({"economy/Bank", "Prices"})   // by script key, several at once
+public class Market { }
+```
+
+Names are matched against script keys with or without `.java`, ignoring case, or against the class (file) name alone.
+
+- **Batch loads only.** The order applies when several scripts load together: server start, `/js reload all`, and enabling or reloading a folder. Reloading one script on its own does not touch the others.
+- **It never blocks a script.** A name that matches no script being loaded is logged as a warning and ignored. A cycle (`A` after `B`, `B` after `A`) is logged and those scripts load in file order.
+- **Disabled scripts don't count.** A script that is disabled is not loaded, so a script waiting on it gets the "no such script" warning.
+- **Dependency downloads.** A script with `@ScriptDependency` that still has to download libraries finishes loading in the background, so it can become ready after scripts that were meant to follow it. Once its libraries are cached, ordering applies normally.
+- Only an annotation at the start of a line counts. A `@LoadAfter` inside a comment or string is ignored.
 
 ---
 
