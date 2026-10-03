@@ -16,10 +16,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.event.Event;
@@ -35,7 +38,7 @@ public class ScriptInstance {
   private final Class<?> scriptClass;
   private final ScriptClassLoader classLoader;
   private Object instance;
-  private final List<String> registeredCommands;
+  private final Map<String, Command> registeredCommands;
 
   // API instances for this script
   private ScriptScheduler scheduler;
@@ -67,7 +70,7 @@ public class ScriptInstance {
     this.scriptFile = scriptFile;
     this.scriptClass = scriptClass;
     this.classLoader = classLoader;
-    this.registeredCommands = new ArrayList<>();
+    this.registeredCommands = new LinkedHashMap<>();
   }
 
   public boolean initialize() {
@@ -557,7 +560,7 @@ public class ScriptInstance {
                   commandName, profiledExecutor, tabCompleter, null, null, null, null, null);
 
       if (registered) {
-        registeredCommands.add(commandName);
+        registeredCommands.put(commandName, plugin.getCommandRegistry().getCommand(commandName));
       } else {
         plugin.getLogger().warning("Failed to register command: /" + commandName);
       }
@@ -662,13 +665,15 @@ public class ScriptInstance {
     }
 
     // Unregister commands (force each one individually)
-    List<String> commandsCopy = new ArrayList<>(registeredCommands);
-    for (String commandName : commandsCopy) {
+    for (Map.Entry<String, Command> entry : new ArrayList<>(registeredCommands.entrySet())) {
+      String commandName = entry.getKey();
       try {
-        boolean removed = plugin.getCommandRegistry().unregisterCommand(commandName);
+        // Skipped when another script replaced the command, so we never remove its version
+        boolean removed =
+            plugin.getCommandRegistry().unregisterCommand(commandName, entry.getValue());
 
         // Verify it's actually gone
-        if (plugin.getCommandRegistry().isCommandInMap(commandName)) {
+        if (removed && plugin.getCommandRegistry().isCommandInMap(commandName)) {
           plugin.getLogger().severe("Command still exists after unregister: /" + commandName);
         } else {
           plugin.debug("Verified command removed: /" + commandName);

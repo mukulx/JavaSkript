@@ -2,9 +2,11 @@ package dev.mukulx.javaskript.api.command;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.TabCompleter;
 
@@ -14,6 +16,8 @@ public class CommandHelper {
   private final JavaSkriptPlugin plugin;
   private final String scriptKey;
   private final Set<String> registeredCommandNames = ConcurrentHashMap.newKeySet();
+  // Primary command objects, so unregistering never removes a command another script replaced
+  private final Map<String, Command> ownedCommands = new ConcurrentHashMap<>();
 
   public CommandHelper(JavaSkriptPlugin plugin, String scriptKey) {
     this.plugin = plugin;
@@ -75,6 +79,7 @@ public class CommandHelper {
 
     if (success) {
       registeredCommandNames.add(commandName);
+      ownedCommands.put(commandName, plugin.getCommandRegistry().getCommand(commandName));
       for (String alias : builder.getAliases()) {
         registeredCommandNames.add(alias.toLowerCase());
       }
@@ -90,22 +95,24 @@ public class CommandHelper {
   public boolean unregister(String commandName) {
     if (commandName == null) return false;
     String lower = commandName.toLowerCase();
-    boolean removed = plugin.getCommandRegistry().unregisterCommand(lower);
+    Command owned = ownedCommands.remove(lower);
     registeredCommandNames.remove(lower);
-    return removed;
+    return owned != null && plugin.getCommandRegistry().unregisterCommand(lower, owned);
   }
 
   /** Unregister all commands registered by this script. Automatically called on unload. */
   public void unregisterAll() {
-    for (String cmd : registeredCommandNames) {
+    for (Map.Entry<String, Command> entry : ownedCommands.entrySet()) {
+      String cmd = entry.getKey();
       try {
-        plugin.getCommandRegistry().unregisterCommand(cmd);
+        plugin.getCommandRegistry().unregisterCommand(cmd, entry.getValue());
       } catch (Exception e) {
         plugin
             .getLogger()
             .log(Level.WARNING, "[" + scriptKey + "] Error unregistering command /" + cmd, e);
       }
     }
+    ownedCommands.clear();
     registeredCommandNames.clear();
   }
 
