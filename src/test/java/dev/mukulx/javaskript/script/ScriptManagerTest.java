@@ -92,4 +92,41 @@ class ScriptManagerTest {
     assertFalse(manager.getDisabledScripts().contains("On.java"));
     assertTrue(manager.getAllScriptKeys().containsAll(java.util.List.of("Off.java", "On.java")));
   }
+
+  @Test
+  void disablingAScriptThatDoesNotExistFails() {
+    assertFalse(manager.disableScript("Missing"));
+    assertFalse(new File(temp.toFile(), "disabled-scripts.json").exists());
+  }
+
+  @Test
+  void disableAllRenamesEveryScript() throws Exception {
+    script("A.java");
+    script("sub/B.java");
+
+    manager.disableAllScripts();
+
+    assertTrue(new File(scripts, "-A.java").exists());
+    assertTrue(new File(scripts, "sub/-B.java").exists());
+    assertTrue(manager.isScriptDisabled("A"));
+  }
+
+  @Test
+  void legacyDisabledListIsMigratedToDashPrefixes() throws Exception {
+    Path dataFolder = temp.resolve("legacy");
+    Path legacyScripts = dataFolder.resolve("scripts");
+    Files.createDirectories(legacyScripts.resolve("sub"));
+    Files.writeString(legacyScripts.resolve("Foo.java"), SCRIPT.formatted("Foo"));
+    Files.writeString(legacyScripts.resolve("sub/Bar.java"), SCRIPT.formatted("Bar"));
+    Files.writeString(
+        dataFolder.resolve("disabled-scripts.json"),
+        "[\"Foo.java\", \"sub/Bar.java\", \"Gone.java\"]");
+
+    ScriptManager migrated = new ScriptManager(TestPlugin.create(dataFolder.toFile()));
+
+    assertTrue(Files.exists(legacyScripts.resolve("-Foo.java")));
+    assertTrue(Files.exists(legacyScripts.resolve("sub/-Bar.java")));
+    assertFalse(Files.exists(dataFolder.resolve("disabled-scripts.json")));
+    assertTrue(migrated.isScriptDisabled("Foo"));
+  }
 }

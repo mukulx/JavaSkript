@@ -72,6 +72,7 @@ public class ScriptManager {
     }
 
     loadDisabledScripts();
+    migrateLegacyDisabledScripts();
   }
 
   // ==========================================
@@ -422,15 +423,13 @@ public class ScriptManager {
         if (file.renameTo(dashed)) {
           disabledCount++;
         } else {
-          disabledScripts.add(getScriptKey(file));
-          disabledCount++;
+          plugin.getLogger().warning("Could not disable " + getScriptKey(file) + ": rename failed");
         }
       }
     } catch (IOException e) {
       plugin.getLogger().log(Level.SEVERE, "Error disabling all scripts on disk", e);
     }
 
-    saveDisabledScripts();
     int unloaded = loadedScripts.size();
     unloadAllScripts();
     return Math.max(disabledCount, unloaded);
@@ -815,21 +814,26 @@ public class ScriptManager {
     }
 
     File scriptFile = resolveScriptFile(scriptKey);
-    boolean renamed = false;
-
-    // Try dash-prefix rename
-    if (scriptFile.exists() && !isDashDisabled(scriptFile)) {
-      File parent = scriptFile.getParentFile();
-      File dashedFile = new File(parent, "-" + scriptFile.getName());
-      if (scriptFile.renameTo(dashedFile)) {
-        renamed = true;
-        plugin.debug("Dash-disabled script: " + scriptKey);
-      }
+    if (!scriptFile.exists()) {
+      plugin.getLogger().warning("Cannot disable " + scriptKey + ": script file not found");
+      return false;
     }
 
-    // Fallback: add to disabled-scripts.json
-    if (!renamed) {
-      disabledScripts.add(scriptKey);
+    // The dash prefix is the single source of truth for disabled state. A script inside a dashed
+    // folder is already disabled, so there is nothing to rename.
+    if (!isDashDisabled(scriptFile)) {
+      File dashedFile = new File(scriptFile.getParentFile(), "-" + scriptFile.getName());
+      if (!scriptFile.renameTo(dashedFile)) {
+        plugin
+            .getLogger()
+            .warning("Cannot disable " + scriptKey + ": renaming " + scriptFile + " failed");
+        return false;
+      }
+      plugin.debug("Dash-disabled script: " + scriptKey);
+    }
+
+    // Retire a legacy disabled-scripts.json entry now that the file itself carries the state
+    if (disabledScripts.remove(scriptKey)) {
       saveDisabledScripts();
     }
 
@@ -1129,8 +1133,51 @@ public class ScriptManager {
     }
   }
 
+  /**
+   * disabled-scripts.json used to hold disabled state next to the dash prefix. The prefix is now
+   * the only store, so turn each legacy entry into a renamed file. Entries that cannot be renamed
+   * stay in the file and keep being honoured until a later start manages to migrate them.
+   */
+  private void migrateLegacyDisabledScripts() {
+    if (disabledScripts.isEmpty()) {
+      if (disabledFile.exists()) {
+        saveDisabledScripts(); // removes the empty legacy file
+      }
+      return;
+    }
+
+    for (String scriptKey : new ArrayList<>(disabledScripts)) {
+      File scriptFile = resolveScriptFile(scriptKey);
+      if (!scriptFile.exists()) {
+        plugin.getLogger().info("Dropping stale disabled-scripts entry: " + scriptKey);
+        disabledScripts.remove(scriptKey);
+      } else if (isDashDisabled(scriptFile)) {
+        disabledScripts.remove(scriptKey);
+      } else {
+        File dashed = new File(scriptFile.getParentFile(), "-" + scriptFile.getName());
+        if (!dashed.exists() && scriptFile.renameTo(dashed)) {
+          plugin.getLogger().info("Migrated disabled script to a dash prefix: " + scriptKey);
+          disabledScripts.remove(scriptKey);
+        } else {
+          plugin
+              .getLogger()
+              .warning(
+                  "Could not migrate disabled script "
+                      + scriptKey
+                      + " to a dash prefix; it stays disabled via disabled-scripts.json");
+        }
+      }
+    }
+    saveDisabledScripts();
+  }
+
   private void saveDisabledScripts() {
     try {
+      if (disabledScripts.isEmpty()) {
+        Files.deleteIfExists(disabledFile.toPath());
+        return;
+      }
+
       if (!plugin.getDataFolder().exists()) {
         plugin.getDataFolder().mkdirs();
       }

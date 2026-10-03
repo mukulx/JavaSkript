@@ -129,13 +129,18 @@ There are three easy ways to disable scripts:
 1. **Filename / Folder Prefix `-`**:
    - Prefixing a file with `-` (e.g. `-CombatLog.java`) disables it.
    - Prefixing a folder with `-` (e.g. `-pvp/`) disables all scripts inside it.
-   - Using `/js disable <script|folder>` will automatically rename it with a `-` prefix.
+   - Using `/js disable <script|folder>` renames it with a `-` prefix, and `/js enable` removes the prefix again.
+   - The prefix is the only place JavaSkript stores disabled state. What you see in the file tree is what is disabled, and it moves with the folder when you copy it to another server.
+   - A script inside a disabled folder can't be enabled on its own. Enable the folder instead.
 2. **In-Code Annotation or Comment**:
    - Add `@Disabled` or `@Disabled("Under maintenance")` above your class.
-   - Or add `// @disabled` anywhere at the top of the file.
+   - Or put `// @disabled` (or `/* @disabled */`) on its own line near the top of the file.
+   - Mentioning `@Disabled` inside other comments or strings does not disable the script.
 3. **Default Examples**:
-   - All 26+ built-in examples are extracted into `scripts/examples/` with `-` prefixes (e.g., `-HealCommand.java`), keeping them disabled by default so your server stays clean.
+   - All built-in examples are extracted into `scripts/examples/` with `-` prefixes (e.g., `-HealCommand.java`), keeping them disabled by default so your server stays clean.
    - To try an example, enable it with `/js enable examples/HealCommand` or remove the leading `-`!
+
+> **Upgrading:** older versions also kept a `disabled-scripts.json` file. On startup JavaSkript renames every script listed there with a `-` prefix and deletes the file. Entries it cannot rename (for example a read-only file) stay in the JSON and are still honoured until a later start succeeds.
 
 ## Next Steps
 
