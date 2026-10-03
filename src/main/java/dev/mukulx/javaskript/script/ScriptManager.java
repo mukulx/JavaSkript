@@ -29,8 +29,11 @@ public class ScriptManager {
   private final Set<String> disabledScripts;
   private final ScriptCompiler compiler;
   private final File disabledFile;
-  private final Map<String, List<File>> scriptDependencies;
+  // Dependencies resolved off-thread, handed to the follow-up load of the same script
+  private final Map<String, ResolvedDependencies> pendingDependencies;
   private final Map<String, CachedScript> compilationCache;
+
+  private record ResolvedDependencies(List<String> coordinates, List<File> files) {}
 
   // Cached bytecode and hash state to verify source modifications
   private static class CachedScript {
@@ -52,7 +55,7 @@ public class ScriptManager {
     this.disabledScripts = ConcurrentHashMap.newKeySet();
     this.compiler = new ScriptCompiler(plugin);
     this.disabledFile = new File(plugin.getDataFolder(), "disabled-scripts.json");
-    this.scriptDependencies = new ConcurrentHashMap<>();
+    this.pendingDependencies = new ConcurrentHashMap<>();
     this.compilationCache = new ConcurrentHashMap<>();
 
     if (!scriptsFolder.exists()) {
@@ -497,53 +500,59 @@ public class ScriptManager {
       List<File> dependencyFiles = new ArrayList<>();
 
       if (!dependencies.isEmpty()) {
-        boolean onGameThread = false;
-        try {
-          onGameThread = org.bukkit.Bukkit.isPrimaryThread();
-        } catch (Throwable ignored) {
-          onGameThread = false;
-        }
-        if (onGameThread) {
-          final String queuedKey = scriptKey;
-          final File queuedFile = scriptFile;
+        // A background resolve for this exact dependency set already finished; use its result
+        ResolvedDependencies handoff = pendingDependencies.remove(scriptKey);
+        if (handoff != null && handoff.coordinates().equals(dependencies)) {
+          dependencyFiles = handoff.files();
+        } else {
+          boolean onGameThread = false;
+          try {
+            onGameThread = org.bukkit.Bukkit.isPrimaryThread();
+          } catch (Throwable ignored) {
+            onGameThread = false;
+          }
+          if (onGameThread) {
+            final String queuedKey = scriptKey;
+            final File queuedFile = scriptFile;
+            plugin
+                .getLogger()
+                .info(
+                    "Resolving "
+                        + dependencies.size()
+                        + " dependencies for "
+                        + scriptKey
+                        + " in the background");
+            java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> resolveDependenciesBlocking(dependencies, queuedKey))
+                .thenAccept(
+                    resolved -> {
+                      pendingDependencies.put(
+                          queuedKey, new ResolvedDependencies(dependencies, resolved));
+                      dev.mukulx.javaskript.util.ServerUtil.runSync(
+                          plugin,
+                          () -> {
+                            try {
+                              loadScript(queuedFile);
+                            } catch (Throwable t) {
+                              plugin
+                                  .getLogger()
+                                  .warning(
+                                      "Background dependency load failed for "
+                                          + queuedKey
+                                          + ": "
+                                          + t.getMessage());
+                            }
+                          });
+                    });
+            // Queued in the background; the second pass finishes the load without blocking.
+            return false;
+          }
+
           plugin
               .getLogger()
-              .info(
-                  "Resolving "
-                      + dependencies.size()
-                      + " dependencies for "
-                      + scriptKey
-                      + " in the background");
-          java.util.concurrent.CompletableFuture.supplyAsync(
-                  () -> resolveDependenciesBlocking(dependencies, queuedKey))
-              .thenAccept(
-                  resolved -> {
-                    scriptDependencies.put(queuedKey, resolved);
-                    dev.mukulx.javaskript.util.ServerUtil.runSync(
-                        plugin,
-                        () -> {
-                          try {
-                            loadScript(queuedFile);
-                          } catch (Throwable t) {
-                            plugin
-                                .getLogger()
-                                .warning(
-                                    "Background dependency load failed for "
-                                        + queuedKey
-                                        + ": "
-                                        + t.getMessage());
-                          }
-                        });
-                  });
-          // Queued in the background; the second pass finishes the load without blocking.
-          return false;
+              .info("Resolving " + dependencies.size() + " dependencies for " + scriptKey);
+          dependencyFiles = resolveDependenciesBlocking(dependencies, scriptKey);
         }
-
-        plugin
-            .getLogger()
-            .info("Resolving " + dependencies.size() + " dependencies for " + scriptKey);
-        dependencyFiles = resolveDependenciesBlocking(dependencies, scriptKey);
-        scriptDependencies.put(scriptKey, dependencyFiles);
       }
 
       long lastModified = scriptFile.lastModified();
@@ -704,7 +713,7 @@ public class ScriptManager {
       }
 
       instance.unload();
-      scriptDependencies.remove(scriptKey);
+      pendingDependencies.remove(scriptKey);
       compilationCache.remove(scriptKey);
       plugin.debug("Unloaded script: " + scriptKey);
       return true;
@@ -747,7 +756,7 @@ public class ScriptManager {
     }
 
     plugin.debug("Unloaded " + unloadedCount + " scripts");
-    scriptDependencies.clear();
+    pendingDependencies.clear();
     compilationCache.clear();
     loadAllScripts();
   }
