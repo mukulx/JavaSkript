@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -546,9 +547,14 @@ public class ScriptInstance {
             }
           };
 
-      // Use dynamic command registration
+      // Use dynamic command registration. Pass the script's own TabCompleter explicitly: the
+      // profiling lambda above is not one, so the registry cannot discover it by itself.
+      TabCompleter tabCompleter = instance instanceof TabCompleter tc ? tc : null;
       boolean registered =
-          plugin.getCommandRegistry().registerCommand(commandName, profiledExecutor);
+          plugin
+              .getCommandRegistry()
+              .registerCommand(
+                  commandName, profiledExecutor, tabCompleter, null, null, null, null, null);
 
       if (registered) {
         registeredCommands.add(commandName);
