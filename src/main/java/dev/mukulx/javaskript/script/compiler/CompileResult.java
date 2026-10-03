@@ -15,7 +15,7 @@ public record CompileResult(Map<String, byte[]> classes, List<CompileError> erro
     return classes != null && !classes.isEmpty();
   }
 
-  static CompileResult failure(List<CompileError> errors) {
+  public static CompileResult failure(List<CompileError> errors) {
     return new CompileResult(null, errors);
   }
 }

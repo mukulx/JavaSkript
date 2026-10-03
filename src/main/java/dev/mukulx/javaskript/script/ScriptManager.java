@@ -1,6 +1,7 @@
 package dev.mukulx.javaskript.script;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.script.compiler.CompileResult;
 import dev.mukulx.javaskript.script.compiler.ScriptCompiler;
 import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
 import java.io.File;
@@ -10,6 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,6 +45,10 @@ public class ScriptManager {
   // Dependencies resolved off-thread, handed to the follow-up load of the same script
   private final Map<String, ResolvedDependencies> pendingDependencies;
   private final Map<String, CachedScript> compilationCache;
+  // Bumped on every load and unload so an async load can tell its result is outdated
+  private final Map<String, AtomicInteger> loadGenerations = new ConcurrentHashMap<>();
+  private final ExecutorService compileExecutor;
+  private final Consumer<Runnable> serverThread;
 
   private record ResolvedDependencies(List<String> coordinates, List<File> files) {}
 
@@ -57,7 +66,23 @@ public class ScriptManager {
   }
 
   public ScriptManager(JavaSkriptPlugin plugin) {
+    this(plugin, task -> dev.mukulx.javaskript.util.ServerUtil.runSync(plugin, task));
+  }
+
+  /**
+   * @param serverThread runs a task on the server thread; replaced by tests
+   */
+  ScriptManager(JavaSkriptPlugin plugin, Consumer<Runnable> serverThread) {
     this.plugin = plugin;
+    this.serverThread = serverThread;
+    // One thread: compiles never overlap, and queued edits are compiled in the order they arrived
+    this.compileExecutor =
+        Executors.newSingleThreadExecutor(
+            task -> {
+              Thread thread = new Thread(task, "JavaSkript-Compiler");
+              thread.setDaemon(true);
+              return thread;
+            });
     this.scriptsFolder = new File(plugin.getDataFolder(), "scripts");
     this.loadedScripts = new ConcurrentHashMap<>();
     this.disabledScripts = ConcurrentHashMap.newKeySet();
@@ -493,10 +518,160 @@ public class ScriptManager {
     return ordered;
   }
 
+  /** What the main-thread checks learned about a script before it is compiled. */
+  private record Prepared(
+      String key, File file, String source, long lastModified, List<String> dependencies) {}
+
+  /**
+   * Load or reload a script on the calling (server) thread, blocking while it compiles. Returns
+   * whether the script is now running. Use {@link #loadScriptAsync} where a compile should not
+   * stall the tick.
+   */
   public synchronized boolean loadScript(File scriptFile) {
+    String scriptKey = scriptFile != null ? getScriptKey(scriptFile) : "unknown";
+    try {
+      Prepared prepared = prepare(scriptFile);
+      if (prepared == null) {
+        return false;
+      }
+
+      List<File> dependencyFiles = dependenciesForBlockingLoad(prepared);
+      if (dependencyFiles == null) {
+        // Resolving in the background; the follow-up pass finishes the load
+        return false;
+      }
+
+      CompileResult compiled = compile(prepared, dependencyFiles);
+      if (!compiled.success()) {
+        return false;
+      }
+      return activate(prepared, compiled.classes(), dependencyFiles);
+    } catch (Exception e) {
+      plugin.getLogger().log(Level.SEVERE, "Error loading script: " + scriptKey, e);
+      return false;
+    }
+  }
+
+  /**
+   * Load or reload a script without blocking the server thread on compilation. Must be called on
+   * the server thread: it runs the disabled checks and the pre-compile event there, compiles on a
+   * background thread, then defines the classes and starts the script back on the server thread.
+   * Dependency downloads happen on the background thread as well.
+   *
+   * <p>A running version of the script is only replaced once the new one has compiled, so a broken
+   * edit leaves it untouched. If the script is loaded again, unloaded or disabled while this one is
+   * compiling, this result is dropped and reported as {@link ScriptLoadResult.Status#SUPERSEDED}.
+   *
+   * @param callback receives the outcome on the server thread
+   */
+  public void loadScriptAsync(File scriptFile, Consumer<ScriptLoadResult> callback) {
+    Prepared prepared;
+    try {
+      prepared = prepare(scriptFile);
+    } catch (Exception e) {
+      plugin.getLogger().log(Level.SEVERE, "Error loading script: " + scriptFile, e);
+      callback.accept(ScriptLoadResult.failed(List.of()));
+      return;
+    }
+    if (prepared == null) {
+      callback.accept(ScriptLoadResult.skipped());
+      return;
+    }
+
+    // Resolve the classpath here so the background thread never reads server state
+    compiler.warmUp();
+    int generation = currentGeneration(prepared.key());
+
+    compileExecutor.execute(
+        () -> {
+          List<File> dependencyFiles = new ArrayList<>();
+          CompileResult compiled;
+          try {
+            if (!prepared.dependencies().isEmpty()) {
+              dependencyFiles =
+                  resolveDependenciesBlocking(prepared.dependencies(), prepared.key());
+            }
+            compiled = compile(prepared, dependencyFiles);
+          } catch (Throwable t) {
+            plugin.getLogger().log(Level.SEVERE, "Error compiling script: " + prepared.key(), t);
+            compiled = CompileResult.failure(List.of());
+          }
+
+          CompileResult finalCompiled = compiled;
+          List<File> finalDependencies = dependencyFiles;
+          try {
+            serverThread.accept(
+                () ->
+                    finishAsyncLoad(
+                        prepared, generation, finalCompiled, finalDependencies, callback));
+          } catch (Throwable t) {
+            // The plugin was disabled while compiling; there is nothing left to load into
+            plugin.debug("Dropped async load of " + prepared.key() + ": " + t.getMessage());
+          }
+        });
+  }
+
+  /** Server-thread half of an async load. */
+  private void finishAsyncLoad(
+      Prepared prepared,
+      int generation,
+      CompileResult compiled,
+      List<File> dependencyFiles,
+      Consumer<ScriptLoadResult> callback) {
+    ScriptLoadResult outcome;
+    synchronized (this) {
+      if (currentGeneration(prepared.key()) != generation) {
+        plugin.debug("Dropping stale async load of " + prepared.key());
+        outcome = ScriptLoadResult.superseded();
+      } else if (!isStillLoadable(prepared)) {
+        plugin.debug("Script was disabled or removed while compiling: " + prepared.key());
+        outcome = ScriptLoadResult.skipped();
+      } else if (!compiled.success()) {
+        outcome = ScriptLoadResult.failed(compiled.errors());
+      } else {
+        try {
+          outcome =
+              activate(prepared, compiled.classes(), dependencyFiles)
+                  ? ScriptLoadResult.loaded()
+                  : ScriptLoadResult.failed(List.of());
+        } catch (Exception e) {
+          plugin.getLogger().log(Level.SEVERE, "Error loading script: " + prepared.key(), e);
+          outcome = ScriptLoadResult.failed(List.of());
+        }
+      }
+    }
+
+    try {
+      callback.accept(outcome);
+    } catch (Throwable t) {
+      plugin.getLogger().warning("Error in load callback for " + prepared.key() + ": " + t);
+    }
+  }
+
+  private boolean isStillLoadable(Prepared prepared) {
+    return prepared.file().exists()
+        && !isDashDisabled(prepared.file())
+        && !disabledScripts.contains(prepared.key());
+  }
+
+  private int currentGeneration(String scriptKey) {
+    return loadGenerations.computeIfAbsent(scriptKey, k -> new AtomicInteger()).get();
+  }
+
+  /** Mark every in-flight async load of this script as outdated. */
+  private void bumpGeneration(String scriptKey) {
+    loadGenerations.computeIfAbsent(scriptKey, k -> new AtomicInteger()).incrementAndGet();
+  }
+
+  /**
+   * Server-thread checks before a script is compiled: whether it is disabled, the pre-compile
+   * event, the @Disabled marker and its dependency list. Returns null when there is nothing to
+   * load.
+   */
+  private synchronized Prepared prepare(File scriptFile) throws IOException {
     if (scriptFile == null || !scriptFile.exists()) {
       plugin.getLogger().warning("Script file does not exist: " + scriptFile);
-      return false;
+      return null;
     }
 
     String scriptKey = getScriptKey(scriptFile);
@@ -507,7 +682,7 @@ public class ScriptManager {
       if (loadedScripts.containsKey(scriptKey)) {
         unloadScript(scriptKey);
       }
-      return false;
+      return null;
     }
 
     // Check if disabled via disabled-scripts.json
@@ -516,231 +691,254 @@ public class ScriptManager {
       if (loadedScripts.containsKey(scriptKey)) {
         unloadScript(scriptKey);
       }
-      return false;
+      return null;
     }
 
+    boolean isReload = loadedScripts.containsKey(scriptKey);
+    bumpGeneration(scriptKey);
+
+    plugin.debug("Loading script: " + scriptKey);
+
+    String scriptContent = Files.readString(scriptFile.toPath());
+    long lastModified = scriptFile.lastModified();
+
+    // Fire pre-compile event allowing external plugins/addons to preprocess or cancel
+    dev.mukulx.javaskript.event.ScriptPreCompileEvent preCompileEvent =
+        new dev.mukulx.javaskript.event.ScriptPreCompileEvent(scriptKey, scriptContent);
     try {
-      boolean isReload = loadedScripts.containsKey(scriptKey);
+      org.bukkit.Bukkit.getPluginManager().callEvent(preCompileEvent);
+    } catch (Throwable t) {
+      plugin.getLogger().warning("Error in ScriptPreCompileEvent handler: " + t.getMessage());
+    }
+    if (preCompileEvent.isCancelled()) {
+      plugin.debug("Script compilation cancelled by external plugin event: " + scriptKey);
+      return null;
+    }
+    scriptContent = preCompileEvent.getSourceCode();
 
-      plugin.debug("Loading script: " + scriptKey);
-
-      String scriptContent = Files.readString(scriptFile.toPath());
-
-      // Fire pre-compile event allowing external plugins/addons to preprocess or cancel
-      dev.mukulx.javaskript.event.ScriptPreCompileEvent preCompileEvent =
-          new dev.mukulx.javaskript.event.ScriptPreCompileEvent(scriptKey, scriptContent);
-      try {
-        org.bukkit.Bukkit.getPluginManager().callEvent(preCompileEvent);
-      } catch (Throwable t) {
-        plugin.getLogger().warning("Error in ScriptPreCompileEvent handler: " + t.getMessage());
+    // Early check for @Disabled annotation or // @disabled comment before compiling/resolving
+    if (DISABLED_MARKER_PATTERN.matcher(scriptContent).find()) {
+      plugin.debug("Script marked as disabled in file, skipping: " + scriptKey);
+      if (isReload) {
+        unloadScript(scriptKey);
       }
-      if (preCompileEvent.isCancelled()) {
-        plugin.debug("Script compilation cancelled by external plugin event: " + scriptKey);
+      return null;
+    }
+
+    return new Prepared(
+        scriptKey, scriptFile, scriptContent, lastModified, extractDependencies(scriptContent));
+  }
+
+  /**
+   * Maven files for a script that is loading on the calling thread. Returns null when the
+   * resolution was handed to a background thread because the caller is the game thread, which must
+   * never wait on downloads; that thread loads the script again once the files are ready.
+   */
+  private List<File> dependenciesForBlockingLoad(Prepared prepared) {
+    List<String> dependencies = prepared.dependencies();
+    if (dependencies.isEmpty()) {
+      return new ArrayList<>();
+    }
+
+    // A background resolve for this exact dependency set already finished; use its result
+    ResolvedDependencies handoff = pendingDependencies.remove(prepared.key());
+    if (handoff != null && handoff.coordinates().equals(dependencies)) {
+      return handoff.files();
+    }
+
+    boolean onGameThread = false;
+    try {
+      onGameThread = org.bukkit.Bukkit.isPrimaryThread();
+    } catch (Throwable ignored) {
+      onGameThread = false;
+    }
+    if (onGameThread) {
+      final String queuedKey = prepared.key();
+      final File queuedFile = prepared.file();
+      plugin
+          .getLogger()
+          .info(
+              "Resolving "
+                  + dependencies.size()
+                  + " dependencies for "
+                  + queuedKey
+                  + " in the background");
+      java.util.concurrent.CompletableFuture.supplyAsync(
+              () -> resolveDependenciesBlocking(dependencies, queuedKey))
+          .thenAccept(
+              resolved -> {
+                pendingDependencies.put(
+                    queuedKey, new ResolvedDependencies(dependencies, resolved));
+                dev.mukulx.javaskript.util.ServerUtil.runSync(
+                    plugin,
+                    () -> {
+                      try {
+                        loadScript(queuedFile);
+                      } catch (Throwable t) {
+                        plugin
+                            .getLogger()
+                            .warning(
+                                "Background dependency load failed for "
+                                    + queuedKey
+                                    + ": "
+                                    + t.getMessage());
+                      }
+                    });
+              });
+      return null;
+    }
+
+    plugin
+        .getLogger()
+        .info("Resolving " + dependencies.size() + " dependencies for " + prepared.key());
+    return resolveDependenciesBlocking(dependencies, prepared.key());
+  }
+
+  /**
+   * Compile a prepared script, or reuse the cached bytecode when neither the file nor its content
+   * changed. Safe to call off the server thread.
+   */
+  private CompileResult compile(Prepared prepared, List<File> dependencyFiles) {
+    String contentHash = computeHash(prepared.source());
+    CachedScript cached = compilationCache.get(prepared.key());
+
+    if (cached != null
+        && cached.lastModified == prepared.lastModified()
+        && cached.contentHash.equals(contentHash)) {
+      plugin.debug("Using cached compilation for: " + prepared.key());
+      return new CompileResult(cached.compiledClasses, List.of());
+    }
+
+    CompileResult result =
+        compiler.compileWithDiagnostics(prepared.key(), prepared.source(), dependencyFiles);
+    if (!result.success()) {
+      plugin.getLogger().severe("Failed to compile script: " + prepared.key());
+      if (loadedScripts.containsKey(prepared.key())) {
+        plugin
+            .getLogger()
+            .warning("Keeping the previously loaded version of " + prepared.key() + " running");
+      }
+      return result;
+    }
+
+    compilationCache.put(
+        prepared.key(), new CachedScript(prepared.lastModified(), contentHash, result.classes()));
+    plugin.debug("Compiled and cached: " + prepared.key());
+    return result;
+  }
+
+  /**
+   * Define the compiled classes, replace any running version and start the script. Server thread
+   * only.
+   */
+  private boolean activate(
+      Prepared prepared, Map<String, byte[]> compiledClasses, List<File> dependencyFiles)
+      throws Exception {
+    String scriptKey = prepared.key();
+    File scriptFile = prepared.file();
+    boolean isReload = loadedScripts.containsKey(scriptKey);
+
+    // Instantiate isolated classloader mapping to assign the raw byte array data into real
+    // classes
+    ScriptClassLoader classLoader = new ScriptClassLoader(plugin, scriptKey, dependencyFiles);
+    try {
+      Map<String, Class<?>> loadedClasses = classLoader.defineClasses(compiledClasses);
+
+      if (loadedClasses.isEmpty()) {
+        plugin.getLogger().severe("Failed to load any classes for script: " + scriptKey);
+        classLoader.unloadAll();
         return false;
       }
-      scriptContent = preCompileEvent.getSourceCode();
 
-      // Early check for @Disabled annotation or // @disabled comment before compiling/resolving
-      if (DISABLED_MARKER_PATTERN.matcher(scriptContent).find()) {
-        plugin.debug("Script marked as disabled in file, skipping: " + scriptKey);
-        if (isReload) {
-          unloadScript(scriptKey);
-        }
-        return false;
-      }
+      // Reflective search setup to locate valid public runtime entry points
+      String expectedClassName = compiler.getClassName(scriptKey);
+      Class<?> scriptClass = loadedClasses.get(expectedClassName);
 
-      // Read metadata annotations and pull external Maven dependencies.
-      // Downloads run off the game thread so the server never freezes while Maven responds.
-      List<String> dependencies = extractDependencies(scriptContent);
-      List<File> dependencyFiles = new ArrayList<>();
-
-      if (!dependencies.isEmpty()) {
-        // A background resolve for this exact dependency set already finished; use its result
-        ResolvedDependencies handoff = pendingDependencies.remove(scriptKey);
-        if (handoff != null && handoff.coordinates().equals(dependencies)) {
-          dependencyFiles = handoff.files();
-        } else {
-          boolean onGameThread = false;
-          try {
-            onGameThread = org.bukkit.Bukkit.isPrimaryThread();
-          } catch (Throwable ignored) {
-            onGameThread = false;
+      if (scriptClass == null) {
+        for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
+          if (entry.getKey().equalsIgnoreCase(expectedClassName)) {
+            scriptClass = entry.getValue();
+            plugin.getLogger().info("Found main class with different case: " + entry.getKey());
+            break;
           }
-          if (onGameThread) {
-            final String queuedKey = scriptKey;
-            final File queuedFile = scriptFile;
+        }
+      }
+
+      if (scriptClass == null) {
+        for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
+          Class<?> clazz = entry.getValue();
+          if (java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
+            scriptClass = clazz;
             plugin
                 .getLogger()
                 .info(
-                    "Resolving "
-                        + dependencies.size()
-                        + " dependencies for "
+                    "Using public class '"
+                        + entry.getKey()
+                        + "' as main class (filename was: "
                         + scriptKey
-                        + " in the background");
-            java.util.concurrent.CompletableFuture.supplyAsync(
-                    () -> resolveDependenciesBlocking(dependencies, queuedKey))
-                .thenAccept(
-                    resolved -> {
-                      pendingDependencies.put(
-                          queuedKey, new ResolvedDependencies(dependencies, resolved));
-                      dev.mukulx.javaskript.util.ServerUtil.runSync(
-                          plugin,
-                          () -> {
-                            try {
-                              loadScript(queuedFile);
-                            } catch (Throwable t) {
-                              plugin
-                                  .getLogger()
-                                  .warning(
-                                      "Background dependency load failed for "
-                                          + queuedKey
-                                          + ": "
-                                          + t.getMessage());
-                            }
-                          });
-                    });
-            // Queued in the background; the second pass finishes the load without blocking.
-            return false;
+                        + ")");
+            break;
           }
-
-          plugin
-              .getLogger()
-              .info("Resolving " + dependencies.size() + " dependencies for " + scriptKey);
-          dependencyFiles = resolveDependenciesBlocking(dependencies, scriptKey);
         }
       }
 
-      long lastModified = scriptFile.lastModified();
-      String contentHash = computeHash(scriptContent);
-      CachedScript cached = compilationCache.get(scriptKey);
-      Map<String, byte[]> compiledClasses;
-
-      if (cached != null
-          && cached.lastModified == lastModified
-          && cached.contentHash.equals(contentHash)) {
-        plugin.debug("Using cached compilation for: " + scriptKey);
-        compiledClasses = cached.compiledClasses;
-      } else {
-        compiledClasses = compiler.compileAll(scriptKey, scriptContent, dependencyFiles);
-
-        if (compiledClasses == null || compiledClasses.isEmpty()) {
-          plugin.getLogger().severe("Failed to compile script: " + scriptKey);
-          return false;
-        }
-
-        compilationCache.put(
-            scriptKey, new CachedScript(lastModified, contentHash, compiledClasses));
-        plugin.debug("Compiled and cached: " + scriptKey);
-      }
-
-      // Instantiate isolated classloader mapping to assign the raw byte array data into real
-      // classes
-      ScriptClassLoader classLoader = new ScriptClassLoader(plugin, scriptKey, dependencyFiles);
-      try {
-        Map<String, Class<?>> loadedClasses = classLoader.defineClasses(compiledClasses);
-
-        if (loadedClasses.isEmpty()) {
-          plugin.getLogger().severe("Failed to load any classes for script: " + scriptKey);
-          classLoader.unloadAll();
-          return false;
-        }
-
-        // Reflective search setup to locate valid public runtime entry points
-        String expectedClassName = compiler.getClassName(scriptKey);
-        Class<?> scriptClass = loadedClasses.get(expectedClassName);
-
-        if (scriptClass == null) {
-          for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
-            if (entry.getKey().equalsIgnoreCase(expectedClassName)) {
-              scriptClass = entry.getValue();
-              plugin.getLogger().info("Found main class with different case: " + entry.getKey());
-              break;
-            }
-          }
-        }
-
-        if (scriptClass == null) {
-          for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
-            Class<?> clazz = entry.getValue();
-            if (java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
-              scriptClass = clazz;
-              plugin
-                  .getLogger()
-                  .info(
-                      "Using public class '"
-                          + entry.getKey()
-                          + "' as main class (filename was: "
-                          + scriptKey
-                          + ")");
-              break;
-            }
-          }
-        }
-
-        if (scriptClass == null) {
-          plugin.getLogger().severe("No suitable main class found for: " + scriptKey);
-          plugin.getLogger().severe("Available classes: " + loadedClasses.keySet());
-          classLoader.unloadAll();
-          return false;
-        }
-
-        // Check for @Disabled annotation on the compiled class
-        if (scriptClass.isAnnotationPresent(Disabled.class)) {
-          Disabled disabled = scriptClass.getAnnotation(Disabled.class);
-          String reason = disabled.value();
-          if (reason != null && !reason.isEmpty()) {
-            plugin.debug(
-                "Script has @Disabled annotation (" + reason + "), skipping: " + scriptKey);
-          } else {
-            plugin.debug("Script has @Disabled annotation, skipping: " + scriptKey);
-          }
-          if (isReload) {
-            unloadScript(scriptKey);
-          }
-          classLoader.unloadAll();
-          return false;
-        }
-
-        // Do not take a running script down for a bad edit. Compilation and class validation have
-        // completed successfully; only now is it safe to replace the active instance.
-        if (isReload) {
-          unloadScript(scriptKey, true);
-        }
-
-        ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
-
-        if (!instance.initialize()) {
-          plugin.getLogger().severe("Failed to initialize script: " + scriptKey);
-          classLoader.unloadAll();
-          return false;
-        }
-
-        loadedScripts.put(scriptKey, instance);
-        plugin.getLogger().info("Loaded: " + scriptKey);
-
-        // Fire lifecycle events for external plugins and addons
-        try {
-          if (isReload) {
-            org.bukkit.Bukkit.getPluginManager()
-                .callEvent(new dev.mukulx.javaskript.event.ScriptReloadEvent(scriptKey, instance));
-          }
-          org.bukkit.Bukkit.getPluginManager()
-              .callEvent(
-                  new dev.mukulx.javaskript.event.ScriptLoadEvent(
-                      scriptKey, instance, scriptClass));
-        } catch (Throwable t) {
-          plugin.getLogger().warning("Error in ScriptLoadEvent handler: " + t.getMessage());
-        }
-
-        return true;
-      } catch (Exception e) {
+      if (scriptClass == null) {
+        plugin.getLogger().severe("No suitable main class found for: " + scriptKey);
+        plugin.getLogger().severe("Available classes: " + loadedClasses.keySet());
         classLoader.unloadAll();
-        throw e;
+        return false;
       }
 
+      // Check for @Disabled annotation on the compiled class
+      if (scriptClass.isAnnotationPresent(Disabled.class)) {
+        Disabled disabled = scriptClass.getAnnotation(Disabled.class);
+        String reason = disabled.value();
+        if (reason != null && !reason.isEmpty()) {
+          plugin.debug("Script has @Disabled annotation (" + reason + "), skipping: " + scriptKey);
+        } else {
+          plugin.debug("Script has @Disabled annotation, skipping: " + scriptKey);
+        }
+        if (isReload) {
+          unloadScript(scriptKey);
+        }
+        classLoader.unloadAll();
+        return false;
+      }
+
+      // Do not take a running script down for a bad edit. Compilation and class validation have
+      // completed successfully; only now is it safe to replace the active instance.
+      if (isReload) {
+        unloadScript(scriptKey, true);
+      }
+
+      ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
+
+      if (!instance.initialize()) {
+        plugin.getLogger().severe("Failed to initialize script: " + scriptKey);
+        classLoader.unloadAll();
+        return false;
+      }
+
+      loadedScripts.put(scriptKey, instance);
+      plugin.getLogger().info("Loaded: " + scriptKey);
+
+      // Fire lifecycle events for external plugins and addons
+      try {
+        if (isReload) {
+          org.bukkit.Bukkit.getPluginManager()
+              .callEvent(new dev.mukulx.javaskript.event.ScriptReloadEvent(scriptKey, instance));
+        }
+        org.bukkit.Bukkit.getPluginManager()
+            .callEvent(
+                new dev.mukulx.javaskript.event.ScriptLoadEvent(scriptKey, instance, scriptClass));
+      } catch (Throwable t) {
+        plugin.getLogger().warning("Error in ScriptLoadEvent handler: " + t.getMessage());
+      }
+
+      return true;
     } catch (Exception e) {
-      plugin.getLogger().log(Level.SEVERE, "Error loading script: " + scriptKey, e);
-      return false;
+      classLoader.unloadAll();
+      throw e;
     }
   }
 
@@ -759,6 +957,7 @@ public class ScriptManager {
   private boolean unloadScript(String scriptKey, boolean keepCompilationCache) {
     // Normalize: strip .java if missing, normalize slashes
     scriptKey = normalizeKey(scriptKey);
+    bumpGeneration(scriptKey);
 
     ScriptInstance instance = loadedScripts.remove(scriptKey);
 
@@ -786,6 +985,11 @@ public class ScriptManager {
       plugin.getLogger().log(Level.SEVERE, "Error unloading script: " + scriptKey, e);
       return false;
     }
+  }
+
+  /** Stop the background compiler. Called when the plugin disables. */
+  public void shutdown() {
+    compileExecutor.shutdownNow();
   }
 
   public void unloadAllScripts() {

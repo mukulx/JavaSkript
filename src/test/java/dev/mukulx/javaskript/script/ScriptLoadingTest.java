@@ -12,9 +12,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.script.ScriptLoadResult.Status;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +41,8 @@ class ScriptLoadingTest {
 
   @TempDir Path temp;
   private ScriptManager manager;
+  // Stands in for the server thread: tasks queue here until a test runs them
+  private final BlockingQueue<Runnable> serverTasks = new LinkedBlockingQueue<>();
 
   @BeforeEach
   void setUp() {
@@ -45,7 +52,7 @@ class ScriptLoadingTest {
     when(plugin.getServer().getPluginManager().getPlugins()).thenReturn(new Plugin[0]);
     when(plugin.getName()).thenReturn("JavaSkript");
     when(plugin.isEnabled()).thenReturn(true);
-    manager = new ScriptManager(plugin);
+    manager = new ScriptManager(plugin, serverTasks::add);
     when(plugin.getScriptManager()).thenReturn(manager);
   }
 
@@ -148,5 +155,100 @@ class ScriptLoadingTest {
     assertEquals(2, manager.getLoadedScripts().size());
     assertNotNull(manager.getScript("A"));
     assertNotNull(manager.getScript("sub/B"));
+  }
+
+  /** Wait for the background compile to hand back to the "server thread", then run that task. */
+  private void runNextServerTask() throws Exception {
+    Runnable task = serverTasks.poll(60, TimeUnit.SECONDS);
+    assertNotNull(task, "background compile never finished");
+    task.run();
+  }
+
+  @Test
+  void asyncLoadCompilesInTheBackgroundThenActivatesOnTheServerThread() throws Exception {
+    File script = write("Hello.java", COUNTER_SCRIPT);
+    AtomicReference<ScriptLoadResult> result = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, result::set);
+
+    assertNull(result.get(), "nothing is reported before the server thread finishes the load");
+    assertNull(manager.getScript("Hello"), "nothing is activated before the server thread runs");
+    runNextServerTask();
+    assertEquals(Status.LOADED, result.get().status());
+    assertEquals(1, field(manager.getScript("Hello"), "enabled"));
+  }
+
+  @Test
+  void asyncBrokenEditReportsErrorsAndKeepsTheRunningVersion() throws Exception {
+    File script = write("Hello.java", COUNTER_SCRIPT);
+    assertTrue(manager.loadScript(script));
+    ScriptInstance running = manager.getScript("Hello");
+    Files.writeString(script.toPath(), "public class Hello {\n  int x = \"not an int\";\n}\n");
+    AtomicReference<ScriptLoadResult> result = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, result::set);
+    runNextServerTask();
+
+    assertEquals(Status.FAILED, result.get().status());
+    assertEquals(1, result.get().errors().size());
+    assertEquals(2, result.get().errors().get(0).line());
+    assertTrue(result.get().errors().get(0).message().contains("Type mismatch"));
+    assertSame(running, manager.getScript("Hello"));
+    assertEquals(0, field(running, "disabled"));
+  }
+
+  @Test
+  void aNewerLoadSupersedesAnEarlierAsyncLoad() throws Exception {
+    File script = write("Hello.java", COUNTER_SCRIPT);
+    AtomicReference<ScriptLoadResult> first = new AtomicReference<>();
+    AtomicReference<ScriptLoadResult> second = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, first::set);
+    Files.writeString(script.toPath(), COUNTER_SCRIPT + "\n// second edit\n");
+    manager.loadScriptAsync(script, second::set);
+    runNextServerTask();
+    runNextServerTask();
+
+    assertEquals(Status.SUPERSEDED, first.get().status());
+    assertEquals(Status.LOADED, second.get().status());
+    assertEquals(1, field(manager.getScript("Hello"), "enabled"));
+  }
+
+  @Test
+  void unloadingWhileCompilingDropsTheLoad() throws Exception {
+    File script = write("Hello.java", COUNTER_SCRIPT);
+    assertTrue(manager.loadScript(script));
+    AtomicReference<ScriptLoadResult> result = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, result::set);
+    manager.unloadScript("Hello");
+    runNextServerTask();
+
+    assertEquals(Status.SUPERSEDED, result.get().status());
+    assertNull(manager.getScript("Hello"));
+  }
+
+  @Test
+  void disablingWhileCompilingSkipsTheLoad() throws Exception {
+    File script = write("Hello.java", COUNTER_SCRIPT);
+    AtomicReference<ScriptLoadResult> result = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, result::set);
+    assertTrue(manager.disableScript("Hello"));
+    runNextServerTask();
+
+    assertEquals(Status.SKIPPED, result.get().status());
+    assertNull(manager.getScript("Hello"));
+  }
+
+  @Test
+  void asyncLoadOfADisabledScriptIsSkippedImmediately() throws Exception {
+    File script = write("Off.java", "@Disabled\npublic class Off {}\n");
+    AtomicReference<ScriptLoadResult> result = new AtomicReference<>();
+
+    manager.loadScriptAsync(script, result::set);
+
+    assertEquals(Status.SKIPPED, result.get().status());
+    assertTrue(serverTasks.isEmpty());
   }
 }

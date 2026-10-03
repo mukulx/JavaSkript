@@ -14,6 +14,7 @@ public class ScriptCompiler {
 
   private final JavaSkriptPlugin plugin;
   private final File tempDir;
+  private final Object compileLock = new Object();
   private static final Pattern PUBLIC_CLASS_PATTERN =
       Pattern.compile(
           "public\\s+(?:(?:final|abstract|sealed|non-sealed|static)\\s+)*(?:class|record|enum|interface)\\s+(\\w+)");
@@ -117,8 +118,11 @@ public class ScriptCompiler {
       };
 
       // Compile
-      boolean success =
-          BatchCompiler.compile(args, new PrintWriter(System.out), errorPrintWriter, null);
+      // One compile at a time, whether it comes from the server thread or the background thread
+      boolean success;
+      synchronized (compileLock) {
+        success = BatchCompiler.compile(args, new PrintWriter(System.out), errorPrintWriter, null);
+      }
 
       if (!success) {
         List<CompileError> errors = CompileDiagnostics.parse(errorWriter.toString());
