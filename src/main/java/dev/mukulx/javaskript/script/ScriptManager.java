@@ -121,11 +121,34 @@ public class ScriptManager {
     return false;
   }
 
+  /** Reject keys that could point outside the scripts folder. */
+  private boolean isSafeKey(String key) {
+    if (key == null || key.isEmpty() || key.indexOf('\0') >= 0) {
+      return false;
+    }
+    String normalized = key.replace('\\', '/');
+    if (normalized.startsWith("/")
+        || normalized.matches("^[A-Za-z]:.*")
+        || new File(normalized).isAbsolute()) {
+      return false;
+    }
+    for (String part : normalized.split("/")) {
+      if (part.equals("..")) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * Resolve a script key (relative path or simple name) to a File. Checks exact path, dash-prefixed
    * variants, and recursively searches subfolders.
    */
   public File resolveScriptFile(String scriptKey) {
+    if (!isSafeKey(scriptKey)) {
+      // Nothing outside scripts/ may be resolved; callers treat a missing file as "not found"
+      return new File(scriptsFolder, "invalid-script-key");
+    }
     if (!scriptKey.endsWith(".java")) {
       scriptKey += ".java";
     }
@@ -192,7 +215,7 @@ public class ScriptManager {
 
   /** Resolve a directory name or path (supporting dash prefixes). */
   public File resolveDirectory(String path) {
-    if (path == null || path.isEmpty()) return null;
+    if (path == null || path.isEmpty() || !isSafeKey(path)) return null;
     path = path.replace('\\', '/');
     if (path.endsWith("/")) {
       path = path.substring(0, path.length() - 1);
@@ -784,6 +807,10 @@ public class ScriptManager {
    */
   public boolean disableScript(String scriptKey) {
     scriptKey = normalizeKey(scriptKey);
+    if (!isSafeKey(scriptKey)) {
+      plugin.getLogger().warning("Refusing to disable script with unsafe key: " + scriptKey);
+      return false;
+    }
 
     File scriptFile = resolveScriptFile(scriptKey);
     boolean renamed = false;
@@ -819,6 +846,10 @@ public class ScriptManager {
    */
   public boolean enableScript(String scriptKey) {
     scriptKey = normalizeKey(scriptKey);
+    if (!isSafeKey(scriptKey)) {
+      plugin.getLogger().warning("Refusing to enable script with unsafe key: " + scriptKey);
+      return false;
+    }
 
     boolean wasDisabled = false;
 
