@@ -799,6 +799,12 @@ public class ScriptInstance {
               continue;
             }
 
+            // The shared HttpClient from the HTTP helper is AutoCloseable on Java 21. Closing it
+            // here would break HTTP calls in every other script.
+            if (value instanceof java.net.http.HttpClient) {
+              continue;
+            }
+
             // Check for HikariDataSource (HikariCP)
             if (typeName.equals("com.zaxxer.hikari.HikariDataSource")) {
               try {
@@ -856,7 +862,7 @@ public class ScriptInstance {
             if (value instanceof Thread) {
               try {
                 Thread thread = (Thread) value;
-                if (thread.isAlive()) {
+                if (thread.isAlive() && !isServerThread(thread)) {
                   thread.interrupt();
                   plugin
                       .getLogger()
@@ -908,6 +914,19 @@ public class ScriptInstance {
           .getLogger()
           .warning("Error scanning for custom resources (continuing): " + e.getMessage());
     }
+  }
+
+  /** Threads the server or scheduler owns. A script holding one in a field must not stop it. */
+  private static boolean isServerThread(Thread thread) {
+    if (thread == Thread.currentThread()) {
+      return true;
+    }
+    String name = thread.getName();
+    return name.startsWith("Server thread")
+        || name.startsWith("Region Scheduler Thread")
+        || name.startsWith("Craft Scheduler Thread")
+        || name.startsWith("Folia")
+        || name.startsWith("Paper");
   }
 
   public File getScriptFile() {
