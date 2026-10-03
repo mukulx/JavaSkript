@@ -39,6 +39,7 @@ public class ScriptInstance {
   private final ScriptClassLoader classLoader;
   private Object instance;
   private final Map<String, Command> registeredCommands;
+  private final ScriptContext context;
 
   // API instances for this script
   private ScriptScheduler scheduler;
@@ -71,6 +72,7 @@ public class ScriptInstance {
     this.scriptClass = scriptClass;
     this.classLoader = classLoader;
     this.registeredCommands = new LinkedHashMap<>();
+    this.context = new ScriptContext(plugin, scriptFile.getName());
   }
 
   public boolean initialize() {
@@ -106,20 +108,35 @@ public class ScriptInstance {
       // Initialize API helpers
       // Use class name instead of file name to avoid issues with manual config creation
       String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+
+      // Everything registered below is released by context.close() on unload or failed init.
+      // Listeners and commands are owned first because onEnable may register them.
+      context.own("event listeners", this::unregisterListeners);
+      context.own("commands", this::unregisterRegisteredCommands);
+
       this.scheduler = new ScriptScheduler(plugin, scriptKey);
+      context.own("scheduled tasks", scheduler::cancelAll);
       this.config = new ScriptConfig(plugin, scriptKey);
       this.database = new DatabaseHelper(plugin, scriptKey);
+      context.own("database", database::disconnect);
       this.placeholders = new PlaceholderHelper(plugin, scriptKey);
+      context.own("placeholders", placeholders::unregisterAll);
       this.recipes = new RecipeHelper(plugin, scriptKey);
+      context.own("recipes", recipes::removeAll);
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
+      context.own("holograms", holograms::removeAll);
       this.commands = new CommandHelper(plugin, scriptKey);
+      context.own("fluent commands", commands::unregisterAll);
       this.items = new ItemHelper(plugin);
       this.cooldowns = new CooldownHelper(plugin, scriptKey);
+      context.own("cooldowns", cooldowns::cleanup);
       this.events = new EventHelper(plugin, scriptKey);
+      context.own("event subscriptions", events::unregisterAll);
       this.players = new PlayerHelper(plugin);
       this.chat = new ChatHelper(plugin, scriptKey);
+      context.own("chat prompts", chat::cleanup);
       this.economy = plugin.getEconomyHelper();
       this.variables = plugin.getVariableHelper();
       this.scriptVariables =
@@ -597,151 +614,17 @@ public class ScriptInstance {
   private void releaseResources() {
     String scriptName = scriptFile.getName();
 
-    // Cancel all scheduled tasks (force it)
-    try {
-      if (scheduler != null) {
-        scheduler.cancelAll();
-        scheduler = null;
-        plugin.debug("Cancelled scheduled tasks for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cancelling tasks (continuing): " + e.getMessage());
-    }
+    context.close();
 
-    // Disconnect database (force it)
-    try {
-      if (database != null) {
-        database.disconnect();
-        database = null;
-        plugin.debug("Disconnected database for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error disconnecting database (continuing): " + e.getMessage());
-    }
-
-    // Unregister placeholders (force it)
-    try {
-      if (placeholders != null) {
-        placeholders.unregisterAll();
-        placeholders = null;
-        plugin.debug("Unregistered placeholders for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error unregistering placeholders (continuing): " + e.getMessage());
-    }
-
-    // Unregister recipes (force it)
-    try {
-      if (recipes != null) {
-        recipes.removeAll();
-        recipes = null;
-        plugin.debug("Unregistered recipes for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering recipes (continuing): " + e.getMessage());
-    }
-
-    // Despawn holograms (force it)
-    try {
-      if (holograms != null) {
-        holograms.removeAll();
-        holograms = null;
-        plugin.debug("Removed holograms for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error removing holograms (continuing): " + e.getMessage());
-    }
-
-    // Unregister events if listener (force it)
-    try {
-      if (instance instanceof Listener) {
-        HandlerList.unregisterAll((Listener) instance);
-        plugin.debug("Unregistered event listener: " + scriptClass.getSimpleName());
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
-    }
-
-    // Listeners the script created and registered itself (inner classes, helper objects)
-    try {
-      unregisterScriptListeners();
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error unregistering script listeners (continuing): " + e.getMessage());
-    }
-
-    // Unregister commands (force each one individually)
-    for (Map.Entry<String, Command> entry : new ArrayList<>(registeredCommands.entrySet())) {
-      String commandName = entry.getKey();
-      try {
-        // Skipped when another script replaced the command, so we never remove its version
-        boolean removed =
-            plugin.getCommandRegistry().unregisterCommand(commandName, entry.getValue());
-
-        // Verify it's actually gone
-        if (removed && plugin.getCommandRegistry().isCommandInMap(commandName)) {
-          plugin.getLogger().severe("Command still exists after unregister: /" + commandName);
-        } else {
-          plugin.debug("Verified command removed: /" + commandName);
-        }
-      } catch (Exception e) {
-        plugin
-            .getLogger()
-            .warning(
-                "Error unregistering command /" + commandName + " (continuing): " + e.getMessage());
-      }
-    }
-    registeredCommands.clear();
-
-    // Unregister fluent commands
-    try {
-      if (commands != null) {
-        commands.unregisterAll();
-      }
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error unregistering fluent commands (continuing): " + e.getMessage());
-    }
-
-    // Cleanup cooldowns and active tickers
-    try {
-      if (cooldowns != null) {
-        cooldowns.cleanup();
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cleaning up cooldowns (continuing): " + e.getMessage());
-    }
-
-    // Unregister lambda event subscriptions
-    try {
-      if (events != null) {
-        events.unregisterAll();
-        events = null;
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
-    }
-
-    // Cleanup chat prompts and action tokens
-    try {
-      if (chat != null) {
-        chat.cleanup();
-        chat = null;
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cleaning up chat (continuing): " + e.getMessage());
-    }
-
-    // Clear config reference
-    try {
-      config = null;
-    } catch (Exception e) {
-      // Ignore
-    }
+    // Drop references so use after unload fails fast instead of touching released helpers
+    scheduler = null;
+    database = null;
+    placeholders = null;
+    recipes = null;
+    holograms = null;
+    events = null;
+    chat = null;
+    config = null;
 
     // Automatic cleanup of common custom resources
     // This helps scripts that don't have onDisable() but use custom resources
@@ -923,6 +806,47 @@ public class ScriptInstance {
           .getLogger()
           .warning("Error scanning for custom resources (continuing): " + e.getMessage());
     }
+  }
+
+  /** Unregister the script instance itself and every other listener the script registered. */
+  private void unregisterListeners() {
+    if (instance instanceof Listener listener) {
+      HandlerList.unregisterAll(listener);
+    }
+    unregisterScriptListeners();
+  }
+
+  /** Unregister the commands the script class registered by implementing CommandExecutor. */
+  private void unregisterRegisteredCommands() {
+    for (Map.Entry<String, Command> entry : new ArrayList<>(registeredCommands.entrySet())) {
+      String commandName = entry.getKey();
+      try {
+        // Skipped when another script replaced the command, so we never remove its version
+        boolean removed =
+            plugin.getCommandRegistry().unregisterCommand(commandName, entry.getValue());
+
+        // Verify it's actually gone
+        if (removed && plugin.getCommandRegistry().isCommandInMap(commandName)) {
+          plugin.getLogger().severe("Command still exists after unregister: /" + commandName);
+        } else {
+          plugin.debug("Verified command removed: /" + commandName);
+        }
+      } catch (Exception e) {
+        plugin
+            .getLogger()
+            .warning(
+                "Error unregistering command /" + commandName + " (continuing): " + e.getMessage());
+      }
+    }
+    registeredCommands.clear();
+  }
+
+  /**
+   * Register a cleanup to run when this script unloads. Addons whose custom field injectors hand
+   * scripts a resource that must not outlive them can release it here.
+   */
+  public void registerCleanup(String description, Runnable cleanup) {
+    context.own(description, cleanup);
   }
 
   /**
