@@ -649,7 +649,7 @@ public class ScriptManager {
         // Do not take a running script down for a bad edit. Compilation and class validation have
         // completed successfully; only now is it safe to replace the active instance.
         if (isReload) {
-          unloadScript(scriptKey);
+          unloadScript(scriptKey, true);
         }
 
         ScriptInstance instance = new ScriptInstance(plugin, scriptFile, scriptClass, classLoader);
@@ -694,6 +694,14 @@ public class ScriptManager {
   // ==========================================
 
   public boolean unloadScript(String scriptKey) {
+    return unloadScript(scriptKey, false);
+  }
+
+  /**
+   * @param keepCompilationCache true when the script is being replaced by a fresh load, so the
+   *     bytecode just compiled for it must survive the unload of the old instance
+   */
+  private boolean unloadScript(String scriptKey, boolean keepCompilationCache) {
     // Normalize: strip .java if missing, normalize slashes
     scriptKey = normalizeKey(scriptKey);
 
@@ -714,7 +722,9 @@ public class ScriptManager {
 
       instance.unload();
       pendingDependencies.remove(scriptKey);
-      compilationCache.remove(scriptKey);
+      if (!keepCompilationCache) {
+        compilationCache.remove(scriptKey);
+      }
       plugin.debug("Unloaded script: " + scriptKey);
       return true;
     } catch (Exception e) {
