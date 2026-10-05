@@ -15,10 +15,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -517,14 +515,19 @@ public class ScriptInstance {
     String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
     int registeredCount = 0;
 
-    Set<Method> methods = new HashSet<>();
+    // Walk from the subclass up and keep the first method per signature. An overridden handler
+    // must register once: invoking the superclass Method dispatches to the override anyway.
+    Map<String, Method> bySignature = new LinkedHashMap<>();
     for (Class<?> clazz = listener.getClass();
         clazz != null && clazz != Object.class;
         clazz = clazz.getSuperclass()) {
       for (Method m : clazz.getDeclaredMethods()) {
-        methods.add(m);
+        if (m.isBridge() || m.isSynthetic()) continue;
+        String signature = m.getName() + java.util.Arrays.toString(m.getParameterTypes());
+        bySignature.putIfAbsent(signature, m);
       }
     }
+    java.util.Collection<Method> methods = bySignature.values();
 
     for (Method method : methods) {
       EventHandler handler = method.getAnnotation(EventHandler.class);
