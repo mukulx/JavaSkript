@@ -47,6 +47,8 @@ public class ScriptInstance {
   private DatabaseHelper database;
   private PlaceholderHelper placeholders;
   private RecipeHelper recipes;
+  private ActionBarHelper actionBars;
+  private BossBarHelper bossBars;
   private DialogHelper dialog;
   private PDCHelper pdc;
   private HologramHelper holograms;
@@ -125,6 +127,11 @@ public class ScriptInstance {
       context.own("placeholders", placeholders::unregisterAll);
       this.recipes = new RecipeHelper(plugin, scriptKey);
       context.own("recipes", recipes::removeAll);
+      // Per script, so persistent action bars and boss bars end with the script that showed them
+      this.actionBars = new ActionBarHelper(plugin);
+      context.own("action bars", actionBars::shutdown);
+      this.bossBars = new BossBarHelper(plugin);
+      context.own("boss bars", bossBars::hideAll);
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
@@ -319,11 +326,11 @@ public class ScriptInstance {
             } else if (RecipeHelper.class.isAssignableFrom(type)) {
               field.set(instance, recipes);
             } else if (ActionBarHelper.class.isAssignableFrom(type)) {
-              field.set(instance, plugin.getAPI().getActionBarHelper());
+              field.set(instance, actionBars);
             } else if (TitleHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getTitleHelper());
             } else if (BossBarHelper.class.isAssignableFrom(type)) {
-              field.set(instance, plugin.getAPI().getBossBarHelper());
+              field.set(instance, bossBars);
             } else if (SoundHelper.class.isAssignableFrom(type)) {
               field.set(instance, plugin.getAPI().getSoundHelper());
             } else if (DialogHelper.class.isAssignableFrom(type)) {
@@ -383,7 +390,7 @@ public class ScriptInstance {
             } else if (name.equals("actionbar")
                 || name.equals("actionbars")
                 || name.equals("actionbarhelper")) {
-              field.set(instance, plugin.getAPI().getActionBarHelper());
+              field.set(instance, actionBars);
             } else if (name.equals("title")
                 || name.equals("titles")
                 || name.equals("titlehelper")) {
@@ -391,7 +398,7 @@ public class ScriptInstance {
             } else if (name.equals("bossbar")
                 || name.equals("bossbars")
                 || name.equals("bossbarhelper")) {
-              field.set(instance, plugin.getAPI().getBossBarHelper());
+              field.set(instance, bossBars);
             } else if (name.equals("sound")
                 || name.equals("sounds")
                 || name.equals("soundhelper")) {
@@ -645,6 +652,8 @@ public class ScriptInstance {
     database = null;
     placeholders = null;
     recipes = null;
+    actionBars = null;
+    bossBars = null;
     holograms = null;
     mannequins = null;
     advancements = null;
