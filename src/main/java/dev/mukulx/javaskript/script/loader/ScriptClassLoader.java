@@ -127,7 +127,23 @@ public class ScriptClassLoader extends URLClassLoader {
     if (pending != null) {
       return defineClass(name, pending);
     }
-    return super.findClass(name);
+    try {
+      return super.findClass(name);
+    } catch (ClassNotFoundException notInDependencies) {
+      // JavaSkript is a Paper plugin, so its own loader only sees the plugins it declares. Scripts
+      // compile against every loaded plugin jar, so look those plugins up here as well.
+      for (var other : plugin.getServer().getPluginManager().getPlugins()) {
+        ClassLoader otherLoader = other.getClass().getClassLoader();
+        if (other == plugin || otherLoader == getParent()) {
+          continue;
+        }
+        try {
+          return otherLoader.loadClass(name);
+        } catch (ClassNotFoundException | LinkageError ignored) {
+        }
+      }
+      throw notInDependencies;
+    }
   }
 
   /**
