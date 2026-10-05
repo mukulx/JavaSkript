@@ -1,101 +1,39 @@
-# JavaSkript Configuration
-# https://github.com/mukulx/javaskript
+# JavaSkript config. Docs: https://github.com/mukulx/javaskript
+config-version: 2 # do not edit
 
-# File Watcher Settings
-# The file watcher automatically reloads scripts when they are modified
-file-watcher:
-  # Enable or disable automatic script reloading
-  # If disabled, you must use /js reload to reload scripts manually
-  enabled: true
-  
-  # Delay in milliseconds before reloading a script after it's modified
-  # This prevents multiple reloads when saving files
-  reload-delay: 500
+general:
+  debug: false
+  update-checker: true
+  clean-stack-traces: true # false = full Java stack trace
 
-# Debug Settings
-debug:
-  # Enable debug mode to see detailed logging
-  # Can be toggled with /js debug command while server is running
-  enabled: false
-
-# Error & Diagnostic Settings
-errors:
-  # Enable clean, smart script stack traces in console
-  # If true, isolates the exact script file and line number while stripping out 60+ internal Paper/Folia reflection frames
-  # If false, prints the full standard Java stack trace
-  clean-stack-traces: true
-
-# Update Checker
-update-checker:
-  # Check for updates on Modrinth when server starts
-  enabled: true
-
-# Script Settings
 scripts:
-  # Automatically load all scripts on server startup
   auto-load: true
-
-# Dependency Settings
-dependencies:
-  # Cache directory for downloaded Maven dependencies
-  # Relative to the plugin folder
-  cache-folder: "libs"
-
-# Economy Settings
-# Supports Vault (EssentialsX, CMI, UltraEconomy, etc.) and Built-in SQLite Persistent Economy
-economy:
-  # Master toggle - Disabled by default.
-  # When false, the economy subsystem does not load and will not touch any files or databases.
-  enabled: false
-
-  # Mode: 'vault', 'auto', or 'builtin'
-  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy, etc.) via Vault
-  # - auto: Hook into Vault if an external economy plugin exists; fallback to built-in SQLite if none found
-  # - builtin: Always use JavaSkript's built-in SQLite persistent economy
-  mode: "vault"
-
-  # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
-  # Allows other plugins (ChestShop, AuctionHouse, ShopGUI+, etc.) to use JavaSkript's economy
-  # Only active if economy.enabled is true and mode is 'builtin' or 'auto' (without external economy)
-  register-vault-service: false
-
-  # Default Currency Settings (used when mode is 'builtin' or 'auto' fallback)
-  currency:
-    symbol: "$"
-    name-singular: "Coin"
-    name-plural: "Coins"
-    starting-balance: 0.0
-
-# Team / Clan Engine Settings
-teams:
-  # Enable or disable the native team subsystem
-  enabled: true
-
-  # Register built-in /team command (aliases: /clan, /party, /t)
-  # Set to false if you prefer implementing team commands via custom scripts
-  register-command: true
-
-  # Default team configurations
-  defaults:
-    # Maximum members per team (0 = unlimited)
-    max-size: 0
-    # Friendly fire enabled by default
-    friendly-fire: false
-    # Open to join without invite by default
-    open: false
-
-  # Tab list and Nametag visual integration
-  # Compatible with vanilla Minecraft and the famous TAB plugin (by NEZNAMY)
-  tab:
-    # Master toggle for automatic tab list formatting
+  hot-reload:
     enabled: true
-    # Synchronize vanilla scoreboards if the TAB plugin is NOT installed
-    # (Automatically keeps nametags updated; avoids conflicts when TAB is present)
-    sync-vanilla-scoreboard: true
-    # Force vanilla scoreboard even if TAB plugin is installed
-    force-vanilla-with-tab: false
-    # Tab list name format when team prefix or suffix is configured
-    # Placeholders: {prefix}, {suffix}, {tag}, {team}, {role}, {player}
-    # IMPORTANT: Prefixes and suffixes are empty by default; formatting only applies when configured
-    player-format: "{prefix}{player}{suffix}"
+    delay-ms: 500 # wait after the last save
 
+dependencies:
+  cache-folder: libs
+
+modules: # a disabled module loads nothing
+  economy:
+    enabled: false
+    mode: vault # vault | builtin | auto (Vault if present, else builtin)
+    register-vault-service: false # builtin/auto only
+    currency:
+      symbol: "$"
+      name-singular: Coin
+      name-plural: Coins
+      starting-balance: 0.0
+
+  teams:
+    enabled: true
+    register-command: true # /team, /clan, /party, /t
+    defaults:
+      max-size: 0 # 0 = unlimited
+      friendly-fire: false
+      open: false # true = join without invite
+    tab:
+      enabled: true
+      vanilla-scoreboard: auto # auto (only without TAB plugin) | always | never
+      player-format: "{prefix}{player}{suffix}" # also {suffix} {tag} {team} {role}

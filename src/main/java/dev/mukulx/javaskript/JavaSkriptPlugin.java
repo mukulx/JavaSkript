@@ -44,10 +44,11 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
       // Ensure config.yml and messages.yml exist on disk
       saveDefaultConfig();
+      migrateConfig();
       this.messageManager = new dev.mukulx.javaskript.api.message.MessageManager(this);
 
       // Cache debug flag to minimize runtime disk reads
-      this.debugMode = getConfig().getBoolean("debug.enabled", false);
+      this.debugMode = getConfig().getBoolean("general.debug", false);
       if (debugMode) {
         getLogger().info("Debug mode is ENABLED. Enjoy the log pollution.");
       }
@@ -134,10 +135,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
       // Team / Clan subsystem
       try {
-        if (getConfig().getBoolean("teams.enabled", true)) {
+        if (getConfig().getBoolean("modules.teams.enabled", true)) {
           this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
           dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
-          if (getConfig().getBoolean("teams.register-command", true)) {
+          if (getConfig().getBoolean("modules.teams.register-command", true)) {
             registerTeamCommand();
           }
         }
@@ -185,7 +186,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       }
 
       // Asynchronous NIO hot-swapper loop for live script edits
-      if (getConfig().getBoolean("file-watcher.enabled", true)) {
+      if (getConfig().getBoolean("scripts.hot-reload.enabled", true)) {
         try {
           this.fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
           fileWatcher.start();
@@ -196,7 +197,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         }
       }
 
-      if (getConfig().getBoolean("update-checker.enabled", true)) {
+      if (getConfig().getBoolean("general.update-checker", true)) {
         try {
           this.updateChecker = new UpdateChecker(this);
           updateChecker.checkAsync();
@@ -354,7 +355,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
    */
   public synchronized void reloadPluginConfig() {
     reloadConfig();
-    this.debugMode = getConfig().getBoolean("debug.enabled", false);
+    this.debugMode = getConfig().getBoolean("general.debug", false);
     if (debugMode) {
       getLogger().info("Debug mode is ENABLED. Enjoy the log pollution.");
     }
@@ -365,7 +366,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       economyHelper.reload();
     }
     reloadTeamHelper();
-    boolean watcherEnabled = getConfig().getBoolean("file-watcher.enabled", true);
+    boolean watcherEnabled = getConfig().getBoolean("scripts.hot-reload.enabled", true);
     if (fileWatcher != null) {
       if (!watcherEnabled && fileWatcher.isRunning()) {
         fileWatcher.stop();
@@ -392,8 +393,8 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   /** Dynamically reloads or enables/disables the Team subsystem based on config.yml. */
   public synchronized void reloadTeamHelper() {
-    boolean enabled = getConfig().getBoolean("teams.enabled", true);
-    boolean regCmd = getConfig().getBoolean("teams.register-command", true);
+    boolean enabled = getConfig().getBoolean("modules.teams.enabled", true);
+    boolean regCmd = getConfig().getBoolean("modules.teams.register-command", true);
     if (enabled) {
       if (this.teamHelper == null) {
         try {
@@ -512,13 +513,26 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     logger.info(net.kyori.adventure.text.Component.empty());
   }
 
+  /** Upgrades an older config.yml in place; a failure leaves the file as it was. */
+  private void migrateConfig() {
+    try (var in = getResource("config.yml")) {
+      String bundled = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+      if (dev.mukulx.javaskript.config.ConfigMigrator.migrate(
+          new java.io.File(getDataFolder(), "config.yml"), bundled, getLogger())) {
+        reloadConfig();
+      }
+    } catch (Exception e) {
+      getLogger().log(Level.WARNING, "Could not migrate config.yml, using it as is", e);
+    }
+  }
+
   public boolean isDebugMode() {
     return debugMode;
   }
 
   public void setDebugMode(boolean debugMode) {
     this.debugMode = debugMode;
-    getConfig().set("debug.enabled", debugMode);
+    getConfig().set("general.debug", debugMode);
     saveConfig(); // Flush dynamic debug configurations straight to disk
   }
 

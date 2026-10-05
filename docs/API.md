@@ -1132,17 +1132,13 @@ Bukkit.getLogger().severe("[MyScript] Error message");
 
 JavaSkript has a `config.yml` file in `plugins/JavaSkript/` with the following options:
 
-### File Watcher Settings
+### Hot Reload
 
 ```yaml
-file-watcher:
-  # Enable or disable automatic script reloading
-  # If disabled, you must use /js reload to reload scripts manually
-  enabled: true
-  
-  # Delay in milliseconds before reloading a script after it's modified
-  # This prevents multiple reloads when saving files
-  reload-delay: 500
+scripts:
+  hot-reload:
+    enabled: true # reload a script when its file changes
+    delay-ms: 500 # wait after the last save
 ```
 
 ### Script Settings
@@ -2164,19 +2160,11 @@ A complete, zero-compromise Economy engine that bridges **Vault** (EssentialsX, 
 The economy subsystem is disabled by default so it does not load or touch any databases until enabled. When enabled, it hooks into your server's existing economy plugins via Vault:
 
 ```yaml
-economy:
-  # Master toggle - Disabled by default.
-  # When false, the economy subsystem does not load or touch any files/databases.
-  enabled: false
-
-  # Mode: 'vault', 'auto', or 'builtin'
-  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy) via Vault
-  # - auto: Hook into Vault if present; fallback to built-in SQLite if none found
-  # - builtin: Always use JavaSkript's built-in SQLite persistent economy
-  mode: "vault"
-
-  # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
-  register-vault-service: false
+modules:
+  economy:
+    enabled: false
+    mode: vault # vault | builtin | auto (Vault if present, else builtin)
+    register-vault-service: false # builtin/auto only
 ```
 
 ### Auto-Injection & Static Facade

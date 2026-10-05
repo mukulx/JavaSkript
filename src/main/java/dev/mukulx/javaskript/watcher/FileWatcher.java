@@ -29,7 +29,7 @@ public class FileWatcher implements Runnable {
     this.scriptsFolder = scriptsFolder;
     this.watchKeys = new ConcurrentHashMap<>();
     this.pendingReloads = new ConcurrentHashMap<>();
-    this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
+    this.reloadDelay = plugin.getConfig().getLong("scripts.hot-reload.delay-ms", 500);
     this.debounceExecutor =
         Executors.newSingleThreadScheduledExecutor(
             r -> {
@@ -292,7 +292,7 @@ public class FileWatcher implements Runnable {
 
   /** Refresh the debounce delay from config.yml without restarting the watcher thread. */
   public void refreshSettings() {
-    this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
+    this.reloadDelay = plugin.getConfig().getLong("scripts.hot-reload.delay-ms", 500);
     plugin.debug("File watcher settings refreshed (reload-delay=" + reloadDelay + "ms)");
   }
 }

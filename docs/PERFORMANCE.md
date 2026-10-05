@@ -490,9 +490,10 @@ scripts:
   max-compilation-time: 30
   enable-compilation-cache: true
   
-file-watcher:
-  enabled: true
-  reload-delay: 1000  # Increase delay to batch changes
+scripts:
+  hot-reload:
+    enabled: true
+    delay-ms: 1000  # Increase delay to batch changes
 ```
 
 ---

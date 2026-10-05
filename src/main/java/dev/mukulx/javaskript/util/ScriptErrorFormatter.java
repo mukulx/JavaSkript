@@ -34,7 +34,7 @@ public final class ScriptErrorFormatter {
     // Check if clean stack traces are enabled in config (default true)
     boolean cleanEnabled =
         plugin != null
-            && plugin.getConfig().getBoolean("errors.clean-stack-traces", true)
+            && plugin.getConfig().getBoolean("general.clean-stack-traces", true)
             && !plugin.isDebugMode();
 
     if (!cleanEnabled) {

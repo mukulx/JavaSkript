@@ -189,16 +189,17 @@ public class TeamTabBridge {
       return;
     }
 
-    boolean tabFormattingEnabled = plugin.getConfig().getBoolean("teams.tab.enabled", true);
+    boolean tabFormattingEnabled = plugin.getConfig().getBoolean("modules.teams.tab.enabled", true);
+    // auto: with the TAB plugin present, leave scoreboards to it
     boolean syncScoreboard =
-        plugin.getConfig().getBoolean("teams.tab.sync-vanilla-scoreboard", true);
-
-    // If TAB plugin is present, we avoid clashing with TAB's scoreboard teams
-    // unless explicitly requested in config
-    if (tabPluginPresent
-        && !plugin.getConfig().getBoolean("teams.tab.force-vanilla-with-tab", false)) {
-      syncScoreboard = false;
-    }
+        switch (plugin
+            .getConfig()
+            .getString("modules.teams.tab.vanilla-scoreboard", "auto")
+            .toLowerCase()) {
+          case "never" -> false;
+          case "always" -> true;
+          default -> !tabPluginPresent;
+        };
 
     Optional<Team> teamOpt = teamLookup.apply(player.getUniqueId());
 
@@ -232,7 +233,9 @@ public class TeamTabBridge {
         player.playerListName(null);
       } else {
         String format =
-            plugin.getConfig().getString("teams.tab.player-format", "{prefix}{player}{suffix}");
+            plugin
+                .getConfig()
+                .getString("modules.teams.tab.player-format", "{prefix}{player}{suffix}");
         String formatted =
             format
                 .replace("{prefix}", prefix != null ? prefix : "")
