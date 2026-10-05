@@ -137,6 +137,23 @@ class ScriptLoadingTest {
   }
 
   @Test
+  void packagedScriptNeverPicksANestedClassAsMain() throws Exception {
+    File script =
+        write(
+            "Packaged.java",
+            """
+            package demo;
+            public class Packaged {
+              public static class Helper {}
+              public static class Other {}
+            }
+            """);
+
+    assertTrue(manager.loadScript(script));
+    assertEquals("demo.Packaged", manager.getScript("Packaged").getScriptClass().getName());
+  }
+
+  @Test
   void disabledMarkerSkipsTheScript() throws Exception {
     File script = write("Off.java", "@Disabled\npublic class Off {}\n");
 

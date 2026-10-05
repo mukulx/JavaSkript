@@ -854,11 +854,17 @@ public class ScriptManager {
       String expectedClassName = compiler.getClassName(scriptKey);
       Class<?> scriptClass = loadedClasses.get(expectedClassName);
 
+      // A script with a package declaration compiles to "pkg.Name", so compare the simple name of
+      // top-level classes. Nested classes ("Outer$Inner") must never become the main class.
       if (scriptClass == null) {
         for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
-          if (entry.getKey().equalsIgnoreCase(expectedClassName)) {
+          String name = entry.getKey();
+          String simpleName = name.substring(name.lastIndexOf('.') + 1);
+          if (!simpleName.contains("$") && simpleName.equalsIgnoreCase(expectedClassName)) {
             scriptClass = entry.getValue();
-            plugin.getLogger().info("Found main class with different case: " + entry.getKey());
+            if (!simpleName.equals(expectedClassName)) {
+              plugin.getLogger().info("Found main class with different case: " + name);
+            }
             break;
           }
         }
@@ -867,7 +873,8 @@ public class ScriptManager {
       if (scriptClass == null) {
         for (Map.Entry<String, Class<?>> entry : loadedClasses.entrySet()) {
           Class<?> clazz = entry.getValue();
-          if (java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
+          if (!entry.getKey().contains("$")
+              && java.lang.reflect.Modifier.isPublic(clazz.getModifiers())) {
             scriptClass = clazz;
             plugin
                 .getLogger()
