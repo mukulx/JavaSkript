@@ -25,6 +25,7 @@ public class ScriptScheduler {
 
   private final List<Object> tasks; // BukkitTask or Folia ScheduledTask
   private volatile int pruneAt = PRUNE_THRESHOLD;
+  private volatile boolean closed = false;
   private final boolean isFolia;
   private final String scriptKey;
 
@@ -46,6 +47,13 @@ public class ScriptScheduler {
   private void track(Object task) {
     if (task == null) return;
     tasks.add(task);
+    // Checked after adding, so a task racing close() is cancelled by one side or the other.
+    // A task scheduled by a callback that outlived the script must not run unloaded classes.
+    if (closed) {
+      cancelTask(task);
+      tasks.remove(task);
+      return;
+    }
     if (tasks.size() >= pruneAt) {
       tasks.removeIf(this::isFinished);
       pruneAt = Math.max(PRUNE_THRESHOLD, tasks.size() * 2);
@@ -69,6 +77,7 @@ public class ScriptScheduler {
   private Runnable wrap(String type, Runnable runnable) {
     if (runnable == null) return null;
     return () -> {
+      if (closed) return;
       long t0 = System.nanoTime();
       try {
         runnable.run();
@@ -310,6 +319,12 @@ public class ScriptScheduler {
       }
     }
     tasks.clear();
+  }
+
+  /** Cancel every task and refuse new ones. Called when the owning script unloads. */
+  public void close() {
+    closed = true;
+    cancelAll();
   }
 
   /**

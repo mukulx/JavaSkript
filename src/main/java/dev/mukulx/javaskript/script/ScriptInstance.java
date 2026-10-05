@@ -117,7 +117,7 @@ public class ScriptInstance {
       context.own("commands", this::unregisterRegisteredCommands);
 
       this.scheduler = new ScriptScheduler(plugin, scriptKey);
-      context.own("scheduled tasks", scheduler::cancelAll);
+      context.own("scheduled tasks", scheduler::close);
       this.config = new ScriptConfig(plugin, scriptKey);
       this.database = new DatabaseHelper(plugin, scriptKey);
       context.own("database", database::disconnect);
