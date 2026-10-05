@@ -1147,9 +1147,6 @@ scripts:
 scripts:
   # Automatically load all scripts on server startup
   auto-load: true
-  
-  # Show detailed compilation errors in console
-  verbose-errors: true
 ```
 
 ### Dependency Settings
@@ -1159,9 +1156,6 @@ dependencies:
   # Cache directory for downloaded Maven dependencies
   # Relative to the plugin folder
   cache-folder: "libs"
-  
-  # Maven repository URL for downloading script dependencies
-  repository: "https://repo1.maven.org/maven2/"
 ```
 
 ---

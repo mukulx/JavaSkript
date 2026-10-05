@@ -154,7 +154,9 @@ public class ScriptInstance {
           onEnableMethod.invoke(instance);
           plugin.debug("Called onEnable for: " + scriptFile.getName());
         } catch (Exception e) {
+          // A script whose onEnable failed is half set up; fail the load rather than run it
           dev.mukulx.javaskript.util.ScriptErrorFormatter.log(plugin, scriptKey, "onEnable()", e);
+          return false;
         }
       }
 
@@ -405,15 +407,7 @@ public class ScriptInstance {
     return pdc;
   }
 
-  public PDCHelper getPdc() {
-    return pdc;
-  }
-
   public HologramHelper getHolograms() {
-    return holograms;
-  }
-
-  public HologramHelper getHologramHelper() {
     return holograms;
   }
 
@@ -421,15 +415,7 @@ public class ScriptInstance {
     return mannequins;
   }
 
-  public dev.mukulx.javaskript.api.MannequinHelper getMannequinHelper() {
-    return mannequins;
-  }
-
   public dev.mukulx.javaskript.api.AdvancementHelper getAdvancements() {
-    return advancements;
-  }
-
-  public dev.mukulx.javaskript.api.AdvancementHelper getAdvancementHelper() {
     return advancements;
   }
 
@@ -437,15 +423,7 @@ public class ScriptInstance {
     return commands;
   }
 
-  public CommandHelper getCommandHelper() {
-    return commands;
-  }
-
   public ItemHelper getItems() {
-    return items;
-  }
-
-  public ItemHelper getItemHelper() {
     return items;
   }
 
@@ -453,15 +431,7 @@ public class ScriptInstance {
     return cooldowns;
   }
 
-  public CooldownHelper getCooldownHelper() {
-    return cooldowns;
-  }
-
   public EventHelper getEvents() {
-    return events;
-  }
-
-  public EventHelper getEventHelper() {
     return events;
   }
 
@@ -469,15 +439,7 @@ public class ScriptInstance {
     return players;
   }
 
-  public PlayerHelper getPlayerHelper() {
-    return players;
-  }
-
   public ChatHelper getChat() {
-    return chat;
-  }
-
-  public ChatHelper getChatHelper() {
     return chat;
   }
 
@@ -485,15 +447,7 @@ public class ScriptInstance {
     return economy;
   }
 
-  public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
-    return economy;
-  }
-
   public dev.mukulx.javaskript.api.variable.VariableHelper getVariables() {
-    return variables;
-  }
-
-  public dev.mukulx.javaskript.api.variable.VariableHelper getVariableHelper() {
     return variables;
   }
 
@@ -501,15 +455,7 @@ public class ScriptInstance {
     return http;
   }
 
-  public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
-    return http;
-  }
-
   public dev.mukulx.javaskript.api.team.TeamHelper getTeams() {
-    return teams;
-  }
-
-  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
     return teams;
   }
 

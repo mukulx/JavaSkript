@@ -484,13 +484,6 @@ For servers with many scripts (50+):
 ```yaml
 scripts:
   auto-load: true
-  parallel-loading-threads: 0  # Use all CPU cores
-  max-scripts: 100
-  warn-threshold: 50
-  max-compilation-time: 30
-  enable-compilation-cache: true
-  
-scripts:
   hot-reload:
     enabled: true
     delay-ms: 1000  # Increase delay to batch changes

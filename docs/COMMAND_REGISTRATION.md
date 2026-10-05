@@ -38,7 +38,14 @@ public class FlyCommand implements CommandExecutor {
 
 ### 2. Command Name Extraction
 
-The command name is automatically derived from the class name:
+Name the command with `@ScriptCommand` (`dev.mukulx.javaskript.script.ScriptCommand`):
+
+```java
+@ScriptCommand("heal")
+public class HealScript implements CommandExecutor { ... }
+```
+
+Without the annotation, the name is derived from the class name:
 
 | Class Name | Command Name | How It Works |
 |------------|--------------|--------------|
@@ -47,7 +54,7 @@ The command name is automatically derived from the class name:
 | `TeleportCmd` | `/teleport` | Removes "Cmd" suffix, converts to lowercase |
 | `Warp` | `/warp` | Uses class name as-is, converts to lowercase |
 
-**Code in `ScriptInstance.java`:**
+**Code in `ScriptListeners.commandName`:**
 ```java
 String className = scriptClass.getSimpleName();
 String commandName = className.toLowerCase()

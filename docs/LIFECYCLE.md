@@ -89,7 +89,7 @@ public MyScript() {
 
 **When it runs**: After APIs are injected, before events are registered  
 **Purpose**: Initialize resources, start tasks, load data  
-**Important**: This is where you should set up your script
+**Important**: This is where you should set up your script. If `onEnable()` throws, the load fails: the error is logged, the script's resources are released and it does not run.
 
 ```java
 public void onEnable() {

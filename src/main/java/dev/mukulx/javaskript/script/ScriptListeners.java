@@ -106,15 +106,20 @@ final class ScriptListeners {
             + scriptClass.getSimpleName());
   }
 
+  /** The {@link ScriptCommand} value, else the class name without "command" or "cmd". */
+  static String commandName(Class<?> scriptClass) {
+    ScriptCommand named = scriptClass.getAnnotation(ScriptCommand.class);
+    if (named != null) {
+      return named.value().toLowerCase();
+    }
+    String className = scriptClass.getSimpleName();
+    String commandName = className.toLowerCase().replace("command", "").replace("cmd", "");
+    return commandName.isEmpty() ? className.toLowerCase() : commandName;
+  }
+
   void registerCommand(Object instance) {
     try {
-      // Extract command name from class name (e.g., HealCommand -> heal)
-      String className = scriptClass.getSimpleName();
-      String commandName = className.toLowerCase().replace("command", "").replace("cmd", "");
-
-      if (commandName.isEmpty()) {
-        commandName = className.toLowerCase();
-      }
+      String commandName = commandName(scriptClass);
 
       String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
       CommandExecutor originalExecutor = (CommandExecutor) instance;
