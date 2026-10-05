@@ -154,6 +154,27 @@ class ScriptLoadingTest {
   }
 
   @Test
+  void failingOnEnableFailsTheLoad() throws Exception {
+    File script =
+        write(
+            "Broken.java",
+            "public class Broken { public void onEnable() { throw new IllegalStateException(); } }");
+
+    assertFalse(manager.loadScript(script));
+    assertNull(manager.getScript("Broken"));
+  }
+
+  @Test
+  void commandNameComesFromTheAnnotationThenTheClassName() {
+    @ScriptCommand("Fly")
+    class Named {}
+    class HealCommand {}
+
+    assertEquals("fly", ScriptListeners.commandName(Named.class));
+    assertEquals("heal", ScriptListeners.commandName(HealCommand.class));
+  }
+
+  @Test
   void disabledMarkerSkipsTheScript() throws Exception {
     File script = write("Off.java", "@Disabled\npublic class Off {}\n");
 

@@ -235,9 +235,10 @@ public class TeamHelper implements Listener {
     // Leave current team if leader is already in one
     getTeam(leader).ifPresent(oldTeam -> removeMember(oldTeam, leader));
 
-    int defaultMaxSize = plugin.getConfig().getInt("teams.defaults.max-size", 0);
-    boolean defaultFf = plugin.getConfig().getBoolean("teams.defaults.friendly-fire", false);
-    boolean defaultOpen = plugin.getConfig().getBoolean("teams.defaults.open", false);
+    int defaultMaxSize = plugin.getConfig().getInt("modules.teams.defaults.max-size", 0);
+    boolean defaultFf =
+        plugin.getConfig().getBoolean("modules.teams.defaults.friendly-fire", false);
+    boolean defaultOpen = plugin.getConfig().getBoolean("modules.teams.defaults.open", false);
 
     Team team =
         new Team(
@@ -842,7 +843,8 @@ public class TeamHelper implements Listener {
    * @return true if deposited successfully
    */
   public boolean deposit(Team team, Player player, double amount) {
-    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0) return false;
+    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0)
+      return false;
 
     // Fire Bukkit Event
     TeamBankTransactionEvent event =
@@ -903,7 +905,8 @@ public class TeamHelper implements Listener {
    * @return true if withdrawn successfully
    */
   public boolean withdraw(Team team, Player player, double amount) {
-    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0) return false;
+    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0)
+      return false;
     if (team.getBalance() < amount) {
       plugin
           .getMessageManager()

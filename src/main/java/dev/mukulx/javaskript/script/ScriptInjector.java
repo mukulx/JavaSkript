@@ -39,7 +39,7 @@ final class ScriptInjector {
             Class<?> type = field.getType();
             String name = field.getName().toLowerCase();
 
-            // 1. Match by Type
+            // Matched by field type only: a field name never decides what a script is given
             if (JavaSkriptPlugin.class.isAssignableFrom(type)) {
               field.set(instance, plugin);
             } else if (JavaSkriptAPI.class.isAssignableFrom(type)) {
@@ -99,114 +99,6 @@ final class ScriptInjector {
               field.set(instance, owner.getTeams());
             } else if (dev.mukulx.javaskript.api.message.MessageManager.class.isAssignableFrom(
                 type)) {
-              field.set(instance, plugin.getMessageManager());
-            }
-            // 2. Match by Name / Alias
-            else if (name.equals("plugin") || name.equals("javaskript")) {
-              field.set(instance, plugin);
-            } else if (name.equals("api")) {
-              field.set(instance, plugin.getAPI());
-            } else if (name.equals("scheduler") || name.equals("tasks")) {
-              field.set(instance, owner.getScheduler());
-            } else if (name.equals("config") || name.equals("cfg")) {
-              field.set(instance, owner.getConfig());
-            } else if (name.equals("database") || name.equals("db")) {
-              field.set(instance, owner.getDatabase());
-            } else if (name.equals("placeholders") || name.equals("papi")) {
-              field.set(instance, owner.getPlaceholders());
-            } else if (name.equals("recipes")) {
-              field.set(instance, owner.recipes());
-            } else if (name.equals("actionbar")
-                || name.equals("actionbars")
-                || name.equals("actionbarhelper")) {
-              field.set(instance, owner.actionBars());
-            } else if (name.equals("title")
-                || name.equals("titles")
-                || name.equals("titlehelper")) {
-              field.set(instance, plugin.getAPI().getTitleHelper());
-            } else if (name.equals("bossbar")
-                || name.equals("bossbars")
-                || name.equals("bossbarhelper")) {
-              field.set(instance, owner.bossBars());
-            } else if (name.equals("sound")
-                || name.equals("sounds")
-                || name.equals("soundhelper")) {
-              field.set(instance, plugin.getAPI().getSoundHelper());
-            } else if (name.equals("dialog")
-                || name.equals("dialogs")
-                || name.equals("dialoghelper")) {
-              field.set(instance, owner.getDialog());
-            } else if (name.equals("pdc")
-                || name.equals("pdchelper")
-                || name.equals("persistentdata")
-                || name.equals("nbt")) {
-              field.set(instance, owner.getPDC());
-            } else if (name.equals("hologram")
-                || name.equals("holograms")
-                || name.equals("holo")
-                || name.equals("displays")) {
-              field.set(instance, owner.getHolograms());
-            } else if (name.equals("mannequin")
-                || name.equals("mannequins")
-                || name.equals("mannequinhelper")
-                || name.equals("npc")
-                || name.equals("npcs")
-                || name.equals("statue")
-                || name.equals("statues")) {
-              field.set(instance, owner.getMannequins());
-            } else if (name.equals("advancement")
-                || name.equals("advancements")
-                || name.equals("advancementhelper")
-                || name.equals("toasts")
-                || name.equals("toast")) {
-              field.set(instance, owner.getAdvancements());
-            } else if (name.equals("commands")
-                || name.equals("commandhelper")
-                || name.equals("commandapi")
-                || name.equals("cmd")) {
-              field.set(instance, owner.getCommands());
-            } else if (name.equals("items")
-                || name.equals("itemhelper")
-                || name.equals("itembuilder")) {
-              field.set(instance, owner.getItems());
-            } else if (name.equals("cooldowns")
-                || name.equals("cooldown")
-                || name.equals("cooldownhelper")) {
-              field.set(instance, owner.getCooldowns());
-            } else if (name.equals("events")
-                || name.equals("eventhelper")
-                || name.equals("eventapi")) {
-              field.set(instance, owner.getEvents());
-            } else if (name.equals("players")
-                || name.equals("playerhelper")
-                || name.equals("playerutil")) {
-              field.set(instance, owner.getPlayers());
-            } else if (name.equals("chat") || name.equals("chathelper") || name.equals("chatapi")) {
-              field.set(instance, owner.getChat());
-            } else if (name.equals("economy")
-                || name.equals("eco")
-                || name.equals("economyhelper")
-                || name.equals("vault")) {
-              field.set(instance, owner.getEconomy());
-            } else if (name.equals("scriptvariables") || name.equals("localvariables")) {
-              field.set(instance, owner.scriptVariables());
-            } else if (name.equals("variables")
-                || name.equals("vars")
-                || name.equals("variablehelper")
-                || name.equals("shared")
-                || name.equals("state")) {
-              field.set(instance, owner.getVariables());
-            } else if (name.equals("http") || name.equals("web") || name.equals("httphelper")) {
-              field.set(instance, owner.getHttp());
-            } else if (name.equals("teams")
-                || name.equals("team")
-                || name.equals("teamhelper")
-                || name.equals("clan")
-                || name.equals("party")) {
-              field.set(instance, owner.getTeams());
-            } else if (name.equals("messages")
-                || name.equals("messagemanager")
-                || name.equals("messagehelper")) {
               field.set(instance, plugin.getMessageManager());
             } else {
               // Check external addons and plugins for custom registered field injectors

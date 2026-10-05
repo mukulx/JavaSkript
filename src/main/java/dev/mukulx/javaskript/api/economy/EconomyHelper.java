@@ -48,8 +48,8 @@ public class EconomyHelper {
   }
 
   private void initProvider() {
-    boolean isConfigEnabled = plugin.getConfig().getBoolean("economy.enabled", false);
-    String mode = plugin.getConfig().getString("economy.mode", "vault").toLowerCase();
+    boolean isConfigEnabled = plugin.getConfig().getBoolean("modules.economy.enabled", false);
+    String mode = plugin.getConfig().getString("modules.economy.mode", "vault").toLowerCase();
 
     if (!isConfigEnabled || "disabled".equals(mode)) {
       this.enabled = false;
@@ -65,12 +65,14 @@ public class EconomyHelper {
     }
 
     this.enabled = true;
-    String symbol = plugin.getConfig().getString("economy.currency.symbol", "$");
-    String singular = plugin.getConfig().getString("economy.currency.name-singular", "Coin");
-    String plural = plugin.getConfig().getString("economy.currency.name-plural", "Coins");
-    double startBal = plugin.getConfig().getDouble("economy.currency.starting-balance", 0.0);
+    String symbol = plugin.getConfig().getString("modules.economy.currency.symbol", "$");
+    String singular =
+        plugin.getConfig().getString("modules.economy.currency.name-singular", "Coin");
+    String plural = plugin.getConfig().getString("modules.economy.currency.name-plural", "Coins");
+    double startBal =
+        plugin.getConfig().getDouble("modules.economy.currency.starting-balance", 0.0);
     boolean registerVaultService =
-        plugin.getConfig().getBoolean("economy.register-vault-service", false);
+        plugin.getConfig().getBoolean("modules.economy.register-vault-service", false);
 
     if ("builtin".equals(mode)) {
       this.builtinProvider = new BuiltinEconomyProvider(plugin, symbol, singular, plural, startBal);
@@ -148,7 +150,7 @@ public class EconomyHelper {
   public EconomyProvider getProvider() {
     if (enabled && primaryProvider instanceof DisabledEconomyProvider) {
       // Lazy attempt to hook Vault if an external economy plugin registered after startup
-      String mode = plugin.getConfig().getString("economy.mode", "vault").toLowerCase();
+      String mode = plugin.getConfig().getString("modules.economy.mode", "vault").toLowerCase();
       if ("vault".equals(mode) || "auto".equals(mode)) {
         if (hookVault()) {
           plugin.getLogger().info("Successfully hooked into " + primaryProvider.getName());

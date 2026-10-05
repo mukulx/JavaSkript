@@ -218,7 +218,7 @@ If you ever need the full unformatted 60-line Java stack trace for advanced debu
 1. Run `/js debug` in-game or console.
 2. Or change the setting in `plugins/JavaSkript/config.yml`:
    ```yaml
-   errors:
+   general:
      clean-stack-traces: false
    ```
 
