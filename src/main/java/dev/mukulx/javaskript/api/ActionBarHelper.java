@@ -168,8 +168,8 @@ public class ActionBarHelper {
   }
 
   /**
-   * Clear the current message after a delay, unless another message replaced it or a persistent
-   * or animated bar is running for the player.
+   * Clear the current message after a delay, unless another message replaced it or a persistent or
+   * animated bar is running for the player.
    */
   private void clearLater(Player player, long delayTicks) {
     UUID uuid = player.getUniqueId();
