@@ -23,6 +23,8 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 - **DialogExample.java** - Native Minecraft dialogs (alerts, confirmations, multi-action menus, forms)
 - **PDCExample.java** - PersistentDataContainer (PDC / NBT) on items and entities
 - **HologramExample.java** - Modern Display Entity holograms (floating text, 3D items, blocks)
+- **MannequinExample.java** - Paper 1.21.11+ Mannequins (interactive NPCs, player skins, poses, equipment)
+- **AdvancementExample.java** - Paper 1.21.11+ Advancements (instant toasts, custom tabs & backgrounds, quest criteria, completion callbacks)
 - **PlaceholderExample.java** - Custom PlaceholderAPI placeholders
 - **PermissionExample.java** - Dynamic permission registration
 
@@ -30,6 +32,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 
 - **MultiClassExample.java** - Multiple classes in one file (managers, utilities, data classes)
 - **ExtraInventory.java** - Complete inventory storage system with HikariCP + SQLite
+- **TeamExample.java** - Full Team / Clan / Party system with friendly fire, chat, bank, and waypoints
 
 ### Compatibility Examples
 
@@ -81,6 +84,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 | Maven Dependencies | ExtraInventory (HikariCP) |
 | Dupe Prevention | ExtraInventory |
 | Folia Support | All examples (marked with @FoliaSupport) |
+| Team / Clan Engine | TeamExample |
 
 ## Notes
 

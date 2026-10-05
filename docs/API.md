@@ -26,10 +26,57 @@ Complete reference for all JavaSkript APIs available to scripts.
 20. [Script Annotations & Lifecycle](#annotations)
 21. [External Maven Dependencies](#external-dependencies)
 22. [External Plugin & Addon Integration](#external-plugin--addon-integration)
-23. [VariableHelper & Variables (Shared State)](#variablehelper--variables-shared-state)
+23. [VariableHelper, ScriptVariables, & Variables (State Storage)](#variablehelper--variables-shared-state)
 24. [HttpHelper & Http (Web & Discord Webhooks)](#httphelper--http-web-requests--discord-webhooks)
+25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
+26. [MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)](#mannequinhelper--mannequins-paper-12111-npcs--statues)
+27. [AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)](#advancementhelper--advancements-paper-12111-toasts--custom-advancements)
 
 ---
+
+## Safer API Additions
+
+Existing field injection remains supported. New scripts can mark injected fields explicitly:
+
+```java
+@Inject private ScriptScheduler scheduler;
+@Inject private ScriptVariables scriptVariables;
+```
+
+`ScriptVariables` scopes keys to the current script, while `Variables` remains the intentional
+cross-script shared store.
+
+```java
+scriptVariables.set("enabled", true);
+Variables.set("network.maintenance", true);
+```
+
+Use typed task handles when a script needs to cancel a specific task:
+
+```java
+TaskHandle task = scheduler.everySecondHandle(this::updateScoreboard);
+task.cancel();
+```
+
+HTTP and database callbacks can return safely to the global server scheduler:
+
+```java
+http.request("https://example.com/status").GET().sendGlobal(
+    response -> Bukkit.broadcast(Component.text(response.body())),
+    error -> plugin.getLogger().warning(error.getMessage())
+);
+
+database.executeQueryAsync("SELECT * FROM players", rows -> {
+  // Safe server-thread callback
+});
+```
+
+External plugins can access scripts with type checking and scheduler-safe execution:
+
+```java
+api.script("quests/DailyQuest.java", DailyQuest.class)
+    .callGlobal(quest -> quest.refresh());
+```
 
 ## ScriptScheduler
 
@@ -42,12 +89,15 @@ private ScriptScheduler scheduler; // Automatically injected!
 
 ### Methods
 
-#### `runLater(Runnable task, long delayTicks)`
-Run a task after a delay.
+#### `runLater(Runnable task, long delayTicks)` & `runLater(long delayTicks, Runnable task)`
+Run a task after a delay. Both parameter orders are supported for maximum developer convenience.
 ```java
 scheduler.runLater(() -> {
     player.sendMessage("5 seconds later!");
 }, 100L); // 100 ticks = 5 seconds
+
+// Alternative parameter order:
+scheduler.runLater(100L, () -> player.sendMessage("Done!"));
 ```
 
 #### `runTimer(Runnable task, long delayTicks, long periodTicks)`
@@ -63,12 +113,12 @@ Run a task asynchronously (off main thread).
 ```java
 scheduler.runAsync(() -> {
     // Heavy computation here
-    // Don't use Bukkit API!
+    // Don't call non-thread-safe Bukkit APIs directly!
 });
 ```
 
 #### `everySecond(Runnable task)`
-Convenience method - runs every second.
+Convenience method - runs every second (every 20 ticks).
 ```java
 scheduler.everySecond(() -> {
     // Runs every second
@@ -76,13 +126,33 @@ scheduler.everySecond(() -> {
 ```
 
 #### `everyMinute(Runnable task)`
-Runs every minute.
+Runs every minute (every 1200 ticks).
 
 #### `everyHour(Runnable task)`
-Runs every hour.
+Runs every hour (every 72000 ticks).
+
+#### `TaskHandle` for Portable Task Control
+Instead of dealing with platform-specific `BukkitTask` (Paper) vs `ScheduledTask` (Folia), use `*Handle` methods that return a unified `TaskHandle`:
+
+```java
+// Schedule with a portable handle
+TaskHandle task = scheduler.runTimerHandle(() -> {
+    updateScoreboard();
+}, 0L, 20L);
+
+// Inspect or cancel anywhere without platform casting:
+if (!task.isCancelled()) {
+    task.cancel();
+}
+
+// Also available:
+TaskHandle handle1 = scheduler.runHandle(runnable);
+TaskHandle handle2 = scheduler.runLaterHandle(runnable, 40L);
+TaskHandle handle3 = scheduler.everySecondHandle(runnable);
+```
 
 #### `cancelAll()`
-Cancel all tasks scheduled by this script.
+Cancel all tasks scheduled by this script (also called automatically on script unload).
 
 ---
 
@@ -244,13 +314,32 @@ for (Map<String, Object> row : results) {
 }
 ```
 
+#### `executeQueryAsync(String sql, Consumer<List<Map<String, Object>>> callback, Object... params)`
+Execute a SELECT query off-thread and safely receive the results on the global server scheduler:
+```java
+database.executeQueryAsync("SELECT * FROM players WHERE coins > ?", rows -> {
+    // This callback runs safely on the server thread (or Folia global region)!
+    for (Map<String, Object> row : rows) {
+        player.sendMessage("Rich player: " + row.get("name"));
+    }
+}, 1000);
+```
+
 #### `executeUpdate(String sql, Object... params)`
-Execute INSERT, UPDATE, DELETE, or DDL.
+Execute INSERT, UPDATE, DELETE, or DDL synchronously.
 ```java
 int affected = database.executeUpdate(
     "UPDATE players SET coins = coins + ? WHERE uuid = ?",
     10, uuid
 );
+```
+
+#### `executeUpdateAsync(String sql, Consumer<Integer> callback, Object... params)`
+Execute an update off-thread without freezing ticks, and receive the affected rows count on the server scheduler:
+```java
+database.executeUpdateAsync("UPDATE players SET coins = coins + ? WHERE uuid = ?", affected -> {
+    player.sendMessage("Updated " + affected + " rows!");
+}, 50, uuid);
 ```
 
 #### `querySingle(String sql, Object... params)`
@@ -1925,7 +2014,7 @@ chat.pager(player, "Server Warps", warpList)
     .pageSize(7)
     .header("<gold> %title% <gray>(Page %page%/%max%)</gray> ")
     .formatter((index, warp) -> "<yellow>#" + index + " <white>" + warp)
-    .send(1); // Clickable [◀ Previous] & [Next ▶] buttons automatically work!
+    .send(1); // Clickable [< Previous] & [Next >] buttons automatically work!
 ```
 
 ### 5. Pixel-Perfect Centered Text
@@ -2070,6 +2159,25 @@ recipes.stonecutting("carved_andesite", new ItemStack(Material.POLISHED_ANDESITE
 ## EconomyHelper & `Economy` (Universal Economy Engine)
 
 A complete, zero-compromise Economy engine that bridges **Vault** (EssentialsX, CMI, UltraEconomy, etc.), JavaSkript's **Built-in SQLite Persistent Storage**, and **Custom Multi-Currencies** (Gems, Tokens, Credits).
+
+### Configuration (`config.yml`)
+The economy subsystem is disabled by default so it does not load or touch any databases until enabled. When enabled, it hooks into your server's existing economy plugins via Vault:
+
+```yaml
+economy:
+  # Master toggle - Disabled by default.
+  # When false, the economy subsystem does not load or touch any files/databases.
+  enabled: false
+
+  # Mode: 'vault', 'auto', or 'builtin'
+  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy) via Vault
+  # - auto: Hook into Vault if present; fallback to built-in SQLite if none found
+  # - builtin: Always use JavaSkript's built-in SQLite persistent economy
+  mode: "vault"
+
+  # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
+  register-vault-service: false
+```
 
 ### Auto-Injection & Static Facade
 ```java
@@ -2380,6 +2488,23 @@ try {
 }
 ```
 
+### 6. Typed Script Access with `ScriptHandle` (`api.script`)
+
+For compile-time type safety and Folia/Paper scheduler-safe execution across ClassLoaders:
+
+```java
+JavaSkriptAPI api = JavaSkript.getAPI();
+
+// Asynchronously dispatch on the global server scheduler without thread safety issues:
+api.script("quests/DailyQuest.java", DailyQuest.class)
+    .callGlobal(quest -> quest.refresh());
+
+// Supply a computed value back to a CompletableFuture:
+api.script("stats/SkillTree.java", SkillTree.class)
+    .supplyGlobal(tree -> tree.getLevel(player))
+    .thenAccept(level -> player.sendMessage("Level: " + level));
+```
+
 ---
 
 ## VariableHelper & `Variables` (Shared State)
@@ -2388,10 +2513,32 @@ Thread-safe shared variable storage engine for JavaSkript scripts.
 
 Because each script is isolated in its own ClassLoader, `Variables` provides a global, thread-safe memory store accessible by every script on the server. It also supports disk persistence so data can survive server restarts.
 
-### Auto-Injection & Static Facade
+### Scoped Script-Local State (`ScriptVariables`)
+
+When you want variables scoped strictly to the current script without risk of key collisions across scripts, use `ScriptVariables`:
+
+```java
+@Inject private ScriptVariables scriptVariables;
+// Aliases: private ScriptVariables localvariables;
+
+// Automatically namespaced behind the scenes as "scriptKey:key":
+scriptVariables.set("cache_enabled", true);
+boolean enabled = scriptVariables.get("cache_enabled", true);
+
+// Disk persistence scoped to this script:
+scriptVariables.setPersistent("times_loaded", 5);
+int runs = (int) scriptVariables.getPersistent("times_loaded");
+
+// Returns keys automatically un-prefixed:
+Set<String> keys = scriptVariables.keys();
+```
+
+> **Best Practice:** Use `ScriptVariables` for script-internal state. Use `VariableHelper` / `Variables` when you intentionally want multiple scripts to share state.
+
+### Auto-Injection & Static Facade for Global Variables
 ```java
 // Option A: Injected helper
-private VariableHelper variables;
+@Inject private VariableHelper variables;
 // Aliases: private VariableHelper vars; / state; / shared;
 
 // Option B: Static facade (usable anywhere, even in utility classes)
@@ -2506,6 +2653,371 @@ http.request("https://api.example.com/v1/punish")
         getLogger().info("Response code: " + code);
     });
 ```
+
+### 3. Server-Scheduler Safe Callbacks (`sendGlobal` & `getGlobal`)
+By default, callbacks passed to `send(...)` and `sendJson(...)` are safely dispatched back onto the server's global scheduler (Paper main thread / Folia global region scheduler).
+
+You can also use explicit global callbacks:
+```java
+// Safe GET callback directly on server thread
+http.getGlobal("https://api.example.com/status", response -> {
+    player.sendMessage("Server status: " + response.body());
+});
+
+// Full request with separate success and error global callbacks
+http.request("https://api.example.com/players/stats")
+    .GET()
+    .sendGlobal(
+        response -> player.sendMessage("Stats: " + response.body()),
+        error -> getLogger().warning("Failed to fetch stats: " + error.getMessage())
+    );
+```
+
+---
+
+## TeamHelper & Teams (Native Team / Clan Engine)
+
+JavaSkript provides a built-in, zero-boilerplate Team, Clan, and Party system backed by SQLite persistence with WAL mode and in-memory caches.
+
+### Features
+- O(1) in-memory teammate checks (`areTeammates(p1, p2)`), ideal for high-frequency PvP events.
+- Hierarchical role system: `LEADER`, `CAPTAIN`, `MEMBER`.
+- Built-in friendly fire prevention.
+- Team bank account, team private chat, and waypoint home teleportation.
+- Seamless visual integration: Vanilla tab list and Paper scoreboard nametag support.
+- TAB Plugin by NEZNAMY compatibility via built-in PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, etc.).
+- Prefixes and suffixes are empty by default; they only display when explicitly configured.
+- Comprehensive Bukkit event pipeline for third-party plugins and scripts.
+
+### Accessing Teams
+```java
+// Method 1: Field injection
+@Inject private TeamHelper teams;
+
+// Method 2: Static 1-line facade
+Teams.areTeammates(player1, player2);
+```
+
+### Core API Examples
+
+#### 1. Friendly Fire Blocker (PvP Listener)
+```java
+@EventHandler
+public void onPvP(EntityDamageByEntityEvent event) {
+    if (event.getDamager() instanceof Player damager && event.getEntity() instanceof Player victim) {
+        if (Teams.areTeammates(damager, victim) && !Teams.get(damager).get().isFriendlyFireEnabled()) {
+            event.setCancelled(true);
+            Players.actionbar(damager, "<red>You cannot hurt teammates!</red>");
+        }
+    }
+}
+```
+
+#### 2. Creating and Managing Teams
+```java
+// Create a new team
+Team team = Teams.create("dragons", "The Dragons", leaderPlayer);
+
+// Configure visuals (empty by default)
+team.setTag("[DRG]");
+team.setPrefix("<gold>[DRG] </gold>");
+Teams.save(team);
+
+// Add and kick members
+Teams.addMember(team, targetPlayer, TeamRole.MEMBER);
+Teams.kick(team, targetPlayer, kickerPlayer, "Inactivity");
+
+// Disband team
+Teams.disband(team);
+```
+
+#### 3. Team Chat Channel
+```java
+@Command("tc")
+public void onTeamChat(Player player, String[] args) {
+    String msg = String.join(" ", args);
+    Teams.sendTeamChat(player, msg);
+}
+```
+
+#### 4. Team Bank & Waypoints
+```java
+// Shared bank deposit & withdraw
+Teams.deposit(team, player, 250.0);
+Teams.withdraw(team, player, 100.0);
+
+// Waypoint home
+Teams.setHome(team, player.getLocation());
+Teams.teleportHome(team, player);
+```
+
+#### 5. Bukkit Events
+Scripts and plugins can listen to native team events:
+- `TeamCreateEvent` (Cancellable)
+- `TeamDisbandEvent` (Cancellable)
+- `TeamJoinEvent` (Cancellable)
+- `TeamLeaveEvent`
+- `TeamKickEvent` (Cancellable)
+- `TeamRoleChangeEvent` (Cancellable)
+- `TeamDamageTeammateEvent` (Cancellable)
+- `TeamChatEvent` (Cancellable)
+- `TeamBankTransactionEvent` (Cancellable)
+
+---
+
+## MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)
+
+JavaSkript provides first-class support for native Minecraft **Mannequins** introduced in Paper 1.21.11+. Mannequins are native player-model entities capable of wearing equipment, displaying player skins, custom descriptions below the name tag, locking into poses, and handling interactive click events without requiring Citizens or armor stands.
+
+### 1. Auto-Injection & Shorthand Facade
+
+```java
+// Automatic per-script injection (tracks and auto-despawns on script reload/unload)
+@Inject private MannequinHelper mannequins;
+
+// Shorthand static facade available anywhere
+Mannequins.create(location)...
+```
+
+### 2. Creating & Spawning Mannequins
+
+```java
+// Create and customize with fluent builder:
+CustomMannequin npc = mannequins.create(location)
+    .name("<gold><bold>Merchant</bold></gold>")
+    .description("<gray>Click to open marketplace</gray>")
+    .skin("Steve")
+    .helmet(Material.GOLDEN_HELMET)
+    .chestplate(Material.DIAMOND_CHESTPLATE)
+    .mainHandItem(Material.EMERALD)
+    .standing()
+    .immovable()
+    .invulnerable()
+    .onClick((player, mannequin) -> {
+        player.sendMessage("Welcome to the market!");
+        mannequin.swingMainHand();
+    })
+    .spawn();
+
+// Quick 1-line spawner:
+mannequins.spawn(location, "<yellow>Notch</yellow>", "Notch");
+```
+
+### 3. Skin & Profile Resolution
+
+Mannequins can display any player's skin:
+```java
+// By player username (resolves dynamically)
+mannequin.skin("Mukulx");
+
+// By player UUID
+mannequin.skin(playerUUID);
+
+// From an online player's current profile
+mannequin.skin(player);
+
+// From custom base64 skin texture & signature
+mannequin.skin(base64Texture, signature);
+
+// Reset to default mannequin skin
+mannequin.defaultSkin();
+```
+
+### 4. Poses & Handedness
+
+Paper mannequins support locked poses:
+```java
+mannequin.standing();
+mannequin.sneaking();   // Crouching pose
+mannequin.swimming();   // Horizontal swimming pose
+mannequin.sleeping();   // Lying down sleeping pose
+mannequin.fallFlying(); // Elytra gliding pose
+
+// Handedness:
+mannequin.rightHanded(); // Default
+mannequin.leftHanded();
+```
+
+### 5. Description Text (Paper 1.21.11+)
+
+Mannequins feature a dedicated description field displayed right beneath the custom name:
+```java
+mannequin.description("<gray>Level 50 Boss Guard</gray>");
+mannequin.description(Component.text("Interactive NPC", NamedTextColor.AQUA));
+```
+
+### 6. Equipment & Skin Layer Controls
+
+```java
+// Armor & Weapons:
+mannequin.helmet(Material.NETHERITE_HELMET);
+mannequin.chestplate(Material.NETHERITE_CHESTPLATE);
+mannequin.leggings(Material.NETHERITE_LEGGINGS);
+mannequin.boots(Material.NETHERITE_BOOTS);
+mannequin.mainHandItem(Material.DIAMOND_SWORD);
+mannequin.offHandItem(Material.SHIELD);
+
+// Prevents survival players from stealing/swapping equipment
+mannequin.lockEquipment(true); // Default true
+
+// Skin layer visibility:
+mannequin.cape(false);
+mannequin.jacket(true);
+mannequin.hat(true);
+mannequin.sleeves(true);
+mannequin.pants(true);
+mannequin.allSkinParts();
+mannequin.noSkinParts();
+```
+
+### 7. Interactive Callbacks
+
+Attach click, attack, and interaction handlers directly in scripts:
+```java
+mannequin.onClick((player, target) -> {
+    player.sendMessage("You right-clicked " + target.name());
+    target.swingMainHand();
+});
+
+mannequin.onAttack((player, target) -> {
+    player.sendMessage("Hey! Don't hit me!");
+    target.swingOffHand();
+});
+
+mannequin.onInteract((player, target, hand) -> {
+    // Hand-specific interaction (HAND or OFF_HAND)
+});
+```
+
+### 8. Querying & Lifecycle Management
+
+All mannequins spawned by a script are tracked and automatically removed when the script unloads or reloads:
+```java
+// Query tracked mannequins:
+Collection<CustomMannequin> all = mannequins.getAll();
+List<CustomMannequin> nearby = mannequins.getNearby(player.getLocation(), 10.0);
+List<CustomMannequin> tagged = mannequins.findByTag("quest_giver");
+
+// Manual despawn:
+mannequin.remove();
+mannequins.removeAll();
+
+// Wrap existing Bukkit entity:
+CustomMannequin wrapped = mannequins.wrap(bukkitMannequin);
+```
+
+---
+
+## AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)
+
+The Advancement subsystem gives scripts full control over PaperMC 1.21.11+ native Minecraft Advancements without writing datapacks or running `/minecraft:reload`. It includes instant custom toast notifications (the top-right popup), custom root tabs with backgrounds, multi-criteria requirements, completion reward callbacks, and automatic cleanup on script reload/unload.
+
+### Auto-Injection & Static Facade
+```java
+// Option 1: Automatic field injection
+@Inject private AdvancementHelper advancements;
+
+// Option 2: 1-Line static facade anywhere
+Advancements.toast(player, Material.NETHER_STAR, "<gold>Level 100!", Frame.CHALLENGE);
+```
+
+### 1. Instant Custom Toasts (Top-Right Popups)
+Paper has no native `player.sendToast()` API. JavaSkript provides zero-boilerplate toast notifications that display custom icons, rich Adventure MiniMessage titles, and frames without creating permanent player advancements:
+```java
+// Simple toast (Task frame):
+advancements.toast(player, Material.DIAMOND, "<green>Quest Step Complete!");
+
+// Stylized frames (TASK, GOAL, CHALLENGE):
+advancements.toast(player, Material.NETHER_STAR, "<gradient:#ffaa00:#ff5555><bold>Boss Slain!</bold></gradient>", Frame.CHALLENGE);
+
+// Broadcast toast to all online players:
+advancements.toastAll(Material.GOLDEN_APPLE, "<yellow>Server Event Started!", Frame.GOAL);
+```
+
+### 2. Custom Advancement Tabs & Root Backgrounds
+Create custom root advancement tabs with vanilla background textures:
+```java
+advancements.createRoot("rpg_root", CustomAdvancement.Backgrounds.ADVENTURE)
+    .title("<gold><bold>Server Achievements</bold></gold>")
+    .description("<yellow>Track your epic journey</yellow>")
+    .icon(Material.NETHERITE_SWORD)
+    .task()
+    .toast(false)
+    .announce(false)
+    .register();
+```
+
+### 3. Child Advancements & Tree Hierarchy
+Link child advancements to custom or vanilla root trees:
+```java
+advancements.create("kill_dragon")
+    .title("<dark_purple><bold>Dragon Slayer</bold></dark_purple>")
+    .description("<gray>Slay the Ender Dragon</gray>")
+    .icon(Material.DRAGON_HEAD)
+    .challenge()
+    .parent(advancements.createKey("rpg_root")) // or "minecraft:story/root"
+    .register();
+```
+
+### 4. Multi-Criteria & Requirements Logic (AND / OR)
+Define multi-step advancements requiring all or any criteria:
+```java
+// Requires both diamond AND netherite:
+advancements.create("master_miner")
+    .title("<aqua>Master Miner</aqua>")
+    .description("<gray>Mine diamond and netherite</gray>")
+    .icon(Material.DIAMOND_PICKAXE)
+    .goal()
+    .criteria("mine_diamond", "mine_netherite")
+    .requireAll()
+    .register();
+
+// Requires finding either ruby OR sapphire:
+advancements.create("gem_finder")
+    .title("<light_purple>Gem Seeker</light_purple>")
+    .icon(Material.EMERALD)
+    .criteria("find_ruby", "find_sapphire")
+    .requireAny()
+    .register();
+```
+
+### 5. Completion Reward Callbacks
+Trigger callbacks when a player completes an advancement:
+```java
+advancements.create("champion")
+    .title("<gold>Server Champion</gold>")
+    .icon(Material.BEACON)
+    .challenge()
+    .onComplete((player, adv) -> {
+        player.sendMessage("§6[Quest] §aYou earned 1,000 Coins and the Champion tag!");
+        economy.deposit(player, 1000);
+    })
+    .register();
+```
+
+### 6. Progression Management (Grant, Revoke, Percent)
+Manage criteria and progress with 1-liners:
+```java
+// Grant full advancement:
+advancements.grant(player, "kill_dragon");
+
+// Grant individual criterion:
+advancements.grant(player, "master_miner", "mine_diamond");
+
+// Check completion & percentage:
+boolean done = advancements.has(player, "master_miner");
+double percent = advancements.getProgressPercent(player, advancements.createKey("master_miner"));
+
+// Revoke:
+advancements.revoke(player, "kill_dragon");
+```
+
+### 7. Automatic Script Lifecycle Cleanup
+When a script unloads or reloads:
+- All custom advancements created by the script are removed from the server registry (`removeAdvancement`).
+- Online players have active criteria revoked to prevent phantom records.
+- Client tabs are refreshed immediately via `updateResources()`.
+- Zero memory leaks or dangling advancement entries.
 
 ---
 

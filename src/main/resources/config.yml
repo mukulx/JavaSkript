@@ -44,20 +44,58 @@ dependencies:
 # Economy Settings
 # Supports Vault (EssentialsX, CMI, UltraEconomy, etc.) and Built-in SQLite Persistent Economy
 economy:
-  # Mode: 'auto', 'vault', 'builtin', or 'disabled'
-  # - auto: Use Vault if available, otherwise automatically fallback to built-in SQLite engine
-  # - vault: Force Vault provider (e.g. EssentialsX, CMI)
+  # Master toggle - Disabled by default.
+  # When false, the economy subsystem does not load and will not touch any files or databases.
+  enabled: false
+
+  # Mode: 'vault', 'auto', or 'builtin'
+  # - vault: Hook into other economy plugins on your server (EssentialsX, CMI, UltraEconomy, etc.) via Vault
+  # - auto: Hook into Vault if an external economy plugin exists; fallback to built-in SQLite if none found
   # - builtin: Always use JavaSkript's built-in SQLite persistent economy
-  # - disabled: Disable economy features
-  mode: "auto"
+  mode: "vault"
 
   # Register JavaSkript as the server's Vault Economy Provider if no other economy plugin is active
   # Allows other plugins (ChestShop, AuctionHouse, ShopGUI+, etc.) to use JavaSkript's economy
-  register-vault-service: true
+  # Only active if economy.enabled is true and mode is 'builtin' or 'auto' (without external economy)
+  register-vault-service: false
 
-  # Default Currency Settings
+  # Default Currency Settings (used when mode is 'builtin' or 'auto' fallback)
   currency:
     symbol: "$"
     name-singular: "Coin"
     name-plural: "Coins"
     starting-balance: 0.0
+
+# Team / Clan Engine Settings
+teams:
+  # Enable or disable the native team subsystem
+  enabled: true
+
+  # Register built-in /team command (aliases: /clan, /party, /t)
+  # Set to false if you prefer implementing team commands via custom scripts
+  register-command: true
+
+  # Default team configurations
+  defaults:
+    # Maximum members per team (0 = unlimited)
+    max-size: 0
+    # Friendly fire enabled by default
+    friendly-fire: false
+    # Open to join without invite by default
+    open: false
+
+  # Tab list and Nametag visual integration
+  # Compatible with vanilla Minecraft and the famous TAB plugin (by NEZNAMY)
+  tab:
+    # Master toggle for automatic tab list formatting
+    enabled: true
+    # Synchronize vanilla scoreboards if the TAB plugin is NOT installed
+    # (Automatically keeps nametags updated; avoids conflicts when TAB is present)
+    sync-vanilla-scoreboard: true
+    # Force vanilla scoreboard even if TAB plugin is installed
+    force-vanilla-with-tab: false
+    # Tab list name format when team prefix or suffix is configured
+    # Placeholders: {prefix}, {suffix}, {tag}, {team}, {role}, {player}
+    # IMPORTANT: Prefixes and suffixes are empty by default; formatting only applies when configured
+    player-format: "{prefix}{player}{suffix}"
+

@@ -14,6 +14,9 @@ public class ScriptClassLoader extends URLClassLoader {
   private final JavaSkriptPlugin plugin;
   private final String scriptName;
   private final Map<String, Class<?>> loadedClasses;
+  // Bytecode not yet defined. Superclasses and interfaces are defined on demand from here, so
+  // definition order within a script no longer matters.
+  private final Map<String, byte[]> pendingBytecode = new HashMap<>();
   private long totalBytecodeBytes = 0;
 
   public ScriptClassLoader(JavaSkriptPlugin plugin, String scriptName) {
@@ -46,7 +49,7 @@ public class ScriptClassLoader extends URLClassLoader {
    * @param classData Bytecode
    * @return The defined class
    */
-  public Class<?> defineClass(String name, byte[] classData) {
+  public synchronized Class<?> defineClass(String name, byte[] classData) {
     if (name == null || classData == null) {
       throw new IllegalArgumentException("Class name and data cannot be null");
     }
@@ -56,6 +59,7 @@ public class ScriptClassLoader extends URLClassLoader {
       return loadedClasses.get(name);
     }
 
+    pendingBytecode.remove(name);
     try {
       Class<?> clazz = defineClass(name, classData, 0, classData.length);
       loadedClasses.put(name, clazz);
@@ -75,12 +79,13 @@ public class ScriptClassLoader extends URLClassLoader {
    * @param classes Map of class names to bytecode
    * @return Map of class names to loaded classes
    */
-  public Map<String, Class<?>> defineClasses(Map<String, byte[]> classes) {
+  public synchronized Map<String, Class<?>> defineClasses(Map<String, byte[]> classes) {
     if (classes == null || classes.isEmpty()) {
       throw new IllegalArgumentException("Classes map cannot be null or empty");
     }
 
     Map<String, Class<?>> definedClasses = new HashMap<>();
+    pendingBytecode.putAll(classes);
 
     for (Map.Entry<String, byte[]> entry : classes.entrySet()) {
       String className = entry.getKey();
@@ -115,7 +120,30 @@ public class ScriptClassLoader extends URLClassLoader {
     if (clazz != null) {
       return clazz;
     }
-    return super.findClass(name);
+    byte[] pending;
+    synchronized (this) {
+      pending = pendingBytecode.get(name);
+    }
+    if (pending != null) {
+      return defineClass(name, pending);
+    }
+    try {
+      return super.findClass(name);
+    } catch (ClassNotFoundException notInDependencies) {
+      // JavaSkript is a Paper plugin, so its own loader only sees the plugins it declares. Scripts
+      // compile against every loaded plugin jar, so look those plugins up here as well.
+      for (var other : plugin.getServer().getPluginManager().getPlugins()) {
+        ClassLoader otherLoader = other.getClass().getClassLoader();
+        if (other == plugin || otherLoader == getParent()) {
+          continue;
+        }
+        try {
+          return otherLoader.loadClass(name);
+        } catch (ClassNotFoundException | LinkageError ignored) {
+        }
+      }
+      throw notInDependencies;
+    }
   }
 
   /**
@@ -141,8 +169,9 @@ public class ScriptClassLoader extends URLClassLoader {
     return totalBytecodeBytes;
   }
 
-  public void unloadAll() {
+  public synchronized void unloadAll() {
     loadedClasses.clear();
+    pendingBytecode.clear();
     try {
       close();
     } catch (Exception e) {

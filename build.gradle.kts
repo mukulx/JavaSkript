@@ -29,8 +29,16 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("org.eclipse.jdt:org.eclipse.jdt.core:3.46.0")
     compileOnly("org.ow2.asm:asm:9.10.1")
+    compileOnly("org.xerial:sqlite-jdbc:3.46.1.3")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1")
     implementation("org.bstats:bstats-bukkit:3.2.1")
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.eclipse.jdt:org.eclipse.jdt.core:3.46.0")
+    testImplementation("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -75,6 +83,12 @@ tasks.shadowJar {
 
 tasks.build {
     dependsOn(tasks.shadowJar)
+}
+
+tasks.test {
+    useJUnitPlatform()
+    // Mockito's inline mock maker attaches an agent at runtime
+    jvmArgs("-XX:+EnableDynamicAgentLoading")
 }
 
 publishing {

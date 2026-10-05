@@ -16,6 +16,8 @@ public class JavaSkriptAPI {
   private final DialogHelper dialogHelper;
   private final PDCHelper pdcHelper;
   private final HologramHelper hologramHelper;
+  private final MannequinHelper mannequinHelper;
+  private final AdvancementHelper advancementHelper;
   private final dev.mukulx.javaskript.api.addon.AddonRegistry addonRegistry;
 
   public JavaSkriptAPI(JavaSkriptPlugin plugin) {
@@ -27,6 +29,8 @@ public class JavaSkriptAPI {
     this.dialogHelper = new DialogHelper(plugin);
     this.pdcHelper = new PDCHelper(plugin);
     this.hologramHelper = new HologramHelper(plugin);
+    this.mannequinHelper = new MannequinHelper(plugin);
+    this.advancementHelper = new AdvancementHelper(plugin);
     this.addonRegistry = new dev.mukulx.javaskript.api.addon.AddonRegistry(plugin);
   }
 
@@ -145,6 +149,42 @@ public class JavaSkriptAPI {
    */
   public HologramHelper getHologramHelper() {
     return hologramHelper;
+  }
+
+  /**
+   * Get the Mannequin helper for creating and managing Paper 1.21.11+ mannequins
+   *
+   * @return MannequinHelper instance
+   */
+  public MannequinHelper getMannequinHelper() {
+    return mannequinHelper;
+  }
+
+  /**
+   * Get the Mannequin helper alias
+   *
+   * @return MannequinHelper instance
+   */
+  public MannequinHelper mannequins() {
+    return mannequinHelper;
+  }
+
+  /**
+   * Get the Advancement helper for toasts, progression, and custom advancements
+   *
+   * @return AdvancementHelper instance
+   */
+  public AdvancementHelper getAdvancementHelper() {
+    return advancementHelper;
+  }
+
+  /**
+   * Get the Advancement helper alias
+   *
+   * @return AdvancementHelper instance
+   */
+  public AdvancementHelper advancements() {
+    return advancementHelper;
   }
 
   /**
@@ -285,6 +325,14 @@ public class JavaSkriptAPI {
     return plugin.getScriptManager().getScript(scriptName) != null;
   }
 
+  /** Get typed, scheduler-safe access to a loaded script. */
+  public <T> ScriptHandle<T> script(String scriptName, Class<T> type) {
+    if (scriptName == null || scriptName.isBlank() || type == null) {
+      throw new IllegalArgumentException("Script name and type are required");
+    }
+    return new ScriptHandle<>(plugin, scriptName, type);
+  }
+
   /**
    * Get the EconomyHelper for managing balances, Vault, built-in economy, and custom currencies.
    *
@@ -301,6 +349,33 @@ public class JavaSkriptAPI {
    */
   public dev.mukulx.javaskript.api.economy.EconomyHelper economy() {
     return getEconomyHelper();
+  }
+
+  /**
+   * Get the TeamHelper for managing teams, clans, friendly fire, and member roles.
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return plugin.getTeamHelper();
+  }
+
+  /**
+   * Get the TeamHelper (alias).
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeams() {
+    return getTeamHelper();
+  }
+
+  /**
+   * Get the TeamHelper (alias).
+   *
+   * @return The TeamHelper instance
+   */
+  public dev.mukulx.javaskript.api.team.TeamHelper teams() {
+    return getTeamHelper();
   }
 
   /**

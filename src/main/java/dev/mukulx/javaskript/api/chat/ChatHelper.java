@@ -22,7 +22,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 
 /**
  * Universal, high-performance Chat API for JavaSkript.
@@ -146,15 +145,7 @@ public class ChatHelper implements Listener {
             }
           };
 
-      if (ServerUtil.isFolia()) {
-        try {
-          Bukkit.getGlobalRegionScheduler()
-              .runDelayed(plugin, task -> timeoutTask.run(), delayTicks);
-        } catch (Throwable ignored) {
-        }
-      } else {
-        Bukkit.getScheduler().runTaskLater(plugin, timeoutTask, delayTicks);
-      }
+      ServerUtil.runLaterSync(plugin, timeoutTask, delayTicks);
     }
   }
 
@@ -197,7 +188,7 @@ public class ChatHelper implements Listener {
         (p, text) -> {
           try {
             double val = Double.parseDouble(text.trim());
-            if (val < min || val > max) {
+            if (!Double.isFinite(val) || val < min || val > max) {
               send(
                   p,
                   "<red>Value must be between "
@@ -374,17 +365,6 @@ public class ChatHelper implements Listener {
     }
   }
 
-  @SuppressWarnings("deprecation")
-  @EventHandler(priority = EventPriority.LOWEST)
-  public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
-    Player player = event.getPlayer();
-    PromptContext ctx = activePrompts.remove(player.getUniqueId());
-    if (ctx != null) {
-      event.setCancelled(true);
-      dispatchPromptResult(player, event.getMessage(), ctx);
-    }
-  }
-
   private void dispatchPromptResult(Player player, String text, PromptContext ctx) {
     if (player == null || ctx == null) return;
     final String finalText = (text == null) ? "" : text;
@@ -407,15 +387,7 @@ public class ChatHelper implements Listener {
           }
         };
 
-    if (ServerUtil.isFolia()) {
-      try {
-        player.getScheduler().run(plugin, task -> action.run(), null);
-      } catch (Throwable ignored) {
-        action.run();
-      }
-    } else {
-      Bukkit.getScheduler().runTask(plugin, action);
-    }
+    ServerUtil.runForPlayer(plugin, player, action);
   }
 
   // ==========================================

@@ -11,21 +11,11 @@ import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
 import dev.mukulx.javaskript.util.ServerUtil;
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.logging.Level;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandExecutor;
-import org.bukkit.event.Event;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.plugin.EventExecutor;
 
 public class ScriptInstance {
 
@@ -34,7 +24,8 @@ public class ScriptInstance {
   private final Class<?> scriptClass;
   private final ScriptClassLoader classLoader;
   private Object instance;
-  private final List<String> registeredCommands;
+  private final ScriptListeners listeners;
+  private final ScriptContext context;
 
   // API instances for this script
   private ScriptScheduler scheduler;
@@ -42,9 +33,13 @@ public class ScriptInstance {
   private DatabaseHelper database;
   private PlaceholderHelper placeholders;
   private RecipeHelper recipes;
+  private ActionBarHelper actionBars;
+  private BossBarHelper bossBars;
   private DialogHelper dialog;
   private PDCHelper pdc;
   private HologramHelper holograms;
+  private dev.mukulx.javaskript.api.MannequinHelper mannequins;
+  private dev.mukulx.javaskript.api.AdvancementHelper advancements;
   private CommandHelper commands;
   private ItemHelper items;
   private CooldownHelper cooldowns;
@@ -53,7 +48,9 @@ public class ScriptInstance {
   private ChatHelper chat;
   private dev.mukulx.javaskript.api.economy.EconomyHelper economy;
   private dev.mukulx.javaskript.api.variable.VariableHelper variables;
+  private dev.mukulx.javaskript.api.variable.ScriptVariables scriptVariables;
   private dev.mukulx.javaskript.api.http.HttpHelper http;
+  private dev.mukulx.javaskript.api.team.TeamHelper teams;
 
   public ScriptInstance(
       JavaSkriptPlugin plugin,
@@ -64,10 +61,24 @@ public class ScriptInstance {
     this.scriptFile = scriptFile;
     this.scriptClass = scriptClass;
     this.classLoader = classLoader;
-    this.registeredCommands = new ArrayList<>();
+    this.listeners = new ScriptListeners(plugin, scriptFile, scriptClass, classLoader);
+    this.context = new ScriptContext(plugin, scriptFile.getName());
   }
 
   public boolean initialize() {
+    boolean initialized = false;
+    try {
+      initialized = doInitialize();
+      return initialized;
+    } finally {
+      if (!initialized) {
+        // onEnable may already have scheduled tasks or registered events, commands and the like
+        releaseResources();
+      }
+    }
+  }
+
+  private boolean doInitialize() {
     try {
       // Check Folia compatibility
       if (!checkFoliaCompatibility()) {
@@ -86,29 +97,55 @@ public class ScriptInstance {
 
       // Initialize API helpers
       // Use class name instead of file name to avoid issues with manual config creation
-      String scriptName = scriptClass.getSimpleName() + ".java";
       String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
+
+      // Everything registered below is released by context.close() on unload or failed init.
+      // Listeners and commands are owned first because onEnable may register them.
+      context.own("event listeners", () -> listeners.unregisterListeners(instance));
+      context.own("commands", listeners::unregisterCommands);
+
       this.scheduler = new ScriptScheduler(plugin, scriptKey);
-      this.config = new ScriptConfig(plugin, scriptName);
-      this.database = new DatabaseHelper(plugin, scriptName);
-      this.placeholders = new PlaceholderHelper(plugin, scriptName);
-      this.recipes = new RecipeHelper(plugin, scriptName);
+      context.own("scheduled tasks", scheduler::close);
+      this.config = new ScriptConfig(plugin, scriptKey);
+      this.database = new DatabaseHelper(plugin, scriptKey);
+      context.own("database", database::disconnect);
+      this.placeholders = new PlaceholderHelper(plugin, scriptKey);
+      context.own("placeholders", placeholders::unregisterAll);
+      this.recipes = new RecipeHelper(plugin, scriptKey);
+      context.own("recipes", recipes::removeAll);
+      // Per script, so persistent action bars and boss bars end with the script that showed them
+      this.actionBars = new ActionBarHelper(plugin);
+      context.own("action bars", actionBars::shutdown);
+      this.bossBars = new BossBarHelper(plugin);
+      context.own("boss bars", bossBars::hideAll);
       this.dialog = plugin.getAPI().getDialogHelper();
       this.pdc = plugin.getAPI().getPDCHelper();
       this.holograms = new HologramHelper(plugin);
+      context.own("holograms", holograms::removeAll);
+      this.mannequins = new dev.mukulx.javaskript.api.MannequinHelper(plugin, scriptKey);
+      context.own("mannequins", mannequins::removeAll);
+      this.advancements = new dev.mukulx.javaskript.api.AdvancementHelper(plugin, scriptKey);
+      context.own("advancements", advancements::removeAll);
       this.commands = new CommandHelper(plugin, scriptKey);
+      context.own("fluent commands", commands::unregisterAll);
       this.items = new ItemHelper(plugin);
       this.cooldowns = new CooldownHelper(plugin, scriptKey);
+      context.own("cooldowns", cooldowns::cleanup);
       this.events = new EventHelper(plugin, scriptKey);
+      context.own("event subscriptions", events::unregisterAll);
       this.players = new PlayerHelper(plugin);
       this.chat = new ChatHelper(plugin, scriptKey);
+      context.own("chat prompts", chat::cleanup);
       this.economy = plugin.getEconomyHelper();
       this.variables = plugin.getVariableHelper();
+      this.scriptVariables =
+          new dev.mukulx.javaskript.api.variable.ScriptVariables(variables, scriptKey);
       this.http = plugin.getHttpHelper();
+      this.teams = plugin.getTeamHelper();
 
       // Inject API helpers into script instance
-      plugin.debug("Injecting APIs into script: " + scriptName);
-      injectAPIs();
+      plugin.debug("Injecting APIs into script: " + scriptKey);
+      ScriptInjector.inject(plugin, this, instance);
 
       // Call onEnable method if it exists across class hierarchy
       Method onEnableMethod = findLifecycleMethod(scriptClass, "onEnable");
@@ -123,12 +160,12 @@ public class ScriptInstance {
 
       // Register as event listener if applicable with profiling wrapper
       if (instance instanceof Listener listener) {
-        registerProfiledEvents(listener);
+        listeners.registerEvents(listener);
       }
 
       // Register as command executor if applicable
       if (instance instanceof CommandExecutor) {
-        registerCommand();
+        listeners.registerCommand(instance);
       }
 
       return true;
@@ -238,174 +275,6 @@ public class ScriptInstance {
     return true;
   }
 
-  private void injectAPIs() {
-    try {
-      // Collect and inject into all fields across the entire class hierarchy
-      Class<?> current = scriptClass;
-      while (current != null && current != Object.class) {
-        for (Field field : current.getDeclaredFields()) {
-          try {
-            field.setAccessible(true);
-
-            // Skip if already initialized with non-null value
-            if (field.get(instance) != null) {
-              continue;
-            }
-
-            Class<?> type = field.getType();
-            String name = field.getName().toLowerCase();
-
-            // 1. Match by Type
-            if (type.isAssignableFrom(JavaSkriptPlugin.class)) {
-              field.set(instance, plugin);
-            } else if (type.isAssignableFrom(JavaSkriptAPI.class)) {
-              field.set(instance, plugin.getAPI());
-            } else if (type.isAssignableFrom(ScriptScheduler.class)) {
-              field.set(instance, scheduler);
-            } else if (type.isAssignableFrom(ScriptConfig.class)) {
-              field.set(instance, config);
-            } else if (type.isAssignableFrom(DatabaseHelper.class)) {
-              field.set(instance, database);
-            } else if (type.isAssignableFrom(PlaceholderHelper.class)) {
-              field.set(instance, placeholders);
-            } else if (type.isAssignableFrom(RecipeHelper.class)) {
-              field.set(instance, recipes);
-            } else if (type.isAssignableFrom(ActionBarHelper.class)) {
-              field.set(instance, plugin.getAPI().getActionBarHelper());
-            } else if (type.isAssignableFrom(TitleHelper.class)) {
-              field.set(instance, plugin.getAPI().getTitleHelper());
-            } else if (type.isAssignableFrom(BossBarHelper.class)) {
-              field.set(instance, plugin.getAPI().getBossBarHelper());
-            } else if (type.isAssignableFrom(SoundHelper.class)) {
-              field.set(instance, plugin.getAPI().getSoundHelper());
-            } else if (type.isAssignableFrom(DialogHelper.class)) {
-              field.set(instance, dialog);
-            } else if (type.isAssignableFrom(PDCHelper.class)) {
-              field.set(instance, pdc);
-            } else if (type.isAssignableFrom(HologramHelper.class)) {
-              field.set(instance, holograms);
-            } else if (type.isAssignableFrom(CommandHelper.class)) {
-              field.set(instance, commands);
-            } else if (type.isAssignableFrom(ItemHelper.class)) {
-              field.set(instance, items);
-            } else if (type.isAssignableFrom(CooldownHelper.class)) {
-              field.set(instance, cooldowns);
-            } else if (type.isAssignableFrom(EventHelper.class)) {
-              field.set(instance, events);
-            } else if (type.isAssignableFrom(PlayerHelper.class)) {
-              field.set(instance, players);
-            } else if (type.isAssignableFrom(ChatHelper.class)) {
-              field.set(instance, chat);
-            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyHelper.class)
-                || type.isAssignableFrom(dev.mukulx.javaskript.api.economy.EconomyProvider.class)) {
-              field.set(instance, economy);
-            } else if (type.isAssignableFrom(
-                dev.mukulx.javaskript.api.variable.VariableHelper.class)) {
-              field.set(instance, variables);
-            } else if (type.isAssignableFrom(dev.mukulx.javaskript.api.http.HttpHelper.class)) {
-              field.set(instance, http);
-            }
-            // 2. Match by Name / Alias
-            else if (name.equals("plugin") || name.equals("javaskript")) {
-              field.set(instance, plugin);
-            } else if (name.equals("api")) {
-              field.set(instance, plugin.getAPI());
-            } else if (name.equals("scheduler") || name.equals("tasks")) {
-              field.set(instance, scheduler);
-            } else if (name.equals("config") || name.equals("cfg")) {
-              field.set(instance, config);
-            } else if (name.equals("database") || name.equals("db")) {
-              field.set(instance, database);
-            } else if (name.equals("placeholders") || name.equals("papi")) {
-              field.set(instance, placeholders);
-            } else if (name.equals("recipes")) {
-              field.set(instance, recipes);
-            } else if (name.equals("actionbar")
-                || name.equals("actionbars")
-                || name.equals("actionbarhelper")) {
-              field.set(instance, plugin.getAPI().getActionBarHelper());
-            } else if (name.equals("title")
-                || name.equals("titles")
-                || name.equals("titlehelper")) {
-              field.set(instance, plugin.getAPI().getTitleHelper());
-            } else if (name.equals("bossbar")
-                || name.equals("bossbars")
-                || name.equals("bossbarhelper")) {
-              field.set(instance, plugin.getAPI().getBossBarHelper());
-            } else if (name.equals("sound")
-                || name.equals("sounds")
-                || name.equals("soundhelper")) {
-              field.set(instance, plugin.getAPI().getSoundHelper());
-            } else if (name.equals("dialog")
-                || name.equals("dialogs")
-                || name.equals("dialoghelper")) {
-              field.set(instance, dialog);
-            } else if (name.equals("pdc")
-                || name.equals("pdchelper")
-                || name.equals("persistentdata")
-                || name.equals("nbt")) {
-              field.set(instance, pdc);
-            } else if (name.equals("hologram")
-                || name.equals("holograms")
-                || name.equals("holo")
-                || name.equals("displays")) {
-              field.set(instance, holograms);
-            } else if (name.equals("commands")
-                || name.equals("commandhelper")
-                || name.equals("commandapi")
-                || name.equals("cmd")) {
-              field.set(instance, commands);
-            } else if (name.equals("items")
-                || name.equals("itemhelper")
-                || name.equals("itembuilder")) {
-              field.set(instance, items);
-            } else if (name.equals("cooldowns")
-                || name.equals("cooldown")
-                || name.equals("cooldownhelper")) {
-              field.set(instance, cooldowns);
-            } else if (name.equals("events")
-                || name.equals("eventhelper")
-                || name.equals("eventapi")) {
-              field.set(instance, events);
-            } else if (name.equals("players")
-                || name.equals("playerhelper")
-                || name.equals("playerutil")) {
-              field.set(instance, players);
-            } else if (name.equals("chat") || name.equals("chathelper") || name.equals("chatapi")) {
-              field.set(instance, chat);
-            } else if (name.equals("economy")
-                || name.equals("eco")
-                || name.equals("economyhelper")
-                || name.equals("vault")) {
-              field.set(instance, economy);
-            } else if (name.equals("variables")
-                || name.equals("vars")
-                || name.equals("variablehelper")
-                || name.equals("shared")
-                || name.equals("state")) {
-              field.set(instance, variables);
-            } else if (name.equals("http") || name.equals("web") || name.equals("httphelper")) {
-              field.set(instance, http);
-            } else {
-              // Check external addons and plugins for custom registered field injectors
-              Object custom = plugin.getAPI().resolveCustomInjection(this, type, name);
-              if (custom != null) {
-                field.set(instance, custom);
-              }
-            }
-          } catch (Exception e) {
-            plugin.debug("Could not inject into field " + field.getName() + ": " + e.getMessage());
-          }
-        }
-        current = current.getSuperclass();
-      }
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .log(Level.WARNING, "Error during API injection for " + scriptFile.getName(), e);
-    }
-  }
-
   private Method findLifecycleMethod(Class<?> clazz, String methodName) {
     Class<?> current = clazz;
     while (current != null && current != Object.class) {
@@ -418,108 +287,6 @@ public class ScriptInstance {
       }
     }
     return null;
-  }
-
-  private void registerProfiledEvents(Listener listener) {
-    String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
-    int registeredCount = 0;
-
-    Set<Method> methods = new HashSet<>();
-    for (Class<?> clazz = listener.getClass();
-        clazz != null && clazz != Object.class;
-        clazz = clazz.getSuperclass()) {
-      for (Method m : clazz.getDeclaredMethods()) {
-        methods.add(m);
-      }
-    }
-
-    for (Method method : methods) {
-      EventHandler handler = method.getAnnotation(EventHandler.class);
-      if (handler == null) continue;
-      if (method.getParameterCount() != 1) continue;
-      Class<?> paramType = method.getParameterTypes()[0];
-      if (!Event.class.isAssignableFrom(paramType)) continue;
-
-      Class<? extends Event> eventClass = paramType.asSubclass(Event.class);
-      method.setAccessible(true);
-
-      EventExecutor executor =
-          (l, event) -> {
-            if (!eventClass.isInstance(event)) return;
-            long t0 = System.nanoTime();
-            try {
-              method.invoke(l, event);
-            } catch (InvocationTargetException ite) {
-              Throwable cause = ite.getCause() != null ? ite.getCause() : ite;
-              dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
-                  plugin, scriptKey, "event handler " + method.getName(), cause);
-            } catch (Exception ex) {
-              dev.mukulx.javaskript.util.ScriptErrorFormatter.log(
-                  plugin, scriptKey, "event dispatching " + eventClass.getSimpleName(), ex);
-            } finally {
-              long elapsed = System.nanoTime() - t0;
-              plugin.getProfiler().record(scriptKey, "EVENT", eventClass.getSimpleName(), elapsed);
-            }
-          };
-
-      Bukkit.getPluginManager()
-          .registerEvent(
-              eventClass,
-              listener,
-              handler.priority(),
-              executor,
-              plugin,
-              handler.ignoreCancelled());
-      registeredCount++;
-    }
-
-    plugin.debug(
-        "Registered "
-            + registeredCount
-            + " profiled event handlers for: "
-            + scriptClass.getSimpleName());
-  }
-
-  private void registerCommand() {
-    try {
-      // Extract command name from class name (e.g., HealCommand -> heal)
-      String className = scriptClass.getSimpleName();
-      String commandName = className.toLowerCase().replace("command", "").replace("cmd", "");
-
-      if (commandName.isEmpty()) {
-        commandName = className.toLowerCase();
-      }
-
-      String scriptKey = plugin.getScriptManager().getScriptKey(scriptFile);
-      CommandExecutor originalExecutor = (CommandExecutor) instance;
-
-      // Profiled command execution
-      CommandExecutor profiledExecutor =
-          (sender, cmd, label, args) -> {
-            long t0 = System.nanoTime();
-            try {
-              return originalExecutor.onCommand(sender, cmd, label, args);
-            } finally {
-              long elapsed = System.nanoTime() - t0;
-              plugin.getProfiler().record(scriptKey, "COMMAND", "/" + label, elapsed);
-            }
-          };
-
-      // Use dynamic command registration
-      boolean registered =
-          plugin.getCommandRegistry().registerCommand(commandName, profiledExecutor);
-
-      if (registered) {
-        registeredCommands.add(commandName);
-      } else {
-        plugin.getLogger().warning("Failed to register command: /" + commandName);
-      }
-
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .log(Level.WARNING, "Failed to register command for: " + scriptClass.getSimpleName(), e);
-    }
   }
 
   public void unload() {
@@ -537,145 +304,36 @@ public class ScriptInstance {
       }
     }
 
-    // Cancel all scheduled tasks (force it)
-    try {
-      if (scheduler != null) {
-        scheduler.cancelAll();
-        scheduler = null;
-        plugin.debug("Cancelled scheduled tasks for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cancelling tasks (continuing): " + e.getMessage());
-    }
+    releaseResources();
+  }
 
-    // Disconnect database (force it)
-    try {
-      if (database != null) {
-        database.disconnect();
-        database = null;
-        plugin.debug("Disconnected database for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error disconnecting database (continuing): " + e.getMessage());
-    }
+  /**
+   * Release everything the script registered with the server. Runs on unload and when
+   * initialization fails part way through.
+   */
+  private void releaseResources() {
+    String scriptName = scriptFile.getName();
 
-    // Unregister placeholders (force it)
-    try {
-      if (placeholders != null) {
-        placeholders.unregisterAll();
-        placeholders = null;
-        plugin.debug("Unregistered placeholders for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error unregistering placeholders (continuing): " + e.getMessage());
-    }
+    context.close();
 
-    // Unregister recipes (force it)
-    try {
-      if (recipes != null) {
-        recipes.removeAll();
-        recipes = null;
-        plugin.debug("Unregistered recipes for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering recipes (continuing): " + e.getMessage());
-    }
-
-    // Despawn holograms (force it)
-    try {
-      if (holograms != null) {
-        holograms.removeAll();
-        holograms = null;
-        plugin.debug("Removed holograms for: " + scriptName);
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error removing holograms (continuing): " + e.getMessage());
-    }
-
-    // Unregister events if listener (force it)
-    try {
-      if (instance instanceof Listener) {
-        HandlerList.unregisterAll((Listener) instance);
-        plugin.debug("Unregistered event listener: " + scriptClass.getSimpleName());
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
-    }
-
-    // Unregister commands (force each one individually)
-    List<String> commandsCopy = new ArrayList<>(registeredCommands);
-    for (String commandName : commandsCopy) {
-      try {
-        boolean removed = plugin.getCommandRegistry().unregisterCommand(commandName);
-
-        // Verify it's actually gone
-        if (plugin.getCommandRegistry().isCommandInMap(commandName)) {
-          plugin.getLogger().severe("Command still exists after unregister: /" + commandName);
-        } else {
-          plugin.debug("Verified command removed: /" + commandName);
-        }
-      } catch (Exception e) {
-        plugin
-            .getLogger()
-            .warning(
-                "Error unregistering command /" + commandName + " (continuing): " + e.getMessage());
-      }
-    }
-    registeredCommands.clear();
-
-    // Unregister fluent commands
-    try {
-      if (commands != null) {
-        commands.unregisterAll();
-      }
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error unregistering fluent commands (continuing): " + e.getMessage());
-    }
-
-    // Cleanup cooldowns and active tickers
-    try {
-      if (cooldowns != null) {
-        cooldowns.cleanup();
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cleaning up cooldowns (continuing): " + e.getMessage());
-    }
-
-    // Unregister lambda event subscriptions
-    try {
-      if (events != null) {
-        events.unregisterAll();
-        events = null;
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error unregistering events (continuing): " + e.getMessage());
-    }
-
-    // Cleanup chat prompts and action tokens
-    try {
-      if (chat != null) {
-        chat.cleanup();
-        chat = null;
-      }
-    } catch (Exception e) {
-      plugin.getLogger().warning("Error cleaning up chat (continuing): " + e.getMessage());
-    }
-
-    // Clear config reference
-    try {
-      config = null;
-    } catch (Exception e) {
-      // Ignore
-    }
+    // Drop references so use after unload fails fast instead of touching released helpers
+    scheduler = null;
+    database = null;
+    placeholders = null;
+    recipes = null;
+    actionBars = null;
+    bossBars = null;
+    holograms = null;
+    mannequins = null;
+    advancements = null;
+    events = null;
+    chat = null;
+    config = null;
 
     // Automatic cleanup of common custom resources
     // This helps scripts that don't have onDisable() but use custom resources
     try {
-      cleanupCustomResources();
+      ScriptResourceCleanup.run(plugin, scriptFile, scriptClass, instance);
     } catch (Exception e) {
       plugin.getLogger().warning("Error during automatic cleanup (continuing): " + e.getMessage());
     }
@@ -700,131 +358,11 @@ public class ScriptInstance {
   }
 
   /**
-   * Automatically clean up common custom resources by scanning instance fields This helps scripts
-   * that don't implement onDisable() but use resources like HikariCP, ExecutorService, etc.
+   * Register a cleanup to run when this script unloads. Addons whose custom field injectors hand
+   * scripts a resource that must not outlive them can release it here.
    */
-  private void cleanupCustomResources() {
-    if (instance == null) {
-      return;
-    }
-
-    String scriptName = scriptFile.getName();
-    int cleanedCount = 0;
-
-    try {
-      // Get all fields from the script class
-      Field[] fields = scriptClass.getDeclaredFields();
-
-      for (Field field : fields) {
-        try {
-          field.setAccessible(true);
-          Object value = field.get(instance);
-
-          if (value == null) {
-            continue;
-          }
-
-          // Check for HikariDataSource (HikariCP)
-          if (value.getClass().getName().equals("com.zaxxer.hikari.HikariDataSource")) {
-            try {
-              // Check if already closed
-              var isClosedMethod = value.getClass().getMethod("isClosed");
-              boolean isClosed = (boolean) isClosedMethod.invoke(value);
-
-              if (!isClosed) {
-                var closeMethod = value.getClass().getMethod("close");
-                closeMethod.invoke(value);
-                plugin
-                    .getLogger()
-                    .info(
-                        "Auto-closed HikariDataSource in field '"
-                            + field.getName()
-                            + "' for: "
-                            + scriptName);
-                cleanedCount++;
-              }
-            } catch (Exception e) {
-              // Ignore - might already be closed
-            }
-          }
-
-          // Check for ExecutorService
-          if (value instanceof java.util.concurrent.ExecutorService) {
-            try {
-              java.util.concurrent.ExecutorService executor =
-                  (java.util.concurrent.ExecutorService) value;
-              if (!executor.isShutdown()) {
-                executor.shutdown();
-                plugin
-                    .getLogger()
-                    .info(
-                        "Auto-shutdown ExecutorService in field '"
-                            + field.getName()
-                            + "' for: "
-                            + scriptName);
-                cleanedCount++;
-              }
-            } catch (Exception e) {
-              // Ignore
-            }
-          }
-
-          // Check for Thread
-          if (value instanceof Thread) {
-            try {
-              Thread thread = (Thread) value;
-              if (thread.isAlive()) {
-                thread.interrupt();
-                plugin
-                    .getLogger()
-                    .info(
-                        "Auto-interrupted Thread in field '"
-                            + field.getName()
-                            + "' for: "
-                            + scriptName);
-                cleanedCount++;
-              }
-            } catch (Exception e) {
-              // Ignore
-            }
-          }
-
-          // Check for Closeable/AutoCloseable (but skip HikariDataSource since we handled it above)
-          if (value instanceof AutoCloseable
-              && !value.getClass().getName().equals("com.zaxxer.hikari.HikariDataSource")) {
-            try {
-              ((AutoCloseable) value).close();
-              plugin
-                  .getLogger()
-                  .info(
-                      "Auto-closed "
-                          + value.getClass().getSimpleName()
-                          + " in field '"
-                          + field.getName()
-                          + "' for: "
-                          + scriptName);
-              cleanedCount++;
-            } catch (Exception e) {
-              // Ignore - might already be closed
-            }
-          }
-
-        } catch (Exception e) {
-          // Ignore individual field errors
-        }
-      }
-
-      if (cleanedCount > 0) {
-        plugin
-            .getLogger()
-            .info("Auto-cleaned " + cleanedCount + " custom resource(s) for: " + scriptName);
-      }
-
-    } catch (Exception e) {
-      plugin
-          .getLogger()
-          .warning("Error scanning for custom resources (continuing): " + e.getMessage());
-    }
+  public void registerCleanup(String description, Runnable cleanup) {
+    context.own(description, cleanup);
   }
 
   public File getScriptFile() {
@@ -877,6 +415,22 @@ public class ScriptInstance {
 
   public HologramHelper getHologramHelper() {
     return holograms;
+  }
+
+  public dev.mukulx.javaskript.api.MannequinHelper getMannequins() {
+    return mannequins;
+  }
+
+  public dev.mukulx.javaskript.api.MannequinHelper getMannequinHelper() {
+    return mannequins;
+  }
+
+  public dev.mukulx.javaskript.api.AdvancementHelper getAdvancements() {
+    return advancements;
+  }
+
+  public dev.mukulx.javaskript.api.AdvancementHelper getAdvancementHelper() {
+    return advancements;
   }
 
   public CommandHelper getCommands() {
@@ -951,6 +505,14 @@ public class ScriptInstance {
     return http;
   }
 
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeams() {
+    return teams;
+  }
+
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return teams;
+  }
+
   public boolean isFoliaCompatible() {
     // Check if script has @PaperOnly annotation
     if (scriptClass.getAnnotation(PaperOnly.class) != null) {
@@ -978,5 +540,21 @@ public class ScriptInstance {
 
   public ScriptClassLoader getClassLoader() {
     return classLoader;
+  }
+
+  RecipeHelper recipes() {
+    return recipes;
+  }
+
+  ActionBarHelper actionBars() {
+    return actionBars;
+  }
+
+  BossBarHelper bossBars() {
+    return bossBars;
+  }
+
+  dev.mukulx.javaskript.api.variable.ScriptVariables scriptVariables() {
+    return scriptVariables;
   }
 }

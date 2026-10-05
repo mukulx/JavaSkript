@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
@@ -17,11 +18,11 @@ public class FileWatcher implements Runnable {
   private final File scriptsFolder;
   private WatchService watchService;
   private final Map<WatchKey, Path> watchKeys;
-  private final Map<String, Long> pendingReloads;
+  private final Map<String, ScheduledFuture<?>> pendingReloads;
   private volatile boolean running = false;
   private Thread watchThread;
   private ScheduledExecutorService debounceExecutor;
-  private final long reloadDelay;
+  private volatile long reloadDelay;
 
   public FileWatcher(JavaSkriptPlugin plugin, File scriptsFolder) {
     this.plugin = plugin;
@@ -89,6 +90,13 @@ public class FileWatcher implements Runnable {
   public void stop() {
     running = false;
 
+    for (ScheduledFuture<?> task : pendingReloads.values()) {
+      if (task != null) {
+        task.cancel(false);
+      }
+    }
+    pendingReloads.clear();
+
     if (debounceExecutor != null && !debounceExecutor.isShutdown()) {
       debounceExecutor.shutdown();
       try {
@@ -141,6 +149,8 @@ public class FileWatcher implements Runnable {
             try {
               registerTree(fullPath);
               plugin.debug("Registered new subfolder in watcher: " + fullPath);
+              // Files copied, moved or extracted in with the folder never raise their own events
+              scheduleExistingScripts(fullPath);
             } catch (IOException e) {
               plugin.getLogger().warning("Failed to watch new folder: " + fullPath);
             }
@@ -150,6 +160,10 @@ public class FileWatcher implements Runnable {
           // Only process .java files
           String fileNameStr = filename.toString();
           if (!fileNameStr.endsWith(".java")) {
+            // A folder that was renamed or removed leaves watch keys pointing at its old path
+            if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+              forgetDirectory(fullPath);
+            }
             continue;
           }
 
@@ -178,46 +192,107 @@ public class FileWatcher implements Runnable {
     }
   }
 
-  private void scheduleReload(WatchEvent.Kind<?> kind, File file) {
-    // Use the script key (relative path) for dedup
-    String scriptKey = plugin.getScriptManager().getScriptKey(file);
-    String debounceKey = scriptKey + ":" + kind.name();
-    pendingReloads.put(debounceKey, System.currentTimeMillis());
-
-    debounceExecutor.schedule(
-        () -> {
-          Long scheduledTime = pendingReloads.get(debounceKey);
-          if (scheduledTime != null
-              && System.currentTimeMillis() - scheduledTime >= reloadDelay - 50) {
-            pendingReloads.remove(debounceKey);
-            handleFileEvent(kind, file, scriptKey);
-          }
-        },
-        reloadDelay,
-        TimeUnit.MILLISECONDS);
+  /**
+   * Drop watch keys registered under a path that no longer exists. Their events would resolve
+   * against the old path, so edits inside a renamed folder looked like deleted scripts. If the
+   * folder reappears under a new name, its create event registers it again.
+   */
+  private void forgetDirectory(Path dir) {
+    watchKeys
+        .entrySet()
+        .removeIf(
+            entry -> {
+              if (entry.getValue().startsWith(dir)) {
+                entry.getKey().cancel();
+                return true;
+              }
+              return false;
+            });
   }
 
-  private void handleFileEvent(WatchEvent.Kind<?> kind, File file, String scriptKey) {
+  private void scheduleExistingScripts(Path dir) {
+    try (var paths = Files.walk(dir)) {
+      paths
+          .filter(Files::isRegularFile)
+          .filter(path -> path.toString().endsWith(".java"))
+          .forEach(path -> scheduleReload(StandardWatchEventKinds.ENTRY_CREATE, path.toFile()));
+    } catch (IOException e) {
+      plugin.getLogger().warning("Failed to scan new folder: " + dir + " (" + e.getMessage() + ")");
+    }
+  }
+
+  private void scheduleReload(WatchEvent.Kind<?> kind, File file) {
+    // Use the script key (relative path) for deduplicating events.
+    String scriptKey = plugin.getScriptManager().getScriptKey(file);
+
+    // Cancel any previous pending task for this script so burst OS events
+    // (such as ENTRY_CREATE immediately followed by ENTRY_MODIFY, or multi-part writes)
+    // collapse cleanly into a single reload once changes settle.
+    ScheduledFuture<?> previousTask = pendingReloads.get(scriptKey);
+    if (previousTask != null && !previousTask.isDone()) {
+      previousTask.cancel(false);
+    }
+
+    ScheduledFuture<?> newTask =
+        debounceExecutor.schedule(
+            () -> {
+              pendingReloads.remove(scriptKey);
+              handleFileEvent(file, scriptKey);
+            },
+            reloadDelay,
+            TimeUnit.MILLISECONDS);
+
+    pendingReloads.put(scriptKey, newTask);
+  }
+
+  private void handleFileEvent(File file, String scriptKey) {
+    // WatchService and the debounce executor are not server threads. Script lifecycle operations
+    // register Bukkit state, so always hand them back to the appropriate server scheduler.
+    Runnable operation = () -> handleFileEventOnServerThread(file, scriptKey);
+    if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+      plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> operation.run());
+    } else {
+      plugin.getServer().getScheduler().runTask(plugin, operation);
+    }
+  }
+
+  private void handleFileEventOnServerThread(File file, String scriptKey) {
     try {
-      if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-        plugin.getLogger().info("New script detected: " + scriptKey);
-        plugin.getScriptManager().loadScript(file);
-
-      } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
-        plugin.getLogger().info("Script modified: " + scriptKey);
-        plugin.getScriptManager().unloadScript(scriptKey);
-        plugin.getScriptManager().loadScript(file);
-
-      } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+      if (!file.exists()) {
         plugin.getLogger().info("Script deleted: " + scriptKey);
         plugin.getScriptManager().unloadScript(scriptKey);
+      } else if (plugin.getScriptManager().getScript(scriptKey) != null) {
+        if (plugin.getScriptManager().isLoadedAndUnchanged(file)) {
+          plugin.debug("Script already loaded and unchanged, skipping: " + scriptKey);
+          return;
+        }
+        plugin.getLogger().info("Script modified: " + scriptKey);
+        reloadInBackground(file);
+      } else {
+        plugin.getLogger().info("New script detected: " + scriptKey);
+        reloadInBackground(file);
       }
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error handling file event for: " + scriptKey, e);
     }
   }
 
+  /**
+   * Compile off the server thread so saving a big script never stalls the tick. Compile errors are
+   * already logged with line numbers, and a running version is only replaced once the edit
+   * compiles.
+   */
+  private void reloadInBackground(File file) {
+    plugin.getScriptManager().loadScriptAsync(file, result -> {});
+  }
+
   public boolean isRunning() {
     return running;
+  }
+
+  /** Refresh the debounce delay from config.yml without restarting the watcher thread. */
+  public void refreshSettings() {
+    this.reloadDelay = plugin.getConfig().getLong("file-watcher.reload-delay", 500);
+    plugin.debug("File watcher settings refreshed (reload-delay=" + reloadDelay + "ms)");
   }
 }

@@ -30,6 +30,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.variable.VariableHelper variableHelper;
   private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
   private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
+  private dev.mukulx.javaskript.api.message.MessageManager messageManager;
+  private dev.mukulx.javaskript.api.team.TeamHelper teamHelper;
+  private dev.mukulx.javaskript.command.TeamCommand teamCommand;
   private boolean debugMode;
 
   @Override
@@ -39,8 +42,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     try {
       displayLogo();
 
-      // Ensure config.yml exists on disk
+      // Ensure config.yml and messages.yml exist on disk
       saveDefaultConfig();
+      this.messageManager = new dev.mukulx.javaskript.api.message.MessageManager(this);
 
       // Cache debug flag to minimize runtime disk reads
       this.debugMode = getConfig().getBoolean("debug.enabled", false);
@@ -87,6 +91,28 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       dev.mukulx.javaskript.api.player.Players.setInstance(
           new dev.mukulx.javaskript.api.player.PlayerHelper(this));
 
+      // Register Mannequin interaction listener & static facade
+      try {
+        getServer()
+            .getPluginManager()
+            .registerEvents(new dev.mukulx.javaskript.api.mannequin.MannequinListener(this), this);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to register Mannequin listener: " + t.getMessage());
+      }
+      dev.mukulx.javaskript.api.mannequin.Mannequins.setInstance(this.api.getMannequinHelper());
+
+      // Register Advancement completion listener & static facade
+      try {
+        getServer()
+            .getPluginManager()
+            .registerEvents(
+                new dev.mukulx.javaskript.api.advancement.AdvancementListener(this), this);
+      } catch (Throwable t) {
+        getLogger().warning("Failed to register Advancement listener: " + t.getMessage());
+      }
+      dev.mukulx.javaskript.api.advancement.Advancements.setInstance(
+          this.api.getAdvancementHelper());
+
       // Inter-script event bus
       this.eventBus = new dev.mukulx.javaskript.api.event.ScriptEventBus(this);
 
@@ -106,6 +132,19 @@ public final class JavaSkriptPlugin extends JavaPlugin {
         getLogger().warning("Failed to initialize Economy subsystem: " + t.getMessage());
       }
 
+      // Team / Clan subsystem
+      try {
+        if (getConfig().getBoolean("teams.enabled", true)) {
+          this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
+          dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
+          if (getConfig().getBoolean("teams.register-command", true)) {
+            registerTeamCommand();
+          }
+        }
+      } catch (Throwable t) {
+        getLogger().warning("Failed to initialize Team subsystem: " + t.getMessage());
+      }
+
       // Register main command handler
       this.commandRegistry.registerCommand(
           "javaskript", new JavaSkriptCommand(this), "js", "jskript");
@@ -120,10 +159,23 @@ public final class JavaSkriptPlugin extends JavaPlugin {
             return true;
           });
 
-      // Synchronous boot-time execution of stored scripts
+      // Boot-time scripts load one tick later so enable finishes fast and never
+      // blocks the server while compiling. Heavy compile work stays off the enable path.
       if (getConfig().getBoolean("scripts.auto-load", true)) {
         try {
-          scriptManager.loadAllScripts();
+          dev.mukulx.javaskript.util.ServerUtil.runLaterSync(
+              this,
+              () -> {
+                try {
+                  scriptManager.loadAllScripts();
+                } catch (Throwable t) {
+                  getLogger()
+                      .severe(
+                          "Error occurred during script auto-load (plugin remains running): "
+                              + t.getMessage());
+                }
+              },
+              1L);
         } catch (Throwable t) {
           getLogger()
               .severe(
@@ -165,6 +217,14 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   @Override
   public void onDisable() {
+    // Close open menus first so click handlers still exist, then drop the registry.
+    // Without this players keep ghost menus they can take items from after reload.
+    try {
+      dev.mukulx.javaskript.api.gui.GUIManager.closeAll();
+    } catch (Throwable t) {
+      debug("Error closing GUIs: " + t.getMessage());
+    }
+
     // Close open NIO watch keys
     try {
       if (fileWatcher != null) {
@@ -186,6 +246,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     // Unload active scripts
     try {
       if (scriptManager != null) {
+        scriptManager.shutdown();
         scriptManager.unloadAllScripts();
       }
     } catch (Throwable t) {
@@ -196,6 +257,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     try {
       if (commandRegistry != null) {
         commandRegistry.unregisterAll();
+        commandRegistry.syncCommandsNow();
       }
     } catch (Throwable t) {
       getLogger().warning("Error unregistering commands on disable: " + t.getMessage());
@@ -217,6 +279,15 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       }
     } catch (Throwable t) {
       debug("Error shutting down economy helper: " + t.getMessage());
+    }
+
+    // Shutdown team subsystem
+    try {
+      if (teamHelper != null) {
+        teamHelper.shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down team helper: " + t.getMessage());
     }
 
     // Save shared persistent variables
@@ -246,6 +317,17 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       debug("Error shutting down addon registry: " + t.getMessage());
     }
 
+    // Clean up global mannequins
+    try {
+      dev.mukulx.javaskript.api.mannequin.Mannequins.removeAll();
+      dev.mukulx.javaskript.api.mannequin.MannequinListener.clearRegistry();
+    } catch (Throwable t) {
+      debug("Error clearing mannequins on disable: " + t.getMessage());
+    }
+
+    // Drop static reference so a reload cannot reuse a disabled plugin instance.
+    instance = null;
+
     getLogger().info("JavaSkript has been disabled!");
   }
 
@@ -259,6 +341,110 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.economy.EconomyHelper getEconomyHelper() {
     return economyHelper;
+  }
+
+  public dev.mukulx.javaskript.api.team.TeamHelper getTeamHelper() {
+    return teamHelper;
+  }
+
+  /**
+   * Reload config.yml and refresh all cached runtime settings derived from it. Call this instead of
+   * Bukkit's reloadConfig() so the cached debug flag, message bundle, economy provider, team
+   * subsystem, and file-watcher delay stay in sync with disk.
+   */
+  public synchronized void reloadPluginConfig() {
+    reloadConfig();
+    this.debugMode = getConfig().getBoolean("debug.enabled", false);
+    if (debugMode) {
+      getLogger().info("Debug mode is ENABLED. Enjoy the log pollution.");
+    }
+    if (messageManager != null) {
+      messageManager.reload();
+    }
+    if (economyHelper != null) {
+      economyHelper.reload();
+    }
+    reloadTeamHelper();
+    boolean watcherEnabled = getConfig().getBoolean("file-watcher.enabled", true);
+    if (fileWatcher != null) {
+      if (!watcherEnabled && fileWatcher.isRunning()) {
+        fileWatcher.stop();
+      } else if (watcherEnabled && fileWatcher.isRunning()) {
+        fileWatcher.refreshSettings();
+      } else if (watcherEnabled) {
+        // A stopped watcher cannot restart (executor and WatchService are closed), recreate it.
+        try {
+          fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
+          fileWatcher.start();
+        } catch (Throwable t) {
+          getLogger().warning("Failed to restart file watcher: " + t.getMessage());
+        }
+      }
+    } else if (watcherEnabled && scriptManager != null) {
+      try {
+        fileWatcher = new FileWatcher(this, scriptManager.getScriptsFolder());
+        fileWatcher.start();
+      } catch (Throwable t) {
+        getLogger().warning("Failed to start file watcher: " + t.getMessage());
+      }
+    }
+  }
+
+  /** Dynamically reloads or enables/disables the Team subsystem based on config.yml. */
+  public synchronized void reloadTeamHelper() {
+    boolean enabled = getConfig().getBoolean("teams.enabled", true);
+    boolean regCmd = getConfig().getBoolean("teams.register-command", true);
+    if (enabled) {
+      if (this.teamHelper == null) {
+        try {
+          this.teamHelper = new dev.mukulx.javaskript.api.team.TeamHelper(this);
+          dev.mukulx.javaskript.api.team.Teams.setInstance(teamHelper);
+          getLogger().info("Team subsystem enabled and initialized on reload.");
+        } catch (Throwable t) {
+          getLogger().warning("Failed to initialize Team subsystem on reload: " + t.getMessage());
+        }
+      } else {
+        this.teamHelper.reload();
+      }
+      if (regCmd) {
+        registerTeamCommand();
+      } else {
+        unregisterTeamCommand();
+      }
+    } else {
+      unregisterTeamCommand();
+      if (this.teamHelper != null) {
+        try {
+          this.teamHelper.shutdown();
+        } catch (Throwable t) {
+          debug("Error shutting down team helper: " + t.getMessage());
+        }
+        this.teamHelper = null;
+        dev.mukulx.javaskript.api.team.Teams.setInstance(null);
+        getLogger().info("Team subsystem disabled on reload.");
+      }
+    }
+  }
+
+  public synchronized void registerTeamCommand() {
+    if (this.teamCommand == null) {
+      this.teamCommand = new dev.mukulx.javaskript.command.TeamCommand(this);
+    }
+    this.commandRegistry.registerCommand(
+        "team",
+        teamCommand,
+        teamCommand,
+        "Universal Team and Clan management command",
+        "/team <help|create|invite|join|leave|kick|disband|transfer|sethome|home|chat|deposit|withdraw|ff|info>",
+        "javaskript.team",
+        null,
+        java.util.List.of("clan", "party", "t"));
+  }
+
+  public synchronized void unregisterTeamCommand() {
+    if (this.commandRegistry != null) {
+      this.commandRegistry.unregisterCommand("team");
+    }
   }
 
   public JavaSkriptAPI getAPI() {
@@ -275,6 +461,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {
     return httpHelper;
+  }
+
+  public dev.mukulx.javaskript.api.message.MessageManager getMessageManager() {
+    return messageManager;
   }
 
   public DynamicCommandRegistry getCommandRegistry() {

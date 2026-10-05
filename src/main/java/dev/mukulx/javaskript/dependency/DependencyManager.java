@@ -2,11 +2,16 @@ package dev.mukulx.javaskript.dependency;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.io.*;
-import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 public class DependencyManager {
 
@@ -87,11 +92,54 @@ public class DependencyManager {
     }
   }
 
+  /** Open a connection that can never hang a script load indefinitely. */
+  private URLConnection openConnection(String urlString) throws IOException {
+    URLConnection connection = java.net.URI.create(urlString).toURL().openConnection();
+    connection.setConnectTimeout(10_000);
+    connection.setReadTimeout(30_000);
+    return connection;
+  }
+
+  /**
+   * Compare the file with the SHA-1 Maven Central publishes next to every artifact. Returns false
+   * only on a real mismatch. If the checksum cannot be fetched, the download is accepted with a
+   * warning so mirrors and older artifacts without checksums keep working.
+   */
+  private boolean matchesPublishedChecksum(File file, String artifactUrl) throws Exception {
+    String expected;
+    try (InputStream in = openConnection(artifactUrl + ".sha1").getInputStream()) {
+      expected = new String(in.readNBytes(256), java.nio.charset.StandardCharsets.UTF_8).trim();
+    } catch (IOException e) {
+      plugin
+          .getLogger()
+          .warning("No published checksum for " + artifactUrl + ", skipping verification");
+      return true;
+    }
+    // Some checksum files append the file name after the hash
+    int space = expected.indexOf(' ');
+    if (space > 0) {
+      expected = expected.substring(0, space);
+    }
+
+    java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-1");
+    try (InputStream in = Files.newInputStream(file.toPath())) {
+      byte[] buffer = new byte[8192];
+      int read;
+      while ((read = in.read(buffer)) != -1) {
+        digest.update(buffer, 0, read);
+      }
+    }
+    return HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(expected);
+  }
+
   private File downloadArtifact(String groupId, String artifactId, String version) {
     File tempFile = null;
     try {
       String groupPath = groupId.replace('.', '/');
-      String jarName = artifactId + "-" + version + ".jar";
+      String remoteName = artifactId + "-" + version + ".jar";
+      // Local cache name carries the group so same-named artifacts from different groups don't
+      // clash
+      String jarName = groupId.replace('.', '_') + "-" + remoteName;
       File localFile = new File(libsDirectory, jarName);
 
       // If already downloaded and not empty, return it
@@ -101,15 +149,21 @@ public class DependencyManager {
       }
 
       String urlString =
-          MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + jarName;
+          MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + remoteName;
 
       plugin.getLogger().info("Downloading: " + urlString);
 
-      tempFile = new File(libsDirectory, jarName + ".tmp." + System.currentTimeMillis());
+      // Unique name, so two scripts resolving the same artifact never write the same temp file
+      tempFile = Files.createTempFile(libsDirectory.toPath(), jarName, ".tmp").toFile();
 
-      URL url = java.net.URI.create(urlString).toURL();
-      try (InputStream in = url.openStream()) {
+      try (InputStream in = openConnection(urlString).getInputStream()) {
         Files.copy(in, tempFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      }
+
+      if (!matchesPublishedChecksum(tempFile, urlString)) {
+        plugin.getLogger().severe("Checksum mismatch for " + jarName + ", discarding the download");
+        tempFile.delete();
+        return null;
       }
 
       if (tempFile.exists() && tempFile.length() > 0) {
@@ -160,69 +214,68 @@ public class DependencyManager {
       String urlString =
           MAVEN_CENTRAL + groupPath + "/" + artifactId + "/" + version + "/" + pomName;
 
-      URL url = java.net.URI.create(urlString).toURL();
-      try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
-        StringBuilder pomContent = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-          pomContent.append(line).append("\n");
+      Document pom;
+      try (InputStream in = openConnection(urlString).getInputStream()) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        pom = factory.newDocumentBuilder().parse(in);
+      }
+
+      Element project = pom.getDocumentElement();
+      Map<String, String> properties = readProperties(project, groupId, version);
+
+      // Only the project's own <dependencies>. Walking the whole document would also pick up
+      // <dependencyManagement>, plugin dependencies and profiles.
+      Element dependenciesElement = childElement(project, "dependencies");
+      if (dependenciesElement == null) {
+        return dependencies;
+      }
+
+      for (Node node = dependenciesElement.getFirstChild();
+          node != null;
+          node = node.getNextSibling()) {
+        if (!(node instanceof Element dependency)
+            || !dependency.getTagName().equals("dependency")) {
+          continue;
         }
 
-        // Simple XML parsing for dependencies
-        String pom = pomContent.toString();
-        int depStart = pom.indexOf("<dependencies>");
-        int depEnd = pom.indexOf("</dependencies>");
+        String depGroupId = resolveProperties(childText(dependency, "groupId"), properties);
+        String depArtifactId = resolveProperties(childText(dependency, "artifactId"), properties);
+        String depVersion = resolveProperties(childText(dependency, "version"), properties);
+        String scope = childText(dependency, "scope");
+        String optional = childText(dependency, "optional");
 
-        if (depStart != -1 && depEnd != -1) {
-          String depsSection = pom.substring(depStart, depEnd);
+        if (depGroupId == null || depArtifactId == null || depVersion == null) {
+          // Versions managed by a parent POM are not resolved here
+          continue;
+        }
 
-          // Extract each dependency
-          int pos = 0;
-          while ((pos = depsSection.indexOf("<dependency>", pos)) != -1) {
-            int endPos = depsSection.indexOf("</dependency>", pos);
-            if (endPos == -1) break;
+        if (depGroupId.equals("org.slf4j")
+            || depGroupId.equals("org.bukkit")
+            || depGroupId.equals("io.papermc.paper")) {
+          continue;
+        }
 
-            String depBlock = depsSection.substring(pos, endPos);
+        if (depGroupId.contains("${")
+            || depArtifactId.contains("${")
+            || depVersion.contains("${")
+            || depVersion.startsWith("[")
+            || depVersion.startsWith("(")) {
+          plugin
+              .getLogger()
+              .fine(
+                  "Skipping dependency with unresolved version: "
+                      + depGroupId
+                      + ":"
+                      + depArtifactId
+                      + ":"
+                      + depVersion);
+          continue;
+        }
 
-            String depGroupId = extractXmlTag(depBlock, "groupId");
-            String depArtifactId = extractXmlTag(depBlock, "artifactId");
-            String depVersion = extractXmlTag(depBlock, "version");
-            String scope = extractXmlTag(depBlock, "scope");
-            String optional = extractXmlTag(depBlock, "optional");
-
-            if (depGroupId != null
-                && (depGroupId.equals("org.slf4j")
-                    || depGroupId.equals("org.bukkit")
-                    || depGroupId.equals("io.papermc.paper"))) {
-              pos = endPos;
-              continue;
-            }
-
-            if (depVersion != null && depVersion.contains("${")) {
-              plugin
-                  .getLogger()
-                  .fine(
-                      "Skipping dependency with property placeholder: "
-                          + depGroupId
-                          + ":"
-                          + depArtifactId
-                          + ":"
-                          + depVersion);
-              pos = endPos;
-              continue;
-            }
-
-            if (depGroupId != null
-                && depArtifactId != null
-                && depVersion != null
-                && !"test".equals(scope)
-                && !"provided".equals(scope)
-                && !"true".equals(optional)) {
-              dependencies.add(depGroupId + ":" + depArtifactId + ":" + depVersion);
-            }
-
-            pos = endPos;
-          }
+        if (!"test".equals(scope) && !"provided".equals(scope) && !"true".equals(optional)) {
+          dependencies.add(depGroupId + ":" + depArtifactId + ":" + depVersion);
         }
       }
 
@@ -233,18 +286,55 @@ public class DependencyManager {
     return dependencies;
   }
 
-  private String extractXmlTag(String xml, String tagName) {
-    String startTag = "<" + tagName + ">";
-    String endTag = "</" + tagName + ">";
+  /** Properties usable in ${...} placeholders: the POM's <properties> plus its own coordinates. */
+  private Map<String, String> readProperties(Element project, String groupId, String version) {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("project.groupId", groupId);
+    properties.put("project.version", version);
+    properties.put("pom.version", version);
 
-    int start = xml.indexOf(startTag);
-    int end = xml.indexOf(endTag);
-
-    if (start != -1 && end != -1 && end > start) {
-      return xml.substring(start + startTag.length(), end).trim();
+    Element propertiesElement = childElement(project, "properties");
+    if (propertiesElement != null) {
+      for (Node node = propertiesElement.getFirstChild();
+          node != null;
+          node = node.getNextSibling()) {
+        if (node instanceof Element property) {
+          properties.put(property.getTagName(), property.getTextContent().trim());
+        }
+      }
     }
+    return properties;
+  }
 
+  private String resolveProperties(String value, Map<String, String> properties) {
+    if (value == null) {
+      return null;
+    }
+    // A few passes cover properties defined in terms of other properties
+    for (int pass = 0; pass < 3 && value.contains("${"); pass++) {
+      for (Map.Entry<String, String> property : properties.entrySet()) {
+        value = value.replace("${" + property.getKey() + "}", property.getValue());
+      }
+    }
+    return value;
+  }
+
+  private Element childElement(Element parent, String tagName) {
+    for (Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+      if (node instanceof Element element && element.getTagName().equals(tagName)) {
+        return element;
+      }
+    }
     return null;
+  }
+
+  private String childText(Element parent, String tagName) {
+    Element child = childElement(parent, tagName);
+    if (child == null) {
+      return null;
+    }
+    String text = child.getTextContent().trim();
+    return text.isEmpty() ? null : text;
   }
 
   public List<File> resolveDependencies(List<String> coordinates) {

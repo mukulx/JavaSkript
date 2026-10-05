@@ -14,6 +14,7 @@ public class ScriptCompiler {
 
   private final JavaSkriptPlugin plugin;
   private final File tempDir;
+  private final Object compileLock = new Object();
   private static final Pattern PUBLIC_CLASS_PATTERN =
       Pattern.compile(
           "public\\s+(?:(?:final|abstract|sealed|non-sealed|static)\\s+)*(?:class|record|enum|interface)\\s+(\\w+)");
@@ -52,9 +53,30 @@ public class ScriptCompiler {
    */
   public Map<String, byte[]> compileAll(
       String scriptName, String sourceCode, List<File> dependencyFiles) {
+    return compileWithDiagnostics(scriptName, sourceCode, dependencyFiles).classes();
+  }
+
+  /**
+   * Resolve the compiler classpath now, on the calling thread. Compilation can then run on another
+   * thread without touching server state.
+   */
+  public void warmUp() {
+    getBaseClasspath();
+  }
+
+  /**
+   * Compile a script and keep the compiler's errors. Failures are logged once, with line numbers
+   * and the offending source line.
+   *
+   * @param scriptName The script file name
+   * @param sourceCode The source code
+   * @param dependencyFiles List of dependency JAR files to include in classpath
+   */
+  public CompileResult compileWithDiagnostics(
+      String scriptName, String sourceCode, List<File> dependencyFiles) {
     if (sourceCode == null || sourceCode.trim().isEmpty()) {
       plugin.getLogger().warning("Empty source code for script: " + scriptName);
-      return null;
+      return CompileResult.failure(List.of(new CompileError(1, "The script is empty", "", "")));
     }
 
     String mainClassName = extractPublicClassName(sourceCode);
@@ -67,8 +89,7 @@ public class ScriptCompiler {
 
     try {
       // Create temporary directories
-      File scriptTempDir = new File(tempDir, "compile_" + System.currentTimeMillis());
-      scriptTempDir.mkdirs();
+      File scriptTempDir = Files.createTempDirectory(tempDir.toPath(), "compile-").toFile();
 
       outputDir = new File(scriptTempDir, "output");
       outputDir.mkdirs();
@@ -97,13 +118,23 @@ public class ScriptCompiler {
       };
 
       // Compile
-      boolean success =
-          BatchCompiler.compile(args, new PrintWriter(System.out), errorPrintWriter, null);
+      // One compile at a time, whether it comes from the server thread or the background thread
+      boolean success;
+      synchronized (compileLock) {
+        success = BatchCompiler.compile(args, new PrintWriter(System.out), errorPrintWriter, null);
+      }
 
       if (!success) {
-        plugin.getLogger().severe("Compilation failed for script: " + scriptName);
-        plugin.getLogger().severe("Errors:\n" + errorWriter.toString());
-        return null;
+        List<CompileError> errors = CompileDiagnostics.parse(errorWriter.toString());
+        if (errors.isEmpty()) {
+          // Unrecognised report format: show it untouched rather than hide the cause
+          plugin.getLogger().severe("Compilation failed for script: " + scriptName);
+          plugin.getLogger().severe("Errors:\n" + errorWriter);
+        } else {
+          plugin.getLogger().severe(CompileDiagnostics.format(scriptName, errors));
+          plugin.debug("Raw compiler output for " + scriptName + ":\n" + errorWriter);
+        }
+        return CompileResult.failure(errors);
       }
 
       // Read all compiled classes from compiler output directory
@@ -133,17 +164,17 @@ public class ScriptCompiler {
 
       if (compiledClasses.isEmpty()) {
         plugin.getLogger().severe("No compiled classes found for script: " + scriptName);
-        return null;
+        return CompileResult.failure(List.of());
       }
 
       plugin.debug(
           "Successfully compiled " + compiledClasses.size() + " class(es) for " + scriptName);
 
-      return compiledClasses;
+      return new CompileResult(compiledClasses, List.of());
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error compiling script: " + scriptName, e);
-      return null;
+      return CompileResult.failure(List.of());
     } finally {
       // Cleanup
       cleanup(sourceFile, outputDir);
@@ -206,26 +237,44 @@ public class ScriptCompiler {
     return name;
   }
 
-  private String cachedBaseClasspath = null;
+  // Rebuilt whenever the set of loaded plugins changes, so plugins that load after the first
+  // compile are visible to scripts as well
+  private volatile String cachedBaseClasspath = null;
+  private volatile Set<String> cachedPluginNames = Collections.emptySet();
 
   private String getBaseClasspath() {
-    if (cachedBaseClasspath != null) {
-      return cachedBaseClasspath;
+    Set<String> pluginNames = new HashSet<>();
+    for (var loadedPlugin : plugin.getServer().getPluginManager().getPlugins()) {
+      pluginNames.add(loadedPlugin.getName());
     }
 
-    StringBuilder classpath = new StringBuilder();
+    String cached = cachedBaseClasspath;
+    if (cached != null && pluginNames.equals(cachedPluginNames)) {
+      return cached;
+    }
+
+    // A set of exact paths, so one path never hides another that merely contains it as text
+    Set<String> entries = new LinkedHashSet<>();
 
     try {
       // Add Bukkit/Paper API
-      addToClasspath(classpath, org.bukkit.Bukkit.class);
+      addToClasspath(entries, org.bukkit.Bukkit.class);
 
       // Add Adventure API (Component, etc.)
-      addToClasspath(classpath, net.kyori.adventure.text.Component.class);
+      addToClasspath(entries, net.kyori.adventure.text.Component.class);
+
+      // Add Adventure Key API (required by Adventure and Paper)
+      try {
+        Class<?> keyClass = Class.forName("net.kyori.adventure.key.Key");
+        addToClasspath(entries, keyClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Adventure Key API not found in classpath");
+      }
 
       // Add Adventure Examination API (required by Component)
       try {
         Class<?> examinableClass = Class.forName("net.kyori.examination.Examinable");
-        addToClasspath(classpath, examinableClass);
+        addToClasspath(entries, examinableClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Adventure Examination API not found in classpath");
       }
@@ -234,15 +283,24 @@ public class ScriptCompiler {
       try {
         Class<?> miniMessageClass =
             Class.forName("net.kyori.adventure.text.minimessage.MiniMessage");
-        addToClasspath(classpath, miniMessageClass);
+        addToClasspath(entries, miniMessageClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("MiniMessage not found in classpath");
+      }
+
+      // Add Adventure GSON serializer
+      try {
+        Class<?> gsonSerializerClass =
+            Class.forName("net.kyori.adventure.text.serializer.gson.GsonComponentSerializer");
+        addToClasspath(entries, gsonSerializerClass);
+      } catch (ClassNotFoundException e) {
+        plugin.getLogger().warning("Adventure Gson serializer not found in classpath");
       }
 
       // Add BungeeCord Chat API (required by Paper)
       try {
         Class<?> bungeeChatClass = Class.forName("net.md_5.bungee.api.chat.BaseComponent");
-        addToClasspath(classpath, bungeeChatClass);
+        addToClasspath(entries, bungeeChatClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("BungeeCord Chat API not found in classpath");
       }
@@ -250,7 +308,7 @@ public class ScriptCompiler {
       // Add Google Gson API
       try {
         Class<?> gsonClass = Class.forName("com.google.gson.Gson");
-        addToClasspath(classpath, gsonClass);
+        addToClasspath(entries, gsonClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Gson not found in classpath");
       }
@@ -258,53 +316,27 @@ public class ScriptCompiler {
       // Add Google Guava API
       try {
         Class<?> guavaClass = Class.forName("com.google.common.collect.ImmutableList");
-        addToClasspath(classpath, guavaClass);
+        addToClasspath(entries, guavaClass);
       } catch (ClassNotFoundException e) {
         plugin.getLogger().warning("Guava not found in classpath");
       }
 
       // Add plugin jar itself (contains bundled dependencies)
-      String pluginJar = null;
-      try {
-        var loc = plugin.getClass().getProtectionDomain().getCodeSource().getLocation();
-        if (loc != null) {
-          pluginJar = new File(loc.toURI()).getAbsolutePath();
-        }
-      } catch (Exception e) {
-        pluginJar = plugin.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-      }
-
-      if (pluginJar != null && !pluginJar.isEmpty()) {
-        if (classpath.length() > 0) {
-          classpath.append(File.pathSeparator);
-        }
-        classpath.append(pluginJar);
-      }
+      addToClasspath(entries, plugin.getClass());
 
       // Add all loaded plugin jars (for cross-plugin compatibility)
       for (var loadedPlugin : plugin.getServer().getPluginManager().getPlugins()) {
-        try {
-          var loc = loadedPlugin.getClass().getProtectionDomain().getCodeSource().getLocation();
-          if (loc != null) {
-            String path = new File(loc.toURI()).getAbsolutePath();
-            if (!classpath.toString().contains(path)) {
-              if (classpath.length() > 0) {
-                classpath.append(File.pathSeparator);
-              }
-              classpath.append(path);
-            }
-          }
-        } catch (Exception e) {
-          // Skip plugins that can't provide their path
-        }
+        addToClasspath(entries, loadedPlugin.getClass());
       }
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to build base classpath", e);
     }
 
-    cachedBaseClasspath = classpath.toString();
-    return cachedBaseClasspath;
+    String classpath = String.join(File.pathSeparator, entries);
+    cachedPluginNames = pluginNames;
+    cachedBaseClasspath = classpath;
+    return classpath;
   }
 
   private String buildClasspath(List<File> dependencyFiles) {
@@ -326,17 +358,11 @@ public class ScriptCompiler {
     return classpath.toString();
   }
 
-  private void addToClasspath(StringBuilder classpath, Class<?> clazz) {
+  private void addToClasspath(Set<String> entries, Class<?> clazz) {
     try {
       var loc = clazz.getProtectionDomain().getCodeSource().getLocation();
       if (loc != null) {
-        String path = new File(loc.toURI()).getAbsolutePath();
-        if (!classpath.toString().contains(path)) {
-          if (classpath.length() > 0) {
-            classpath.append(File.pathSeparator);
-          }
-          classpath.append(path);
-        }
+        entries.add(new File(loc.toURI()).getAbsolutePath());
       }
     } catch (Exception e) {
       plugin

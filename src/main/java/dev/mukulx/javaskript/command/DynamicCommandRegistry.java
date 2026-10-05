@@ -107,17 +107,25 @@ public class DynamicCommandRegistry {
 
       unregisterCommandSilent(commandName);
 
-      boolean registered = commandMap.register(plugin.getName().toLowerCase(), command);
+      boolean claimedLabel = commandMap.register(plugin.getName().toLowerCase(), command);
 
-      if (registered) {
-        registeredCommands.put(commandName.toLowerCase(), command);
-        plugin.debug("Dynamically registered command: /" + commandName);
-        syncCommands();
-        return true;
-      } else {
-        plugin.getLogger().warning("Failed to register command: /" + commandName);
-        return false;
+      // The prefixed label is always registered, so track the command either way
+      registeredCommands.put(commandName.toLowerCase(), command);
+      if (!claimedLabel) {
+        plugin
+            .getLogger()
+            .warning(
+                "/"
+                    + commandName
+                    + " is already provided by another plugin and was left untouched. "
+                    + "The script command is available as /"
+                    + plugin.getName().toLowerCase()
+                    + ":"
+                    + commandName.toLowerCase());
       }
+      plugin.debug("Dynamically registered command: /" + commandName);
+      syncCommands();
+      return true;
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error registering command: " + commandName, e);
@@ -156,17 +164,25 @@ public class DynamicCommandRegistry {
 
       unregisterCommandSilent(commandName);
 
-      boolean registered = commandMap.register(plugin.getName().toLowerCase(), command);
+      boolean claimedLabel = commandMap.register(plugin.getName().toLowerCase(), command);
 
-      if (registered) {
-        registeredCommands.put(commandName.toLowerCase(), command);
-        plugin.debug("Dynamically registered command: /" + commandName);
-        syncCommands();
-        return true;
-      } else {
-        plugin.getLogger().warning("Failed to register command: /" + commandName);
-        return false;
+      // The prefixed label is always registered, so track the command either way
+      registeredCommands.put(commandName.toLowerCase(), command);
+      if (!claimedLabel) {
+        plugin
+            .getLogger()
+            .warning(
+                "/"
+                    + commandName
+                    + " is already provided by another plugin and was left untouched. "
+                    + "The script command is available as /"
+                    + plugin.getName().toLowerCase()
+                    + ":"
+                    + commandName.toLowerCase());
       }
+      plugin.debug("Dynamically registered command: /" + commandName);
+      syncCommands();
+      return true;
 
     } catch (Exception e) {
       plugin.getLogger().log(Level.SEVERE, "Error registering command: " + commandName, e);
@@ -250,13 +266,25 @@ public class DynamicCommandRegistry {
       new java.util.concurrent.atomic.AtomicBoolean(false);
 
   public void syncCommands() {
+    // Schedulers refuse new tasks once the plugin is disabled. During onDisable the owner calls
+    // syncCommandsNow() once after all commands are gone instead.
+    if (!plugin.isEnabled()) {
+      return;
+    }
     if (syncPending.compareAndSet(false, true)) {
-      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
-        Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task -> runSyncCommands(), 5L);
-      } else {
-        Bukkit.getScheduler().runTaskLater(plugin, this::runSyncCommands, 5L);
+      try {
+        dev.mukulx.javaskript.util.ServerUtil.runLaterSync(plugin, this::runSyncCommands, 5L);
+      } catch (Throwable t) {
+        // Never leave the flag stuck, or every later sync would be skipped
+        syncPending.set(false);
+        plugin.debug("Could not schedule command sync: " + t.getMessage());
       }
     }
+  }
+
+  /** Push the command tree to players immediately, without scheduling a task. */
+  public void syncCommandsNow() {
+    runSyncCommands();
   }
 
   private void runSyncCommands() {
@@ -315,7 +343,9 @@ public class DynamicCommandRegistry {
       keysToCheck.add("js:" + lowerName);
 
       for (String key : keysToCheck) {
-        if (knownCommands.containsKey(key)) {
+        // Only our own leftovers count; another plugin may legitimately own the same label
+        if (knownCommands.get(key) instanceof PluginCommand pluginCommand
+            && pluginCommand.getPlugin() == plugin) {
           plugin.getLogger().warning("Command still in map: " + key);
           return true;
         }
@@ -343,73 +373,50 @@ public class DynamicCommandRegistry {
       return false;
     }
 
-    String lowerName = commandName.toLowerCase();
+    // Only touch commands JavaSkript registered itself. Another plugin may own the same label
+    // (Essentials' /heal, vanilla commands) and must never be removed from here.
+    Command ours = registeredCommands.remove(commandName.toLowerCase());
+    if (ours == null) {
+      return false;
+    }
 
     try {
       CommandMap commandMap = getCommandMap();
       if (commandMap == null) {
-        registeredCommands.remove(lowerName);
         return false;
       }
 
+      try {
+        ours.unregister(commandMap);
+      } catch (Exception ignored) {
+      }
+
+      // Drops the plain label, the prefixed label and every alias that still points at ours
       Map<String, Command> knownCommands = getKnownCommandsMap(commandMap);
-      if (knownCommands == null) {
-        registeredCommands.remove(lowerName);
-        return false;
+      if (knownCommands != null) {
+        knownCommands.values().removeIf(command -> command == ours);
       }
-
-      Command command = null;
-      List<String> keysToRemove = new ArrayList<>();
-      List<String> keysToTry = new ArrayList<>();
-      keysToTry.add(lowerName);
-      keysToTry.add(plugin.getName().toLowerCase() + ":" + lowerName);
-      keysToTry.add("javaskript:" + lowerName);
-      keysToTry.add("js:" + lowerName);
-
-      for (String key : keysToTry) {
-        Command found = knownCommands.get(key);
-        if (found != null) {
-          command = found;
-          keysToRemove.add(key);
-        }
-      }
-
-      if (command == null) {
-        registeredCommands.remove(lowerName);
-        return false;
-      }
-
-      try {
-        command.unregister(commandMap);
-      } catch (Exception e) {
-      }
-
-      for (String key : keysToRemove) {
-        knownCommands.remove(key);
-      }
-
-      try {
-        List<String> aliases = command.getAliases();
-        if (aliases != null && !aliases.isEmpty()) {
-          for (String alias : aliases) {
-            String aliasLower = alias.toLowerCase();
-            knownCommands.remove(aliasLower);
-            knownCommands.remove(plugin.getName().toLowerCase() + ":" + aliasLower);
-            knownCommands.remove("javaskript:" + aliasLower);
-            knownCommands.remove("js:" + aliasLower);
-          }
-        }
-      } catch (Exception e) {
-      }
-
-      registeredCommands.remove(lowerName);
       return true;
 
     } catch (Exception e) {
-      registeredCommands.remove(lowerName);
+      return false;
     }
+  }
 
-    return false;
+  /** The command JavaSkript registered under this name, or null. */
+  public Command getCommand(String commandName) {
+    return commandName == null ? null : registeredCommands.get(commandName.toLowerCase());
+  }
+
+  /**
+   * Unregister a command only if it is still the one the caller registered. A script that unloads
+   * after another script replaced its command name must not remove the replacement.
+   */
+  public synchronized boolean unregisterCommand(String commandName, Command expected) {
+    if (expected == null || getCommand(commandName) != expected) {
+      return false;
+    }
+    return unregisterCommand(commandName);
   }
 
   public Map<String, Command> getRegisteredCommands() {

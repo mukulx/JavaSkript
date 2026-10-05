@@ -4,7 +4,6 @@ import dev.mukulx.javaskript.util.ServerUtil;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 /**
@@ -143,15 +142,7 @@ public class ChatConfirmation {
             }
           };
 
-      if (ServerUtil.isFolia()) {
-        try {
-          Bukkit.getGlobalRegionScheduler()
-              .runDelayed(chatHelper.getPlugin(), task -> timeoutTask.run(), delayTicks);
-        } catch (Throwable ignored) {
-        }
-      } else {
-        Bukkit.getScheduler().runTaskLater(chatHelper.getPlugin(), timeoutTask, delayTicks);
-      }
+      ServerUtil.runLaterSync(chatHelper.getPlugin(), timeoutTask, delayTicks);
     }
   }
 }

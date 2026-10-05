@@ -413,16 +413,10 @@ public class EventHelper {
         return this;
       }
 
-      if (ServerUtil.isFolia()) {
-        try {
-          this.scheduledTask =
-              Bukkit.getGlobalRegionScheduler()
-                  .runDelayed(plugin, task -> unsubscribe(), Math.max(1L, ticks));
-        } catch (Throwable ignored) {
-        }
-      } else {
-        this.scheduledTask =
-            Bukkit.getScheduler().runTaskLater(plugin, this::unsubscribe, Math.max(1L, ticks));
+      try {
+        this.scheduledTask = ServerUtil.runLaterSync(plugin, this::unsubscribe, ticks);
+      } catch (Throwable ignored) {
+        this.scheduledTask = null;
       }
       return this;
     }

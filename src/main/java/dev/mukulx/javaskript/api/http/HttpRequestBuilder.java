@@ -3,6 +3,8 @@ package dev.mukulx.javaskript.api.http;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ServerUtil;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,6 +21,7 @@ public class HttpRequestBuilder {
   private static final Gson GSON = new Gson();
 
   private final HttpClient httpClient;
+  private final JavaSkriptPlugin plugin;
   private final String url;
   private String method = "GET";
   private final Map<String, String> headers = new LinkedHashMap<>();
@@ -27,7 +30,12 @@ public class HttpRequestBuilder {
   private Consumer<Throwable> errorHandler = null;
 
   public HttpRequestBuilder(HttpClient httpClient, String url) {
+    this(httpClient, null, url);
+  }
+
+  public HttpRequestBuilder(HttpClient httpClient, JavaSkriptPlugin plugin, String url) {
     this.httpClient = httpClient;
+    this.plugin = plugin;
     this.url = url;
   }
 
@@ -136,7 +144,7 @@ public class HttpRequestBuilder {
         .thenAccept(
             resp -> {
               if (resp != null && callback != null) {
-                callback.accept(resp.statusCode(), resp.body());
+                dispatchGlobal(() -> callback.accept(resp.statusCode(), resp.body()));
               }
             });
   }
@@ -153,7 +161,7 @@ public class HttpRequestBuilder {
               if (resp != null && callback != null) {
                 try {
                   JsonElement element = JsonParser.parseString(resp.body());
-                  callback.accept(element);
+                  dispatchGlobal(() -> callback.accept(element));
                 } catch (Exception e) {
                   if (errorHandler != null) {
                     errorHandler.accept(e);
@@ -161,5 +169,28 @@ public class HttpRequestBuilder {
                 }
               }
             });
+  }
+
+  /** Sends the request and invokes callbacks on the global server scheduler. */
+  public void sendGlobal(Consumer<HttpResponse<String>> success, Consumer<Throwable> failure) {
+    sendAsync()
+        .whenComplete(
+            (response, throwable) -> {
+              if (throwable != null) {
+                if (failure != null) dispatchGlobal(() -> failure.accept(throwable));
+              } else if (response != null && success != null) {
+                dispatchGlobal(() -> success.accept(response));
+              }
+            });
+  }
+
+  private void dispatchGlobal(Runnable action) {
+    if (plugin == null || !plugin.isEnabled()) {
+      action.run();
+    } else if (ServerUtil.isFolia()) {
+      plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> action.run());
+    } else {
+      plugin.getServer().getScheduler().runTask(plugin, action);
+    }
   }
 }

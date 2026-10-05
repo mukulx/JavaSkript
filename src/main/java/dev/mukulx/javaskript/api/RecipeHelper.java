@@ -6,6 +6,7 @@ import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.BlastingRecipe;
 import org.bukkit.inventory.CampfireRecipe;
 import org.bukkit.inventory.FurnaceRecipe;
@@ -98,7 +99,7 @@ public class RecipeHelper {
                     result[0] = registerSync(recipe, key);
                     return result[0];
                   })
-              .get();
+              .get(10, java.util.concurrent.TimeUnit.SECONDS);
           return result[0];
         } catch (Exception e) {
           plugin
@@ -129,17 +130,44 @@ public class RecipeHelper {
     boolean removed = Bukkit.removeRecipe(namespacedKey);
     if (removed) {
       registeredRecipes.remove(namespacedKey);
+      forgetDiscovered(List.of(namespacedKey));
       plugin.debug("Removed recipe: " + namespacedKey);
     }
     return removed;
   }
 
   public void removeAll() {
-    for (NamespacedKey key : new ArrayList<>(registeredRecipes)) {
+    List<NamespacedKey> removed = new ArrayList<>(registeredRecipes);
+    for (NamespacedKey key : removed) {
       Bukkit.removeRecipe(key);
     }
     registeredRecipes.clear();
+    forgetDiscovered(removed);
     plugin.debug("Removed all recipes for script: " + scriptName);
+  }
+
+  /**
+   * Take removed recipes out of online players' recipe books. A player's discovered recipes are
+   * saved with their data, and a key the server no longer knows makes the next join log "Tried to
+   * load unrecognized recipe" for each one. Players who are offline keep their entries; the server
+   * drops those itself on their next join.
+   */
+  private void forgetDiscovered(List<NamespacedKey> keys) {
+    if (keys.isEmpty()) {
+      return;
+    }
+    for (Player player : Bukkit.getOnlinePlayers()) {
+      try {
+        if (Bukkit.isOwnedByCurrentRegion(player)) {
+          player.undiscoverRecipes(keys);
+        } else if (plugin.isEnabled()) {
+          dev.mukulx.javaskript.util.ServerUtil.runForPlayer(
+              plugin, player, () -> player.undiscoverRecipes(keys));
+        }
+      } catch (Exception e) {
+        plugin.debug("Could not clear recipes for " + player.getName() + ": " + e.getMessage());
+      }
+    }
   }
 
   public List<NamespacedKey> getRegisteredRecipes() {

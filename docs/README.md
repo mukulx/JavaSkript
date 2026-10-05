@@ -117,13 +117,20 @@ public class Welcome implements Listener {
 
 ## Commands
 
-- `/js reload [script]` - Reload all scripts or specific script
+- `/js reload [script|folder|all]` - Reload all scripts, a specific script, or an entire folder
+- `/js restart [script|folder|all]` - Restart all scripts, a specific script, or an entire folder
 - `/js list` - List all scripts (loaded and disabled)
-- `/js load <script>` - Load a specific script
-- `/js unload <script>` - Unload a specific script
-- `/js enable <script>` - Enable a disabled script
-- `/js disable <script>` - Disable a script
+- `/js load <script|folder|all>` - Load a specific script, an entire folder, or all scripts
+- `/js unload <script|folder|all>` - Unload a specific script, an entire folder, or all scripts
+- `/js enable <script|folder|all>` - Enable a disabled script, folder, or all scripts
+- `/js disable <script|folder|all>` - Disable a script, folder, or all scripts
 - `/js info <script>` - Show script information
+- `/js configreload` - Reload configuration file
+- `/js addons` - List registered external addons
+- `/js profile [start|stop|top|<script>|dump]` - Real-time profiler
+- `/js benchmark <script> [iterations]` - Run synthetic benchmark test
+- `/js timings` - Quick view of top slowest handlers
+- `/js debug` - Toggle debug mode
 
 **Aliases:** `/javaskript`, `/jskript`
 

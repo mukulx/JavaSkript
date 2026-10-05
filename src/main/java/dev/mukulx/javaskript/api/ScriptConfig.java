@@ -1,6 +1,7 @@
 package dev.mukulx.javaskript.api;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ScriptStorage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,15 +44,8 @@ public class ScriptConfig {
 
   public ScriptConfig(JavaSkriptPlugin plugin, String scriptName) {
     this.plugin = plugin;
-    this.scriptName = scriptName.replace(".java", "");
+    this.scriptName = ScriptStorage.id(scriptName);
     this.configCache = new ConcurrentHashMap<>();
-
-    if (this.scriptName.isEmpty()
-        || this.scriptName.contains("..")
-        || this.scriptName.contains("/")
-        || this.scriptName.contains("\\")) {
-      throw new IllegalArgumentException("Invalid script name: " + scriptName);
-    }
 
     this.scriptFolder = new File(plugin.getDataFolder(), "script-data/" + this.scriptName);
 
