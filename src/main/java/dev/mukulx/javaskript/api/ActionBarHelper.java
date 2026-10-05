@@ -24,6 +24,8 @@ public class ActionBarHelper {
   private final Plugin plugin;
   private final MiniMessage miniMessage;
   private final Map<UUID, Object> activeTasks; // BukkitTask or ScheduledTask
+  // A fresh token per message, so a timed clear only wipes the message it was scheduled for
+  private final Map<UUID, Object> lastMessage = new ConcurrentHashMap<>();
 
   public ActionBarHelper(Plugin plugin) {
     this.plugin = plugin;
@@ -34,40 +36,40 @@ public class ActionBarHelper {
   // Simple text (supports MiniMessage and legacy codes with plain-text fast path)
   public void send(Player player, String text) {
     if (player != null && text != null) {
-      player.sendActionBar(dev.mukulx.javaskript.util.TextUtil.parse(text));
+      display(player, dev.mukulx.javaskript.util.TextUtil.parse(text));
     }
   }
 
   // Colored text
   public void send(Player player, String text, TextColor color) {
-    player.sendActionBar(Component.text(text, color));
+    display(player, Component.text(text, color));
   }
 
   // MiniMessage format
   public void sendMini(Player player, String miniMessageText) {
-    player.sendActionBar(miniMessage.deserialize(miniMessageText));
+    display(player, miniMessage.deserialize(miniMessageText));
   }
 
   // Component
   public void send(Player player, Component component) {
-    player.sendActionBar(component);
+    display(player, component);
   }
 
   // Component with duration
   public void send(Player player, Component component, Duration duration) {
-    player.sendActionBar(component);
-    scheduleTask(player, () -> clear(player), duration.toMillis() / 50);
+    display(player, component);
+    clearLater(player, duration.toMillis() / 50);
   }
 
   // Duration-based (auto-clear after duration)
   public void send(Player player, String text, Duration duration) {
     sendMini(player, text);
-    scheduleTask(player, () -> clear(player), duration.toMillis() / 50); // Convert to ticks
+    clearLater(player, duration.toMillis() / 50); // Convert to ticks
   }
 
   public void sendMini(Player player, String miniMessageText, Duration duration) {
     sendMini(player, miniMessageText);
-    scheduleTask(player, () -> clear(player), duration.toMillis() / 50);
+    clearLater(player, duration.toMillis() / 50);
   }
 
   // Persistent (stays until manually cleared, refreshes every second)
@@ -130,7 +132,17 @@ public class ActionBarHelper {
   // Animated with auto-stop after duration
   public void sendAnimated(Player player, List<String> frames, long interval, Duration duration) {
     sendAnimated(player, frames, interval);
-    scheduleTask(player, () -> cancelTask(player), duration.toMillis() / 50);
+    Object animation = activeTasks.get(player.getUniqueId());
+    if (animation == null) return;
+    // Stop only this animation; a newer persistent or animated bar may have replaced it
+    scheduleTask(
+        player,
+        () -> {
+          if (activeTasks.remove(player.getUniqueId(), animation)) {
+            cancel(animation);
+          }
+        },
+        duration.toMillis() / 50);
   }
 
   // Progress bar builder
@@ -146,7 +158,31 @@ public class ActionBarHelper {
   // Clear action bar
   public void clear(Player player) {
     cancelTask(player);
+    lastMessage.remove(player.getUniqueId());
     player.sendActionBar(Component.empty());
+  }
+
+  private void display(Player player, Component component) {
+    lastMessage.put(player.getUniqueId(), new Object());
+    player.sendActionBar(component);
+  }
+
+  /**
+   * Clear the current message after a delay, unless another message replaced it or a persistent
+   * or animated bar is running for the player.
+   */
+  private void clearLater(Player player, long delayTicks) {
+    UUID uuid = player.getUniqueId();
+    Object message = lastMessage.get(uuid);
+    if (message == null) return;
+    scheduleTask(
+        player,
+        () -> {
+          if (!activeTasks.containsKey(uuid) && lastMessage.remove(uuid, message)) {
+            player.sendActionBar(Component.empty());
+          }
+        },
+        delayTicks);
   }
 
   // Broadcast to all players
@@ -175,7 +211,10 @@ public class ActionBarHelper {
 
   private void scheduleTask(Player player, Runnable task, long delay) {
     if (ServerUtil.isFolia()) {
-      player.getScheduler().runDelayed(plugin, scheduledTask -> task.run(), null, delay);
+      // Folia rejects delays below one tick
+      player
+          .getScheduler()
+          .runDelayed(plugin, scheduledTask -> task.run(), null, Math.max(1L, delay));
     } else {
       Bukkit.getScheduler().runTaskLater(plugin, task, delay);
     }
@@ -192,7 +231,10 @@ public class ActionBarHelper {
   }
 
   private void cancelTask(Player player) {
-    Object task = activeTasks.remove(player.getUniqueId());
+    cancel(activeTasks.remove(player.getUniqueId()));
+  }
+
+  private static void cancel(Object task) {
     if (task instanceof BukkitTask) {
       ((BukkitTask) task).cancel();
     } else if (task instanceof ScheduledTask) {
@@ -289,7 +331,7 @@ public class ActionBarHelper {
 
     public void send(Player player, Duration duration) {
       send(player);
-      scheduleTask(player, () -> clear(player), duration.toMillis() / 50);
+      clearLater(player, duration.toMillis() / 50);
     }
   }
 
@@ -360,7 +402,7 @@ public class ActionBarHelper {
 
     public void send(Player player, Duration duration) {
       send(player);
-      scheduleTask(player, () -> clear(player), duration.toMillis() / 50);
+      clearLater(player, duration.toMillis() / 50);
     }
 
     private String toHex(TextColor color) {
