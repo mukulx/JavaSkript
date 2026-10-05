@@ -486,7 +486,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
     try {
       double amount = Double.parseDouble(args[1]);
-      if (amount <= 0) {
+      if (!Double.isFinite(amount) || amount <= 0) {
         player.sendMessage(messages.parse("<red>Amount must be positive.</red>"));
         return;
       }
@@ -519,7 +519,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
     try {
       double amount = Double.parseDouble(args[1]);
-      if (amount <= 0) {
+      if (!Double.isFinite(amount) || amount <= 0) {
         player.sendMessage(messages.parse("<red>Amount must be positive.</red>"));
         return;
       }

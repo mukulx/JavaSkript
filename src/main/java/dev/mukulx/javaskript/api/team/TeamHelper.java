@@ -842,7 +842,7 @@ public class TeamHelper implements Listener {
    * @return true if deposited successfully
    */
   public boolean deposit(Team team, Player player, double amount) {
-    if (!enabled || team == null || player == null || amount <= 0) return false;
+    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0) return false;
 
     // Fire Bukkit Event
     TeamBankTransactionEvent event =
@@ -853,7 +853,7 @@ public class TeamHelper implements Listener {
       return false;
     }
     double finalAmount = event.getAmount();
-    if (finalAmount <= 0) return false;
+    if (!Double.isFinite(finalAmount) || finalAmount <= 0) return false;
 
     // Take from the player first so money cannot be created from thin air.
     // If the economy is off, fall back to team-only points.
@@ -903,7 +903,7 @@ public class TeamHelper implements Listener {
    * @return true if withdrawn successfully
    */
   public boolean withdraw(Team team, Player player, double amount) {
-    if (!enabled || team == null || player == null || amount <= 0) return false;
+    if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0) return false;
     if (team.getBalance() < amount) {
       plugin
           .getMessageManager()
@@ -925,7 +925,7 @@ public class TeamHelper implements Listener {
       return false;
     }
     double finalAmount = event.getAmount();
-    if (finalAmount <= 0) return false;
+    if (!Double.isFinite(finalAmount) || finalAmount <= 0) return false;
 
     boolean removed;
     synchronized (team) {

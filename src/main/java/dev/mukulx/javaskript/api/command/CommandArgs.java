@@ -70,7 +70,7 @@ public final class CommandArgs {
         (s, in) -> {
           try {
             double val = Double.parseDouble(in);
-            if (val < min || val > max) {
+            if (!Double.isFinite(val) || val < min || val > max) {
               throw new CommandArgumentException(
                   "Argument '" + name + "' must be between " + min + " and " + max + ".");
             }

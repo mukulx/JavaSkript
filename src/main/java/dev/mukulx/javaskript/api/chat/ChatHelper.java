@@ -188,7 +188,7 @@ public class ChatHelper implements Listener {
         (p, text) -> {
           try {
             double val = Double.parseDouble(text.trim());
-            if (val < min || val > max) {
+            if (!Double.isFinite(val) || val < min || val > max) {
               send(
                   p,
                   "<red>Value must be between "

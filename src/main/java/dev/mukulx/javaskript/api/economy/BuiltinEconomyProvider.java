@@ -130,7 +130,7 @@ public class BuiltinEconomyProvider implements EconomyProvider {
     if (uuid == null) {
       return EconomyResult.fail("UUID cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Cannot withdraw negative amount", getBalance(uuid));
     }
 
@@ -150,7 +150,7 @@ public class BuiltinEconomyProvider implements EconomyProvider {
     if (uuid == null) {
       return EconomyResult.fail("UUID cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Cannot deposit negative amount", getBalance(uuid));
     }
 
@@ -166,7 +166,7 @@ public class BuiltinEconomyProvider implements EconomyProvider {
     if (uuid == null) {
       return EconomyResult.fail("UUID cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Balance cannot be negative", getBalance(uuid));
     }
 

@@ -243,7 +243,7 @@ public class EconomyHelper {
     if (from == null || to == null) {
       return EconomyResult.fail("Sender and recipient must not be null", 0.0);
     }
-    if (amount <= 0) {
+    if (!Double.isFinite(amount) || amount <= 0) {
       return EconomyResult.fail("Transfer amount must be positive", getBalance(from));
     }
 

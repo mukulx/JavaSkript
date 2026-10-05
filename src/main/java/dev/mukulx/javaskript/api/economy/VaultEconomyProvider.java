@@ -105,7 +105,7 @@ public class VaultEconomyProvider implements EconomyProvider {
     if (player == null) {
       return EconomyResult.fail("Player cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Cannot withdraw negative amount", vault.getBalance(player));
     }
     EconomyResponse resp = vault.withdrawPlayer(player, amount);
@@ -130,7 +130,7 @@ public class VaultEconomyProvider implements EconomyProvider {
     if (player == null) {
       return EconomyResult.fail("Player cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Cannot deposit negative amount", vault.getBalance(player));
     }
     EconomyResponse resp = vault.depositPlayer(player, amount);
@@ -155,7 +155,7 @@ public class VaultEconomyProvider implements EconomyProvider {
     if (player == null) {
       return EconomyResult.fail("Player cannot be null", 0.0);
     }
-    if (amount < 0) {
+    if (!Double.isFinite(amount) || amount < 0) {
       return EconomyResult.fail("Balance cannot be negative", vault.getBalance(player));
     }
     double current = vault.getBalance(player);
