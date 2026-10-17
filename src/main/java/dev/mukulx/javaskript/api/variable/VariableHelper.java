@@ -29,6 +29,8 @@ public class VariableHelper {
   private final Map<String, Object> memoryStore = new ConcurrentHashMap<>();
   private final Map<String, Object> persistentStore = new ConcurrentHashMap<>();
   private final AtomicBoolean dirty = new AtomicBoolean(false);
+  // Set when an unreadable file could not be moved aside; saving would destroy it
+  private volatile boolean savingBlocked;
 
   public VariableHelper(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -303,6 +305,14 @@ public class VariableHelper {
   }
 
   public synchronized void savePersistent() {
+    if (savingBlocked) {
+      if (plugin != null) {
+        plugin
+            .getLogger()
+            .severe("[Variables] Not saving: " + persistentFile.getName() + " could not be read");
+      }
+      return;
+    }
     try {
       File tmpFile = new File(persistentFile.getParentFile(), persistentFile.getName() + ".tmp");
       try (FileWriter writer = new FileWriter(tmpFile)) {
@@ -339,10 +349,22 @@ public class VariableHelper {
         persistentStore.putAll(loaded);
       }
     } catch (Exception e) {
+      // Move the unreadable file aside, or the next save would replace it with an empty store
+      File backup =
+          new File(
+              persistentFile.getParentFile(),
+              persistentFile.getName() + ".corrupt-" + System.currentTimeMillis());
+      boolean kept = persistentFile.renameTo(backup);
+      savingBlocked = !kept;
       if (plugin != null) {
         plugin
             .getLogger()
-            .warning("[Variables] Failed to load persistent variables: " + e.getMessage());
+            .severe(
+                "[Variables] Failed to load persistent variables: "
+                    + e.getMessage()
+                    + (kept
+                        ? ". The file was kept as " + backup.getName()
+                        : ". Could not back up the file"));
       }
     }
   }
