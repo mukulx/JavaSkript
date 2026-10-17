@@ -1,5 +1,6 @@
 package dev.mukulx.javaskript.api.hologram;
 
+import dev.mukulx.javaskript.util.TextUtil;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -54,7 +55,7 @@ public class TextHologramLine implements HologramLine {
       } catch (Exception ignored) {
       }
     }
-    return Component.text(text.replace("&", "§"));
+    return TextUtil.legacy(text);
   }
 
   @Override

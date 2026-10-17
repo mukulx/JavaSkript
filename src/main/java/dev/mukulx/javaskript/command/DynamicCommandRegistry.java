@@ -95,7 +95,7 @@ public class DynamicCommandRegistry {
         command.setPermission(permission);
       }
       if (permissionMessage != null && !permissionMessage.isEmpty()) {
-        command.permissionMessage(net.kyori.adventure.text.Component.text(permissionMessage));
+        command.permissionMessage(dev.mukulx.javaskript.util.TextUtil.legacy(permissionMessage));
       }
       if (aliases != null && !aliases.isEmpty()) {
         command.setAliases(aliases);

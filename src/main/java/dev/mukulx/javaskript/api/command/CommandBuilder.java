@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -157,13 +158,17 @@ public class CommandBuilder extends SubcommandBuilder implements CommandExecutor
   @Override
   protected void sendUsage(CommandSender sender, String label) {
     if (usage != null && !usage.isEmpty()) {
-      sender.sendMessage(Component.text("§cUsage: " + usage.replace("<label>", label)));
+      sender.sendMessage(
+          Component.text("Usage: " + usage.replace("<label>", label), NamedTextColor.RED));
     } else if (!subcommands.isEmpty()) {
       sender.sendMessage(
-          Component.text(
-              "§eUsage: §f/" + label + " <" + String.join("|", subcommands.keySet()) + ">"));
+          Component.text("Usage: ", NamedTextColor.YELLOW)
+              .append(
+                  Component.text(
+                      "/" + label + " <" + String.join("|", subcommands.keySet()) + ">",
+                      NamedTextColor.WHITE)));
     } else if (!arguments.isEmpty()) {
-      StringBuilder sb = new StringBuilder("§cUsage: /").append(label);
+      StringBuilder sb = new StringBuilder("Usage: /").append(label);
       for (CommandArgument<?> arg : arguments) {
         sb.append(" ");
         if (arg.isOptional()) {
@@ -172,7 +177,7 @@ public class CommandBuilder extends SubcommandBuilder implements CommandExecutor
           sb.append("<").append(arg.getName()).append(">");
         }
       }
-      sender.sendMessage(Component.text(sb.toString()));
+      sender.sendMessage(Component.text(sb.toString(), NamedTextColor.RED));
     }
   }
 }

@@ -17,6 +17,14 @@ public final class TextUtil {
 
   private TextUtil() {}
 
+  /** Parse legacy colour codes only, written with either {@code &} or {@code §}. */
+  public static Component legacy(String input) {
+    if (input == null || input.isEmpty()) {
+      return Component.empty();
+    }
+    return LEGACY_AMPERSAND.deserialize(input.replace('§', '&'));
+  }
+
   /**
    * Parse formatted text with support for MiniMessage tags (<gold>, <bold>, <gradient:...>) and
    * legacy color codes (&a, &l). Default italics are disabled.

@@ -59,7 +59,9 @@ public class JavaSkriptCommand implements CommandExecutor, TabCompleter {
           .getLogger()
           .log(Level.SEVERE, "Unexpected error executing /js " + String.join(" ", args), t);
       sender.sendMessage(
-          Component.text("§cAn error occurred executing this command: " + t.getMessage()));
+          Component.text(
+              "An error occurred executing this command. See the console for details.",
+              NamedTextColor.RED));
     }
 
     return true;

@@ -1,8 +1,10 @@
 package dev.mukulx.javaskript.api.command;
 
+import dev.mukulx.javaskript.util.TextUtil;
 import java.util.Collections;
 import java.util.Map;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -135,7 +137,7 @@ public class CommandContext {
 
   public void reply(String message) {
     if (message == null || sender == null) return;
-    sender.sendMessage(Component.text(message.replace('&', '§')));
+    sender.sendMessage(TextUtil.legacy(message));
   }
 
   public void reply(Component component) {
@@ -144,10 +146,12 @@ public class CommandContext {
   }
 
   public void replySuccess(String message) {
-    reply("§a✔ " + message);
+    if (message == null) return;
+    reply(Component.text("✔ ", NamedTextColor.GREEN).append(TextUtil.legacy(message)));
   }
 
   public void replyError(String message) {
-    reply("§c✖ " + message);
+    if (message == null) return;
+    reply(Component.text("✖ ", NamedTextColor.RED).append(TextUtil.legacy(message)));
   }
 }

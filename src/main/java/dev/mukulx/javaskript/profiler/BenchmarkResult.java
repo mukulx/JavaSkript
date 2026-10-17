@@ -119,14 +119,4 @@ public class BenchmarkResult {
       default -> NamedTextColor.RED;
     };
   }
-
-  public String getGradeColor() {
-    return switch (grade) {
-      case "A+" -> "§a§l";
-      case "A" -> "§a";
-      case "B" -> "§e";
-      case "C" -> "§6";
-      default -> "§c§l";
-    };
-  }
 }
