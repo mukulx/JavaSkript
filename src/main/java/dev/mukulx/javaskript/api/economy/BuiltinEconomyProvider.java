@@ -68,6 +68,9 @@ public class BuiltinEconomyProvider implements EconomyProvider {
     if (connection == null || connection.isClosed()) {
       initDatabase();
     }
+    if (connection == null) {
+      throw new SQLException("Economy database is not available");
+    }
     return connection;
   }
 
@@ -94,34 +97,35 @@ public class BuiltinEconomyProvider implements EconomyProvider {
   @Override
   public double getBalance(UUID uuid) {
     if (uuid == null) return 0.0;
+    try {
+      return loadBalance(uuid);
+    } catch (SQLException e) {
+      // Never fall back to the starting balance here: saving it would overwrite the real one
+      plugin.getLogger().log(Level.SEVERE, "Error loading balance for " + uuid, e);
+      return 0.0;
+    }
+  }
 
-    // Check fast memory cache
+  /** Cached balance, else the stored one, else a new account with the starting balance. */
+  private synchronized double loadBalance(UUID uuid) throws SQLException {
     Double cached = cache.get(uuid);
     if (cached != null) {
       return cached;
     }
 
-    // Read from SQLite
-    try {
-      Connection conn = getConnection();
-      try (PreparedStatement ps =
-          conn.prepareStatement("SELECT balance FROM economy WHERE uuid = ?;")) {
-        ps.setString(1, uuid.toString());
-        try (ResultSet rs = ps.executeQuery()) {
-          if (rs.next()) {
-            double bal = rs.getDouble("balance");
-            cache.put(uuid, bal);
-            return bal;
-          }
+    try (PreparedStatement ps =
+        getConnection().prepareStatement("SELECT balance FROM economy WHERE uuid = ?;")) {
+      ps.setString(1, uuid.toString());
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          double bal = rs.getDouble("balance");
+          cache.put(uuid, bal);
+          return bal;
         }
       }
-    } catch (SQLException e) {
-      plugin.getLogger().log(Level.SEVERE, "Error loading balance for " + uuid, e);
     }
 
-    // Default starting balance
-    cache.put(uuid, startingBalance);
-    saveBalance(uuid, startingBalance);
+    storeBalance(uuid, startingBalance);
     return startingBalance;
   }
 
@@ -134,15 +138,17 @@ public class BuiltinEconomyProvider implements EconomyProvider {
       return EconomyResult.fail("Cannot withdraw negative amount", getBalance(uuid));
     }
 
-    double current = getBalance(uuid);
-    if (current < amount) {
-      return EconomyResult.fail("Insufficient funds", current);
+    try {
+      double current = loadBalance(uuid);
+      if (current < amount) {
+        return EconomyResult.fail("Insufficient funds", current);
+      }
+      double newBalance = current - amount;
+      storeBalance(uuid, newBalance);
+      return EconomyResult.success(amount, newBalance);
+    } catch (SQLException e) {
+      return databaseFailure(uuid, e);
     }
-
-    double newBalance = current - amount;
-    cache.put(uuid, newBalance);
-    saveBalance(uuid, newBalance);
-    return EconomyResult.success(amount, newBalance);
   }
 
   @Override
@@ -154,11 +160,13 @@ public class BuiltinEconomyProvider implements EconomyProvider {
       return EconomyResult.fail("Cannot deposit negative amount", getBalance(uuid));
     }
 
-    double current = getBalance(uuid);
-    double newBalance = current + amount;
-    cache.put(uuid, newBalance);
-    saveBalance(uuid, newBalance);
-    return EconomyResult.success(amount, newBalance);
+    try {
+      double newBalance = loadBalance(uuid) + amount;
+      storeBalance(uuid, newBalance);
+      return EconomyResult.success(amount, newBalance);
+    } catch (SQLException e) {
+      return databaseFailure(uuid, e);
+    }
   }
 
   @Override
@@ -170,25 +178,32 @@ public class BuiltinEconomyProvider implements EconomyProvider {
       return EconomyResult.fail("Balance cannot be negative", getBalance(uuid));
     }
 
-    cache.put(uuid, amount);
-    saveBalance(uuid, amount);
-    return EconomyResult.success(amount, amount);
+    try {
+      storeBalance(uuid, amount);
+      return EconomyResult.success(amount, amount);
+    } catch (SQLException e) {
+      return databaseFailure(uuid, e);
+    }
   }
 
-  private void saveBalance(UUID uuid, double balance) {
-    try {
-      Connection conn = getConnection();
-      try (PreparedStatement ps =
-          conn.prepareStatement(
-              "INSERT INTO economy (uuid, balance) VALUES (?, ?) "
-                  + "ON CONFLICT(uuid) DO UPDATE SET balance = excluded.balance;")) {
-        ps.setString(1, uuid.toString());
-        ps.setDouble(2, balance);
-        ps.executeUpdate();
-      }
-    } catch (SQLException e) {
-      plugin.getLogger().log(Level.SEVERE, "Error saving balance for " + uuid, e);
+  private EconomyResult databaseFailure(UUID uuid, SQLException e) {
+    plugin.getLogger().log(Level.SEVERE, "Error saving balance for " + uuid, e);
+    Double cached = cache.get(uuid);
+    return EconomyResult.fail("Database error", cached != null ? cached : 0.0);
+  }
+
+  /** Write the balance, and cache it only once it is stored, so the two never disagree. */
+  private void storeBalance(UUID uuid, double balance) throws SQLException {
+    try (PreparedStatement ps =
+        getConnection()
+            .prepareStatement(
+                "INSERT INTO economy (uuid, balance) VALUES (?, ?) "
+                    + "ON CONFLICT(uuid) DO UPDATE SET balance = excluded.balance;")) {
+      ps.setString(1, uuid.toString());
+      ps.setDouble(2, balance);
+      ps.executeUpdate();
     }
+    cache.put(uuid, balance);
   }
 
   /** Get top players by balance for /baltop. */
