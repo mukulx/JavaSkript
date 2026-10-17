@@ -177,6 +177,19 @@ class ScriptLoadingTest {
   }
 
   @Test
+  void failedReloadKeepsThePreviousVersionRunning() throws Exception {
+    File script = write("Flaky.java", "public class Flaky { public void onEnable() {} }");
+    assertTrue(manager.loadScript(script));
+
+    write(
+        "Flaky.java",
+        "public class Flaky { public void onEnable() { throw new IllegalStateException(); } }");
+
+    assertFalse(manager.loadScript(script));
+    assertNotNull(manager.getScript("Flaky"));
+  }
+
+  @Test
   void disabledMarkerSkipsTheScript() throws Exception {
     File script = write("Off.java", "@Disabled\npublic class Off {}\n");
 
