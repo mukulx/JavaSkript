@@ -369,9 +369,11 @@ public class VariableHelper {
     }
   }
 
+  /**
+   * Always writes: an async save may have cleared the dirty flag without having written yet, and
+   * its thread does not outlive the server.
+   */
   public void shutdown() {
-    if (dirty.get()) {
-      savePersistent();
-    }
+    savePersistent();
   }
 }
