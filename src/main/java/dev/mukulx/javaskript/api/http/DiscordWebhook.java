@@ -15,6 +15,7 @@ public class DiscordWebhook {
   private static final Gson GSON = new Gson();
 
   private final HttpClient httpClient;
+  private final HttpHelper owner;
   private final String webhookUrl;
   private String content;
   private String username;
@@ -26,6 +27,13 @@ public class DiscordWebhook {
 
   public DiscordWebhook(HttpClient httpClient, String webhookUrl) {
     this.httpClient = httpClient;
+    this.owner = null;
+    this.webhookUrl = webhookUrl;
+  }
+
+  DiscordWebhook(HttpHelper owner, String webhookUrl) {
+    this.httpClient = owner.getClient();
+    this.owner = owner;
     this.webhookUrl = webhookUrl;
   }
 
@@ -174,7 +182,7 @@ public class DiscordWebhook {
         .thenAccept(
             success -> {
               if (callback != null) {
-                callback.accept(success);
+                deliver(() -> callback.accept(success));
               }
             });
   }
@@ -210,16 +218,29 @@ public class DiscordWebhook {
               })
           .exceptionally(
               ex -> {
-                if (errorHandler != null) {
-                  errorHandler.accept(ex);
-                }
+                fail(ex);
                 return false;
               });
     } catch (Throwable t) {
-      if (errorHandler != null) {
-        errorHandler.accept(t);
-      }
+      fail(t);
       return CompletableFuture.completedFuture(false);
+    }
+  }
+
+  private void fail(Throwable error) {
+    Throwable cause = HttpHelper.unwrap(error);
+    if (errorHandler != null) {
+      deliver(() -> errorHandler.accept(cause));
+    } else if (owner != null) {
+      owner.reportFailure("Webhook POST", webhookUrl, cause);
+    }
+  }
+
+  private void deliver(Runnable callback) {
+    if (owner != null) {
+      owner.deliver(callback);
+    } else {
+      callback.run();
     }
   }
 }

@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
-import dev.mukulx.javaskript.util.ServerUtil;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,7 +20,7 @@ public class HttpRequestBuilder {
   private static final Gson GSON = new Gson();
 
   private final HttpClient httpClient;
-  private final JavaSkriptPlugin plugin;
+  private final HttpHelper owner;
   private final String url;
   private String method = "GET";
   private final Map<String, String> headers = new LinkedHashMap<>();
@@ -30,12 +29,16 @@ public class HttpRequestBuilder {
   private Consumer<Throwable> errorHandler = null;
 
   public HttpRequestBuilder(HttpClient httpClient, String url) {
-    this(httpClient, null, url);
+    this(httpClient, (HttpHelper) null, url);
   }
 
   public HttpRequestBuilder(HttpClient httpClient, JavaSkriptPlugin plugin, String url) {
+    this(httpClient, plugin != null ? new HttpHelper(plugin, httpClient, null) : null, url);
+  }
+
+  HttpRequestBuilder(HttpClient httpClient, HttpHelper owner, String url) {
     this.httpClient = httpClient;
-    this.plugin = plugin;
+    this.owner = owner;
     this.url = url;
   }
 
@@ -98,12 +101,91 @@ public class HttpRequestBuilder {
     return body(GSON.toJson(object));
   }
 
+  /** Called on the server thread when the request fails or its JSON cannot be parsed. */
   public HttpRequestBuilder onError(Consumer<Throwable> errorHandler) {
     this.errorHandler = errorHandler;
     return this;
   }
 
+  /**
+   * Send the request. The future fails if the request does; {@link #onError} is also called when
+   * set.
+   */
   public CompletableFuture<HttpResponse<String>> sendAsync() {
+    CompletableFuture<HttpResponse<String>> future = execute();
+    if (errorHandler != null) {
+      future.whenComplete(
+          (response, error) -> {
+            if (error != null) {
+              fail(error);
+            }
+          });
+    }
+    return future;
+  }
+
+  /**
+   * Execute the request asynchronously with status code and body string callback.
+   *
+   * @param callback BiConsumer receiving (statusCode, responseBody)
+   */
+  public void send(BiConsumer<Integer, String> callback) {
+    execute()
+        .whenComplete(
+            (response, error) -> {
+              if (error != null) {
+                fail(error);
+              } else if (callback != null) {
+                deliver(() -> callback.accept(response.statusCode(), response.body()));
+              }
+            });
+  }
+
+  /**
+   * Execute the request and parse the JSON response body asynchronously.
+   *
+   * @param callback Consumer receiving parsed JsonElement
+   */
+  public void sendJson(Consumer<JsonElement> callback) {
+    execute()
+        .whenComplete(
+            (response, error) -> {
+              if (error != null) {
+                fail(error);
+                return;
+              }
+              JsonElement element;
+              try {
+                element = JsonParser.parseString(response.body());
+              } catch (RuntimeException e) {
+                fail(e);
+                return;
+              }
+              if (callback != null) {
+                deliver(() -> callback.accept(element));
+              }
+            });
+  }
+
+  /** Sends the request and invokes callbacks on the global server scheduler. */
+  public void sendGlobal(Consumer<HttpResponse<String>> success, Consumer<Throwable> failure) {
+    execute()
+        .whenComplete(
+            (response, error) -> {
+              if (error == null) {
+                if (success != null) {
+                  deliver(() -> success.accept(response));
+                }
+              } else if (failure != null) {
+                Throwable cause = HttpHelper.unwrap(error);
+                deliver(() -> failure.accept(cause));
+              } else {
+                fail(error);
+              }
+            });
+  }
+
+  private CompletableFuture<HttpResponse<String>> execute() {
     try {
       HttpRequest.Builder builder =
           HttpRequest.newBuilder()
@@ -116,81 +198,26 @@ public class HttpRequestBuilder {
         builder.header("User-Agent", "JavaSkript-HttpClient/1.1");
       }
 
-      HttpRequest request = builder.build();
-      return httpClient
-          .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-          .exceptionally(
-              ex -> {
-                if (errorHandler != null) {
-                  errorHandler.accept(ex);
-                }
-                return null;
-              });
+      return httpClient.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString());
     } catch (Throwable t) {
-      if (errorHandler != null) {
-        errorHandler.accept(t);
-      }
-      return CompletableFuture.completedFuture(null);
+      return CompletableFuture.failedFuture(t);
     }
   }
 
-  /**
-   * Execute the request asynchronously with status code and body string callback.
-   *
-   * @param callback BiConsumer receiving (statusCode, responseBody)
-   */
-  public void send(BiConsumer<Integer, String> callback) {
-    sendAsync()
-        .thenAccept(
-            resp -> {
-              if (resp != null && callback != null) {
-                dispatchGlobal(() -> callback.accept(resp.statusCode(), resp.body()));
-              }
-            });
+  private void fail(Throwable error) {
+    Throwable cause = HttpHelper.unwrap(error);
+    if (errorHandler != null) {
+      deliver(() -> errorHandler.accept(cause));
+    } else if (owner != null) {
+      owner.reportFailure(method, url, cause);
+    }
   }
 
-  /**
-   * Execute the request and parse the JSON response body asynchronously.
-   *
-   * @param callback Consumer receiving parsed JsonElement
-   */
-  public void sendJson(Consumer<JsonElement> callback) {
-    sendAsync()
-        .thenAccept(
-            resp -> {
-              if (resp != null && callback != null) {
-                try {
-                  JsonElement element = JsonParser.parseString(resp.body());
-                  dispatchGlobal(() -> callback.accept(element));
-                } catch (Exception e) {
-                  if (errorHandler != null) {
-                    errorHandler.accept(e);
-                  }
-                }
-              }
-            });
-  }
-
-  /** Sends the request and invokes callbacks on the global server scheduler. */
-  public void sendGlobal(Consumer<HttpResponse<String>> success, Consumer<Throwable> failure) {
-    sendAsync()
-        .whenComplete(
-            (response, throwable) -> {
-              if (throwable != null) {
-                if (failure != null) dispatchGlobal(() -> failure.accept(throwable));
-              } else if (response != null && success != null) {
-                dispatchGlobal(() -> success.accept(response));
-              }
-            });
-  }
-
-  private void dispatchGlobal(Runnable action) {
-    if (plugin == null || !plugin.isEnabled()) {
-      action.run();
-    } else if (ServerUtil.isFolia()) {
-      plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> action.run());
+  private void deliver(Runnable callback) {
+    if (owner != null) {
+      owner.deliver(callback);
     } else {
-      plugin.getServer().getScheduler().runTask(plugin, action);
+      callback.run();
     }
   }
 }

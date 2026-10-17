@@ -140,7 +140,10 @@ public class ScriptInstance {
       this.variables = plugin.getVariableHelper();
       this.scriptVariables =
           new dev.mukulx.javaskript.api.variable.ScriptVariables(variables, scriptKey);
-      this.http = plugin.getHttpHelper();
+      if (plugin.getHttpHelper() != null) {
+        this.http = plugin.getHttpHelper().forScript(scriptKey);
+        context.own("http callbacks", http::close);
+      }
       this.teams = plugin.getTeamHelper();
 
       // Inject API helpers into script instance

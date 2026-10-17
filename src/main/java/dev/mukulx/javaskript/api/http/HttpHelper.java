@@ -3,10 +3,14 @@ package dev.mukulx.javaskript.api.http;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ServerUtil;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -22,15 +26,70 @@ public class HttpHelper {
 
   private final JavaSkriptPlugin plugin;
   private final HttpClient httpClient;
+  private final String scriptKey;
+  private volatile boolean closed;
 
   public HttpHelper(JavaSkriptPlugin plugin) {
-    this.plugin = plugin;
-    this.httpClient =
+    this(
+        plugin,
         HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_2)
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(10))
-            .build();
+            .build(),
+        null);
+  }
+
+  HttpHelper(JavaSkriptPlugin plugin, HttpClient httpClient, String scriptKey) {
+    this.plugin = plugin;
+    this.httpClient = httpClient;
+    this.scriptKey = scriptKey;
+  }
+
+  /** A helper for one script that shares this client and stops calling back once closed. */
+  public HttpHelper forScript(String scriptKey) {
+    return new HttpHelper(plugin, httpClient, scriptKey);
+  }
+
+  /** Drop the callbacks of requests still in flight, so they never run unloaded script code. */
+  public void close() {
+    closed = true;
+  }
+
+  /** Run a callback on the server thread, unless its script or the plugin has since stopped. */
+  void deliver(Runnable callback) {
+    if (closed || plugin == null || !plugin.isEnabled()) {
+      return;
+    }
+    ServerUtil.runSync(plugin, callback);
+  }
+
+  /** Log a failure nobody handled. Only the host is named: URLs can carry tokens. */
+  void reportFailure(String method, String url, Throwable error) {
+    if (plugin == null) {
+      return;
+    }
+    String prefix = scriptKey != null ? "[" + scriptKey + "] " : "";
+    plugin
+        .getLogger()
+        .warning(prefix + method + " request to " + host(url) + " failed: " + unwrap(error));
+  }
+
+  static Throwable unwrap(Throwable error) {
+    while ((error instanceof CompletionException || error instanceof ExecutionException)
+        && error.getCause() != null) {
+      error = error.getCause();
+    }
+    return error;
+  }
+
+  private static String host(String url) {
+    try {
+      String host = URI.create(url).getHost();
+      return host != null ? host : "an invalid URL";
+    } catch (RuntimeException e) {
+      return "an invalid URL";
+    }
   }
 
   public HttpClient getClient() {
@@ -48,7 +107,7 @@ public class HttpHelper {
    * @return A DiscordWebhook builder instance
    */
   public DiscordWebhook discord(String webhookUrl) {
-    return new DiscordWebhook(httpClient, webhookUrl);
+    return new DiscordWebhook(this, webhookUrl);
   }
 
   // ==========================================
@@ -62,7 +121,7 @@ public class HttpHelper {
    * @return HttpRequestBuilder
    */
   public HttpRequestBuilder request(String url) {
-    return new HttpRequestBuilder(httpClient, plugin, url);
+    return new HttpRequestBuilder(httpClient, this, url);
   }
 
   /** Fetch a URL and run the callback safely on the global server scheduler. */
