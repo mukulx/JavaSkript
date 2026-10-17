@@ -176,6 +176,19 @@ public class GUI {
     }
   }
 
+  /** Whether a handler of this menu was defined by the given class loader. */
+  boolean hasHandlersFrom(ClassLoader loader) {
+    if (closeHandler != null && closeHandler.getClass().getClassLoader() == loader) {
+      return true;
+    }
+    for (Consumer<InventoryClickEvent> handler : clickHandlers.values()) {
+      if (handler.getClass().getClassLoader() == loader) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Handle a click event
    *

@@ -5,6 +5,7 @@ import dev.mukulx.javaskript.api.*;
 import dev.mukulx.javaskript.api.chat.ChatHelper;
 import dev.mukulx.javaskript.api.command.CommandHelper;
 import dev.mukulx.javaskript.api.event.EventHelper;
+import dev.mukulx.javaskript.api.gui.GUIManager;
 import dev.mukulx.javaskript.api.item.ItemHelper;
 import dev.mukulx.javaskript.api.player.PlayerHelper;
 import dev.mukulx.javaskript.script.loader.ScriptClassLoader;
@@ -136,6 +137,7 @@ public class ScriptInstance {
       this.players = new PlayerHelper(plugin);
       this.chat = new ChatHelper(plugin, scriptKey);
       context.own("chat prompts", chat::cleanup);
+      context.own("menus", () -> GUIManager.closeMenusOf(classLoader));
       this.economy = plugin.getEconomyHelper();
       this.variables = plugin.getVariableHelper();
       this.scriptVariables =
