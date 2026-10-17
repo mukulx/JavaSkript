@@ -1,6 +1,7 @@
 package dev.mukulx.javaskript.api.team;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.api.economy.EconomyProvider;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -382,21 +383,27 @@ public final class Teams {
     return true;
   }
 
-  /** Transfers ownership of a team to a new leader. */
+  /** Transfers ownership of a team to a new leader. See {@link TeamHelper#transferLeadership}. */
   public static boolean transferLeadership(Team team, UUID newLeader) {
+    return transferLeadership(team, newLeader, team != null ? team.getLeader() : null);
+  }
+
+  public static boolean transferLeadership(Team team, UUID newLeader, UUID actor) {
     TeamHelper helper = get();
-    if (helper == null
-        || !helper.isEnabled()
-        || team == null
-        || newLeader == null
-        || !team.hasMember(newLeader)) {
-      return false;
-    }
-    UUID oldLeader = team.getLeader();
-    team.setLeader(newLeader);
-    helper.setRole(team, oldLeader, TeamRole.CAPTAIN, oldLeader);
-    helper.setRole(team, newLeader, TeamRole.LEADER, oldLeader);
-    save(team);
-    return true;
+    return helper != null
+        && helper.isEnabled()
+        && helper.transferLeadership(team, newLeader, actor);
+  }
+
+  /** Rename a team, firing {@code TeamRenameEvent}. */
+  public static boolean rename(Team team, String newName, UUID actor) {
+    TeamHelper helper = get();
+    return helper != null && helper.isEnabled() && helper.rename(team, newName, actor);
+  }
+
+  /** The economy team banks use. See {@link TeamHelper#getBankEconomy()}. */
+  public static Optional<EconomyProvider> getBankEconomy() {
+    TeamHelper helper = get();
+    return helper != null && helper.isEnabled() ? helper.getBankEconomy() : Optional.empty();
   }
 }

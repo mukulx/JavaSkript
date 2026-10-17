@@ -2692,91 +2692,134 @@ http.request("https://api.example.com/players/stats")
 
 ## TeamHelper & Teams (Native Team / Clan Engine)
 
-JavaSkript provides a built-in, zero-boilerplate Team, Clan, and Party system backed by SQLite persistence with WAL mode and in-memory caches.
+A built-in team, clan and party system. Teams are kept in memory and saved to `data/teams.db` (SQLite) in the background.
 
 ### Features
-- O(1) in-memory teammate checks (`areTeammates(p1, p2)`), ideal for high-frequency PvP events.
-- Hierarchical role system: `LEADER`, `CAPTAIN`, `MEMBER`.
-- Built-in friendly fire prevention.
-- Team bank account, team private chat, and waypoint home teleportation.
-- Seamless visual integration: Vanilla tab list and Paper scoreboard nametag support.
-- TAB Plugin by NEZNAMY compatibility via built-in PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, etc.).
-- Prefixes and suffixes are empty by default; they only display when explicitly configured.
-- Comprehensive Bukkit event pipeline for third-party plugins and scripts.
+- O(1) teammate checks (`areTeammates(p1, p2)`), cheap enough for every PvP hit.
+- Roles: `LEADER`, `CAPTAIN`, `MEMBER`.
+- Built-in friendly fire protection, team chat, a shared bank and a team home.
+- Tab list names and PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, ...) for TAB and scoreboard plugins.
+- Every player-facing message is configurable in `messages.yml` under `teams:`.
+- Bukkit events for every change, most of them cancellable.
+
+### Configuration (`config.yml`)
+```yaml
+modules:
+  teams:
+    enabled: true
+    register-command: true # /team, /clan, /party, /t
+    defaults:
+      max-size: 0 # 0 = unlimited
+      friendly-fire: false
+      open: false # true = join without invite
+    bank:
+      currency: "" # empty = main economy; or a currency a script registered, e.g. "gems"
+    tab:
+      enabled: true
+      vanilla-scoreboard: auto # auto (only without TAB plugin) | always | never
+      player-format: "{prefix}{player}{suffix}" # also {tag} {team} {role}
+```
 
 ### Accessing Teams
 ```java
-// Method 1: Field injection
-@Inject private TeamHelper teams;
+// Option A: injected into any script field of this type
+private TeamHelper teams;
 
-// Method 2: Static 1-line facade
+// Option B: static facade, usable anywhere
 Teams.areTeammates(player1, player2);
 ```
 
-### Core API Examples
+### Roles
 
-#### 1. Friendly Fire Blocker (PvP Listener)
-```java
-@EventHandler
-public void onPvP(EntityDamageByEntityEvent event) {
-    if (event.getDamager() instanceof Player damager && event.getEntity() instanceof Player victim) {
-        if (Teams.areTeammates(damager, victim) && !Teams.get(damager).get().isFriendlyFireEnabled()) {
-            event.setCancelled(true);
-            Players.actionbar(damager, "<red>You cannot hurt teammates!</red>");
-        }
-    }
-}
-```
+| Action | Member | Captain | Leader |
+|---|---|---|---|
+| Deposit into the bank | ✔ | ✔ | ✔ |
+| Invite, set home, change settings, withdraw | | ✔ | ✔ |
+| Kick | | lower roles only | lower roles only |
+| Disband, transfer leadership | | | ✔ |
 
-#### 2. Creating and Managing Teams
+`TeamRole` exposes these checks (`canInvite()`, `canKick(target)`, `canWithdraw()`, ...). The `/team` command enforces them; the API methods do not, so scripts decide who may do what.
+
+### Creating and Managing Teams
 ```java
-// Create a new team
 Team team = Teams.create("dragons", "The Dragons", leaderPlayer);
 
-// Configure visuals (empty by default)
-team.setTag("[DRG]");
-team.setPrefix("<gold>[DRG] </gold>");
-Teams.save(team);
-
-// Add and kick members
 Teams.addMember(team, targetPlayer, TeamRole.MEMBER);
 Teams.kick(team, targetPlayer, kickerPlayer, "Inactivity");
-
-// Disband team
+Teams.setRole(team, member.getUniqueId(), TeamRole.CAPTAIN, actor.getUniqueId());
+Teams.transferLeadership(team, newLeader.getUniqueId(), oldLeader.getUniqueId());
+Teams.rename(team, "Sky Dragons", actor.getUniqueId());
 Teams.disband(team);
 ```
 
-#### 3. Team Chat Channel
+Setting a member's role to `LEADER` with `setRole` transfers leadership; the old leader becomes a captain. The current leader's role can only change through a transfer, so a team never has two leaders or none.
+
+### Changing a Team Directly
+Change any field on the `Team` object, then call `save`. It writes the team to disk and refreshes its members' tab names:
 ```java
-@Command("tc")
-public void onTeamChat(Player player, String[] args) {
-    String msg = String.join(" ", args);
-    Teams.sendTeamChat(player, msg);
+team.setTag("[DRG]");
+team.setPrefix("<gold>[DRG] </gold>");
+team.setColor(NamedTextColor.GOLD);
+team.setMaxSize(10);
+team.setOpen(true);
+team.setFriendlyFire(false);
+Teams.save(team);
+```
+
+### Custom Team Data (Metadata)
+Attach your own data to a team. It is saved with the team as text, so after a restart every value comes back as a `String`:
+```java
+team.setMetadata("kills", 42);
+Teams.save(team);
+
+// After a restart
+int kills = Integer.parseInt(String.valueOf(team.getMetadata("kills")));
+```
+
+### Team Chat
+```java
+Teams.sendTeamChat(player, "Meet at the base");
+```
+The format is `teams.chat-format` in `messages.yml`. It supports `<role>`, `<player>`, `<team>`, `<tag>` and `<message>`; player text cannot inject formatting.
+
+### Team Bank
+```java
+Teams.deposit(team, player, 250.0);  // takes the money from the player
+Teams.withdraw(team, player, 100.0); // pays the player out of the bank
+```
+- The bank uses the main economy, or the currency named in `modules.teams.bank.currency`. That can be a currency a script registers, so a team bank can hold gems, tokens or anything else (see [Custom Economies](#6-custom-economies-replace-the-main-economy)).
+- If the configured currency is not registered, deposits and withdrawals are refused instead of creating money.
+- With no economy at all, the bank keeps its own balance like a points pool.
+- Amounts in messages are formatted by that currency (`Teams.getBankEconomy()`, `TeamHelper.formatBank(amount)`).
+- `TeamBankTransactionEvent` can change the amount or cancel the transaction.
+
+### Team Home
+```java
+Teams.setHome(team, player.getLocation());
+Teams.teleportHome(team, player); // async teleport, works on Folia
+```
+
+### Bukkit Events
+Listen to these from scripts or plugins (`dev.mukulx.javaskript.event.team`):
+- `TeamCreateEvent` (cancellable)
+- `TeamDisbandEvent` (cancellable)
+- `TeamJoinEvent` (cancellable)
+- `TeamLeaveEvent`
+- `TeamKickEvent` (cancellable)
+- `TeamRenameEvent` (cancellable, can change the new name)
+- `TeamRoleChangeEvent` (cancellable, can change the new role). A leadership transfer fires one for each member.
+- `TeamDamageTeammateEvent` (cancellable; cancel it to allow the hit despite friendly fire being off)
+- `TeamChatEvent` (cancellable, can change message and recipients)
+- `TeamBankTransactionEvent` (cancellable, can change the amount)
+
+```java
+@EventHandler
+public void onRename(TeamRenameEvent event) {
+    if (event.getNewName().length() > 16) {
+        event.setCancelled(true);
+    }
 }
 ```
-
-#### 4. Team Bank & Waypoints
-```java
-// Shared bank deposit & withdraw
-Teams.deposit(team, player, 250.0);
-Teams.withdraw(team, player, 100.0);
-
-// Waypoint home
-Teams.setHome(team, player.getLocation());
-Teams.teleportHome(team, player);
-```
-
-#### 5. Bukkit Events
-Scripts and plugins can listen to native team events:
-- `TeamCreateEvent` (Cancellable)
-- `TeamDisbandEvent` (Cancellable)
-- `TeamJoinEvent` (Cancellable)
-- `TeamLeaveEvent`
-- `TeamKickEvent` (Cancellable)
-- `TeamRoleChangeEvent` (Cancellable)
-- `TeamDamageTeammateEvent` (Cancellable)
-- `TeamChatEvent` (Cancellable)
-- `TeamBankTransactionEvent` (Cancellable)
 
 ---
 

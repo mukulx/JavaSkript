@@ -1,6 +1,9 @@
 package dev.mukulx.javaskript.api.team;
 
 import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.api.economy.EconomyHelper;
+import dev.mukulx.javaskript.api.economy.EconomyProvider;
+import dev.mukulx.javaskript.api.economy.EconomyResult;
 import dev.mukulx.javaskript.api.team.storage.TeamStorage;
 import dev.mukulx.javaskript.api.team.tab.TeamTabBridge;
 import dev.mukulx.javaskript.event.team.TeamBankTransactionEvent;
@@ -11,6 +14,7 @@ import dev.mukulx.javaskript.event.team.TeamDisbandEvent;
 import dev.mukulx.javaskript.event.team.TeamJoinEvent;
 import dev.mukulx.javaskript.event.team.TeamKickEvent;
 import dev.mukulx.javaskript.event.team.TeamLeaveEvent;
+import dev.mukulx.javaskript.event.team.TeamRenameEvent;
 import dev.mukulx.javaskript.event.team.TeamRoleChangeEvent;
 import java.util.Collection;
 import java.util.Collections;
@@ -279,7 +283,7 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               leaderPlayer,
-              "team.created",
+              "teams.created",
               "<green>Team <aqua>{team}</aqua> created successfully!</green>",
               "{team}",
               team.getName());
@@ -324,7 +328,14 @@ public class TeamHelper implements Listener {
       Player p = Bukkit.getPlayer(memberUuid);
       if (p != null) {
         tabBridge.updatePlayer(p);
-        plugin.getMessageManager().send(p, "team.disbanded", "<red>Your team was disbanded.</red>");
+        plugin
+            .getMessageManager()
+            .send(
+                p,
+                "teams.disbanded",
+                "<red>Team <color:#FF8C00>{team}</color> has been disbanded.</red>",
+                "{team}",
+                team.getName());
       }
     }
 
@@ -368,7 +379,7 @@ public class TeamHelper implements Listener {
     if (team.isFull()) {
       Player p = Bukkit.getPlayer(playerUuid);
       if (p != null) {
-        plugin.getMessageManager().send(p, "team.full", "<red>This team is full!</red>");
+        plugin.getMessageManager().send(p, "teams.full", "<red>This team is full!</red>");
       }
       return false;
     }
@@ -400,7 +411,7 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               player,
-              "team.joined",
+              "teams.joined",
               "<green>You have joined <aqua>{team}</aqua>!</green>",
               "{team}",
               team.getName());
@@ -412,7 +423,7 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .get(
-                "team.member-joined",
+                "teams.member-joined",
                 "<green>{player} has joined the team!</green>",
                 "{player}",
                 name));
@@ -453,7 +464,7 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               player,
-              "team.left",
+              "teams.left",
               "<color:#FFA726>You have left <aqua>{team}</aqua>.</color>",
               "{team}",
               team.getName());
@@ -465,7 +476,7 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .get(
-                "team.member-left",
+                "teams.member-left",
                 "<color:#FFA726>{player} has left the team.</color>",
                 "{player}",
                 name));
@@ -493,7 +504,7 @@ public class TeamHelper implements Listener {
             plugin
                 .getMessageManager()
                 .get(
-                    "team.role-changed",
+                    "teams.role-changed",
                     "<green>{player} is the new team leader!</green>",
                     "{player}",
                     highest.getName(),
@@ -536,8 +547,10 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               target,
-              "team.kicked",
-              "<red>You were kicked from {team}. Reason: {reason}</red>",
+              "teams.kicked",
+              "<red>You were kicked from <color:#FF8C00>{team}</color> by {kicker}.</red>",
+              "{kicker}",
+              kickerName(kickerUuid),
               "{team}",
               team.getName(),
               "{reason}",
@@ -550,10 +563,12 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .get(
-                "team.member-kicked",
-                "<red>{player} was kicked from the team.</red>",
+                "teams.member-kicked",
+                "<red>{player} was kicked from the team by {kicker}.</red>",
                 "{player}",
-                targetName));
+                targetName,
+                "{kicker}",
+                kickerName(kickerUuid)));
 
     return true;
   }
@@ -572,6 +587,14 @@ public class TeamHelper implements Listener {
     Optional<TeamMember> memberOpt = team.getMember(memberUuid);
     if (memberOpt.isEmpty()) return false;
 
+    // Leadership has to move as a whole, or the team ends up with two leaders or none
+    if (newRole == TeamRole.LEADER) {
+      return transferLeadership(team, memberUuid, actor);
+    }
+    if (team.isLeader(memberUuid)) {
+      return false;
+    }
+
     TeamMember member = memberOpt.get();
     TeamRole oldRole = member.getRole();
     if (oldRole == newRole) return true;
@@ -583,6 +606,9 @@ public class TeamHelper implements Listener {
       return false;
     }
 
+    if (event.getNewRole() == TeamRole.LEADER) {
+      return transferLeadership(team, memberUuid, actor);
+    }
     member.setRole(event.getNewRole());
     storage.saveMemberAsync(team.getId(), member);
 
@@ -593,8 +619,10 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               player,
-              "team.role-changed",
-              "<green>Your team role was changed to <aqua>{role}</aqua>.</green>",
+              "teams.role-changed",
+              "<color:#FFA726>{player}'s role has been changed to <color:#FF8C00>{role}</color>.</color>",
+              "{player}",
+              player.getName(),
               "{role}",
               event.getNewRole().getDisplayName());
     }
@@ -620,7 +648,7 @@ public class TeamHelper implements Listener {
     if (target.equals(sender)) {
       plugin
           .getMessageManager()
-          .send(sender, "team.invite-self", "<red>You cannot invite yourself!</red>");
+          .send(sender, "teams.invite-self", "<red>You cannot invite yourself!</red>");
       return;
     }
 
@@ -629,7 +657,7 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               sender,
-              "team.invite-already-member",
+              "teams.invite-already-member",
               "<red>{target} is already in your team!</red>",
               "{target}",
               target.getName());
@@ -637,7 +665,7 @@ public class TeamHelper implements Listener {
     }
 
     if (team.isFull()) {
-      plugin.getMessageManager().send(sender, "team.full", "<red>Your team is full!</red>");
+      plugin.getMessageManager().send(sender, "teams.full", "<red>Your team is full!</red>");
       return;
     }
 
@@ -651,8 +679,10 @@ public class TeamHelper implements Listener {
         .getMessageManager()
         .send(
             sender,
-            "team.invite-sent",
-            "<green>Invited <white>{target}</white> to <aqua>{team}</aqua>!</green>",
+            "teams.invite-sent",
+            "<green>Invited <color:#FF8C00>{player}</color> to join <color:#FF8C00>{team}</color>!</green>",
+            "{player}",
+            target.getName(),
             "{target}",
             target.getName(),
             "{team}",
@@ -663,8 +693,12 @@ public class TeamHelper implements Listener {
         .getMessageManager()
         .send(
             target,
-            "team.invite-received",
-            "<color:#FFA726>{player} invited you to join <aqua>{team}</aqua>! Type /team join {team}</color>",
+            "teams.invite-received",
+            "<color:#FFA726>You have been invited to join <color:#FF8C00>{team}</color> by {inviter}! Type /team join {id}</color>",
+            "{id}",
+            team.getId(),
+            "{inviter}",
+            sender.getName(),
             "{player}",
             sender.getName(),
             "{team}",
@@ -689,7 +723,7 @@ public class TeamHelper implements Listener {
     if (!enabled || team == null || target == null) return false;
 
     if (team.isFull()) {
-      plugin.getMessageManager().send(target, "team.full", "<red>This team is full!</red>");
+      plugin.getMessageManager().send(target, "teams.full", "<red>This team is full!</red>");
       return false;
     }
 
@@ -700,7 +734,7 @@ public class TeamHelper implements Listener {
           .getMessageManager()
           .send(
               target,
-              "team.invite-expired",
+              "teams.invite-expired",
               "<red>This team invitation has expired or does not exist.</red>");
       return false;
     }
@@ -714,7 +748,12 @@ public class TeamHelper implements Listener {
     pendingInvites.remove(inviteKey);
     plugin
         .getMessageManager()
-        .send(target, "team.invite-declined", "<gray>Team invitation declined.</gray>");
+        .send(
+            target,
+            "teams.invite-declined",
+            "<color:#FFA726>You declined the invite to join <color:#FF8C00>{team}</color>.</color>",
+            "{team}",
+            team.getName());
   }
 
   // -------------------------------------------------------------
@@ -778,7 +817,7 @@ public class TeamHelper implements Listener {
     if (teamOpt.isEmpty()) {
       plugin
           .getMessageManager()
-          .send(sender, "team.not-in-team", "<red>You are not in a team!</red>");
+          .send(sender, "teams.not-in-team", "<red>You are not in a team!</red>");
       return false;
     }
 
@@ -798,7 +837,7 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .getRaw(
-                "team.chat-format",
+                "teams.chat-format",
                 "<dark_gray>[<aqua>Team</aqua>]</dark_gray> <gray><role></gray> <white><player></white><gray>:</gray> <white><message></white>");
     // Use safe placeholders so player names, team names and chat text cannot inject
     // MiniMessage tags or click events that run commands.
@@ -835,18 +874,65 @@ public class TeamHelper implements Listener {
   // -------------------------------------------------------------
 
   /**
-   * Deposits money into the team bank.
+   * The economy team banks pay in and out of: the currency named in {@code
+   * modules.teams.bank.currency}, otherwise the main economy. Empty when the main economy is off;
+   * the bank then only keeps its own balance.
+   */
+  public Optional<EconomyProvider> getBankEconomy() {
+    EconomyHelper economy = plugin.getEconomyHelper();
+    if (economy == null) {
+      return Optional.empty();
+    }
+    String currency = bankCurrencyName();
+    if (!currency.isEmpty()) {
+      return economy.currency(currency);
+    }
+    return economy.isEnabled() ? Optional.of(economy.getProvider()) : Optional.empty();
+  }
+
+  /** Format an amount in the bank's currency. */
+  public String formatBank(double amount) {
+    return getBankEconomy()
+        .map(provider -> provider.format(amount))
+        .orElseGet(() -> String.format("%.2f", amount));
+  }
+
+  private String bankCurrencyName() {
+    String name = plugin.getConfig().getString("modules.teams.bank.currency", "");
+    return name != null ? name.trim() : "";
+  }
+
+  /**
+   * A configured currency that is not registered must not fall back to a points-only bank, or
+   * deposits would create money out of nothing.
+   */
+  private boolean bankUnavailable(Player player) {
+    String currency = bankCurrencyName();
+    EconomyHelper economy = plugin.getEconomyHelper();
+    if (currency.isEmpty() || (economy != null && economy.currency(currency).isPresent())) {
+      return false;
+    }
+    plugin
+        .getLogger()
+        .warning("Team bank currency '" + currency + "' is not registered; bank is unavailable");
+    plugin
+        .getMessageManager()
+        .send(
+            player, "teams.bank-unavailable", "<red>The team bank is unavailable right now.</red>");
+    return true;
+  }
+
+  /**
+   * Moves money from the player into the team bank. Fires {@link TeamBankTransactionEvent}, whose
+   * listeners may change the amount or cancel it.
    *
-   * @param team The team
-   * @param player The depositing player
-   * @param amount The deposit amount
    * @return true if deposited successfully
    */
   public boolean deposit(Team team, Player player, double amount) {
     if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0)
       return false;
+    if (bankUnavailable(player)) return false;
 
-    // Fire Bukkit Event
     TeamBankTransactionEvent event =
         new TeamBankTransactionEvent(
             team, player.getUniqueId(), amount, TeamBankTransactionEvent.TransactionType.DEPOSIT);
@@ -857,21 +943,20 @@ public class TeamHelper implements Listener {
     double finalAmount = event.getAmount();
     if (!Double.isFinite(finalAmount) || finalAmount <= 0) return false;
 
-    // Take from the player first so money cannot be created from thin air.
-    // If the economy is off, fall back to team-only points.
+    // Take from the player first so money cannot be created out of nothing
+    Optional<EconomyProvider> economy = getBankEconomy();
     try {
-      if (plugin.getEconomyHelper() != null && plugin.getEconomyHelper().isEnabled()) {
-        dev.mukulx.javaskript.api.economy.EconomyResult taken =
-            plugin.getEconomyHelper().withdraw(player, finalAmount);
+      if (economy.isPresent()) {
+        EconomyResult taken = economy.get().withdraw(player, finalAmount);
         if (!taken.isSuccess()) {
           plugin
               .getMessageManager()
               .send(
                   player,
-                  "team.bank-insufficient",
-                  "<red>Insufficient funds! You need {balance}.</red>",
-                  "{balance}",
-                  String.format("%.2f", finalAmount));
+                  "teams.bank-player-insufficient",
+                  "<red>You need {amount} to deposit that much.</red>",
+                  "{amount}",
+                  formatBank(finalAmount));
           return false;
         }
       }
@@ -889,37 +974,30 @@ public class TeamHelper implements Listener {
         .getMessageManager()
         .send(
             player,
-            "team.bank-deposit",
-            "<green>Deposited <color:#FF8C00>{amount}</color> into the team bank!</green>",
+            "teams.bank-deposit",
+            "<green>Deposited {amount} into the team bank. New balance: {balance}</green>",
             "{amount}",
-            String.format("%.2f", finalAmount));
+            formatBank(finalAmount),
+            "{balance}",
+            formatBank(team.getBalance()));
     return true;
   }
 
   /**
-   * Withdraws money from the team bank.
+   * Moves money from the team bank to the player. Fires {@link TeamBankTransactionEvent}, whose
+   * listeners may change the amount or cancel it. Role checks are left to the caller.
    *
-   * @param team The team
-   * @param player The withdrawing player
-   * @param amount The withdrawal amount
    * @return true if withdrawn successfully
    */
   public boolean withdraw(Team team, Player player, double amount) {
     if (!enabled || team == null || player == null || !Double.isFinite(amount) || amount <= 0)
       return false;
+    if (bankUnavailable(player)) return false;
     if (team.getBalance() < amount) {
-      plugin
-          .getMessageManager()
-          .send(
-              player,
-              "team.bank-insufficient",
-              "<red>Insufficient team funds! Current balance: {balance}</red>",
-              "{balance}",
-              String.format("%.2f", team.getBalance()));
+      sendBankInsufficient(player, team);
       return false;
     }
 
-    // Fire Bukkit Event
     TeamBankTransactionEvent event =
         new TeamBankTransactionEvent(
             team, player.getUniqueId(), amount, TeamBankTransactionEvent.TransactionType.WITHDRAW);
@@ -935,28 +1013,20 @@ public class TeamHelper implements Listener {
       removed = team.withdraw(finalAmount);
     }
     if (!removed) {
+      sendBankInsufficient(player, team);
       return false;
     }
     storage.saveTeamAsync(team);
 
-    // Give the money to the player. If that fails, refund the team so nothing is lost or duped.
+    // Pay the player; refund the team if that fails so nothing is lost or duplicated
+    Optional<EconomyProvider> economy = getBankEconomy();
     try {
-      if (plugin.getEconomyHelper() != null && plugin.getEconomyHelper().isEnabled()) {
-        dev.mukulx.javaskript.api.economy.EconomyResult given =
-            plugin.getEconomyHelper().deposit(player, finalAmount);
-        if (!given.isSuccess()) {
-          synchronized (team) {
-            team.deposit(finalAmount);
-          }
-          storage.saveTeamAsync(team);
-          return false;
-        }
+      if (economy.isPresent() && !economy.get().deposit(player, finalAmount).isSuccess()) {
+        refund(team, finalAmount);
+        return false;
       }
     } catch (Throwable t) {
-      synchronized (team) {
-        team.deposit(finalAmount);
-      }
-      storage.saveTeamAsync(team);
+      refund(team, finalAmount);
       plugin
           .getLogger()
           .warning("Team withdraw refund issued after economy failure: " + t.getMessage());
@@ -967,11 +1037,31 @@ public class TeamHelper implements Listener {
         .getMessageManager()
         .send(
             player,
-            "team.bank-withdraw",
-            "<green>Withdrew <color:#FF8C00>{amount}</color> from the team bank.</green>",
+            "teams.bank-withdraw",
+            "<green>Withdrew {amount} from the team bank. New balance: {balance}</green>",
             "{amount}",
-            String.format("%.2f", finalAmount));
+            formatBank(finalAmount),
+            "{balance}",
+            formatBank(team.getBalance()));
     return true;
+  }
+
+  private void sendBankInsufficient(Player player, Team team) {
+    plugin
+        .getMessageManager()
+        .send(
+            player,
+            "teams.bank-insufficient",
+            "<red>Insufficient team funds! Current balance: {balance}</red>",
+            "{balance}",
+            formatBank(team.getBalance()));
+  }
+
+  private void refund(Team team, double amount) {
+    synchronized (team) {
+      team.deposit(amount);
+    }
+    storage.saveTeamAsync(team);
   }
 
   /** Sets the team home location. */
@@ -994,7 +1084,7 @@ public class TeamHelper implements Listener {
     if (home == null) {
       plugin
           .getMessageManager()
-          .send(player, "team.home-not-set", "<red>Your team does not have a home set!</red>");
+          .send(player, "teams.home-not-set", "<red>Your team does not have a home set.</red>");
       return false;
     }
     // The world may have been null at load time; resolve it now by stored name.
@@ -1006,7 +1096,9 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .send(
-                player, "team.home-not-set", "<red>Your team home world is not loaded yet.</red>");
+                player,
+                "teams.home-world-not-loaded",
+                "<red>Your team home world is not loaded yet.</red>");
         return false;
       }
       target.setWorld(world);
@@ -1014,7 +1106,7 @@ public class TeamHelper implements Listener {
     if (player.getVehicle() != null) {
       plugin
           .getMessageManager()
-          .send(player, "team.home-not-set", "<red>Leave your vehicle first.</red>");
+          .send(player, "teams.home-in-vehicle", "<red>Leave your vehicle first.</red>");
       return false;
     }
 
@@ -1028,12 +1120,12 @@ public class TeamHelper implements Listener {
                       .getMessageManager()
                       .send(
                           player,
-                          "team.teleported-home",
+                          "teams.home-teleported",
                           "<green>Teleported to team home!</green>");
                 } else {
                   plugin
                       .getMessageManager()
-                      .send(player, "team.home-not-set", "<red>Teleport failed.</red>");
+                      .send(player, "teams.home-teleport-failed", "<red>Teleport failed.</red>");
                 }
               });
     } catch (Throwable t) {
@@ -1044,7 +1136,7 @@ public class TeamHelper implements Listener {
       }
       plugin
           .getMessageManager()
-          .send(player, "team.teleported-home", "<green>Teleported to team home!</green>");
+          .send(player, "teams.home-teleported", "<green>Teleported to team home!</green>");
     }
     return true;
   }
@@ -1055,11 +1147,96 @@ public class TeamHelper implements Listener {
     return team.getOnlinePlayers();
   }
 
-  /** Saves a team to persistent storage. */
+  /**
+   * Save a team after changing it directly (name, tag, prefix, colour, settings, metadata) and
+   * refresh its members' tab names.
+   */
   public void save(Team team) {
     if (enabled && team != null) {
       storage.saveTeamAsync(team);
+      refreshTab(team);
     }
+  }
+
+  /**
+   * Rename a team. Fires {@link TeamRenameEvent}, whose listeners may change the name or cancel it.
+   *
+   * @param actor who renamed it, or null
+   * @return true if renamed
+   */
+  public boolean rename(Team team, String newName, UUID actor) {
+    if (!enabled || team == null || newName == null || newName.isBlank()) return false;
+    TeamRenameEvent event = new TeamRenameEvent(team, team.getName(), newName, actor);
+    Bukkit.getPluginManager().callEvent(event);
+    if (event.isCancelled()) {
+      return false;
+    }
+    team.setName(event.getNewName());
+    save(team);
+    return true;
+  }
+
+  /**
+   * Make another member the leader. The old leader becomes a captain, or whatever role a listener
+   * sets below leader. Fires a {@link TeamRoleChangeEvent} for both members; if either is cancelled
+   * nothing changes.
+   *
+   * @param actor who transferred it, or null
+   * @return true if {@code newLeader} is now the leader
+   */
+  public boolean transferLeadership(Team team, UUID newLeader, UUID actor) {
+    if (!enabled || team == null || newLeader == null || !team.hasMember(newLeader)) return false;
+    UUID oldLeader = team.getLeader();
+    if (oldLeader.equals(newLeader)) return true;
+
+    TeamRoleChangeEvent promote =
+        new TeamRoleChangeEvent(
+            team,
+            newLeader,
+            team.getRole(newLeader).orElse(TeamRole.MEMBER),
+            TeamRole.LEADER,
+            actor);
+    TeamRoleChangeEvent demote =
+        new TeamRoleChangeEvent(team, oldLeader, TeamRole.LEADER, TeamRole.CAPTAIN, actor);
+    Bukkit.getPluginManager().callEvent(promote);
+    Bukkit.getPluginManager().callEvent(demote);
+    if (promote.isCancelled() || demote.isCancelled()) {
+      return false;
+    }
+
+    TeamRole demotedTo =
+        demote.getNewRole() == TeamRole.LEADER ? TeamRole.CAPTAIN : demote.getNewRole();
+    team.setLeader(newLeader);
+    team.setRole(oldLeader, demotedTo);
+    save(team);
+
+    Player promoted = Bukkit.getPlayer(newLeader);
+    broadcast(
+        team,
+        plugin
+            .getMessageManager()
+            .get(
+                "teams.role-changed",
+                "<color:#FFA726>{player}'s role has been changed to <color:#FF8C00>{role}</color>.</color>",
+                "{player}",
+                promoted != null ? promoted.getName() : newLeader.toString(),
+                "{role}",
+                TeamRole.LEADER.getDisplayName()));
+    return true;
+  }
+
+  private void refreshTab(Team team) {
+    for (Player member : team.getOnlinePlayers()) {
+      tabBridge.updatePlayer(member);
+    }
+  }
+
+  private static String kickerName(UUID kickerUuid) {
+    if (kickerUuid == null) {
+      return "Console";
+    }
+    String name = Bukkit.getOfflinePlayer(kickerUuid).getName();
+    return name != null ? name : kickerUuid.toString();
   }
 
   /** Reloads visual configurations and message bridges. */
@@ -1144,7 +1321,11 @@ public class TeamHelper implements Listener {
         plugin
             .getMessageManager()
             .send(
-                damager, "team.friendly-fire-blocked", "<red>You cannot hurt your teammate!</red>");
+                damager,
+                "teams.friendly-fire-blocked",
+                "<red>You cannot harm your teammate {player}!</red>",
+                "{player}",
+                victim.getName());
       }
     }
   }

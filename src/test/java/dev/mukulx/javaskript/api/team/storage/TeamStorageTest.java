@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import dev.mukulx.javaskript.api.team.Team;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,27 @@ class TeamStorageTest {
 
     TeamStorage reopened = new TeamStorage(plugin);
     assertEquals(50, reopened.loadAll().size());
+    reopened.close();
+  }
+
+  @Test
+  void metadataSurvivesARestart() {
+    JavaSkriptPlugin plugin = mock(JavaSkriptPlugin.class);
+    when(plugin.getDataFolder()).thenReturn(temp.toFile());
+    when(plugin.getLogger()).thenReturn(Logger.getLogger("TeamStorageTest"));
+
+    TeamStorage storage = new TeamStorage(plugin);
+    Team team = new Team("dragons", "The Dragons", UUID.randomUUID());
+    team.setMetadata("kills", 42);
+    storage.saveTeamSync(team);
+    team.removeMetadata("kills");
+    team.setMetadata("motto", "fly");
+    storage.saveTeamSync(team);
+    storage.close();
+
+    TeamStorage reopened = new TeamStorage(plugin);
+    Team loaded = reopened.loadAll().get("dragons");
+    assertEquals(Map.of("motto", "fly"), loaded.getMetadata());
     reopened.close();
   }
 }

@@ -33,6 +33,8 @@ modules: # a disabled module loads nothing
       max-size: 0 # 0 = unlimited
       friendly-fire: false
       open: false # true = join without invite
+    bank:
+      currency: "" # empty = main economy; or a currency a script registered, e.g. "gems"
     tab:
       enabled: true
       vanilla-scoreboard: auto # auto (only without TAB plugin) | always | never

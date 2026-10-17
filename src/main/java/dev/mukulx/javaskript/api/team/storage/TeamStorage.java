@@ -312,8 +312,29 @@ public class TeamStorage {
       for (TeamMember member : team.getMembers().values()) {
         saveMemberSync(team.getId(), member);
       }
+      saveMetadata(conn, team);
     } catch (SQLException e) {
       plugin.getLogger().log(Level.SEVERE, "Failed to save team: " + team.getId(), e);
+    }
+  }
+
+  /** Replace the stored metadata with the team's current entries, stored as strings. */
+  private void saveMetadata(Connection conn, Team team) throws SQLException {
+    try (PreparedStatement delete =
+        conn.prepareStatement("DELETE FROM team_metadata WHERE team_id = ?")) {
+      delete.setString(1, team.getId());
+      delete.executeUpdate();
+    }
+    try (PreparedStatement insert =
+        conn.prepareStatement(
+            "INSERT INTO team_metadata (team_id, meta_key, meta_value) VALUES (?, ?, ?)")) {
+      for (Map.Entry<String, Object> entry : team.getMetadata().entrySet()) {
+        insert.setString(1, team.getId());
+        insert.setString(2, entry.getKey());
+        insert.setString(3, String.valueOf(entry.getValue()));
+        insert.addBatch();
+      }
+      insert.executeBatch();
     }
   }
 
