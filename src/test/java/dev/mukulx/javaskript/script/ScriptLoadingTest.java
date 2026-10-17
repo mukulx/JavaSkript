@@ -169,9 +169,11 @@ class ScriptLoadingTest {
     @ScriptCommand("Fly")
     class Named {}
     class HealCommand {}
+    class RecommendCommand {}
 
     assertEquals("fly", ScriptListeners.commandName(Named.class));
     assertEquals("heal", ScriptListeners.commandName(HealCommand.class));
+    assertEquals("recommend", ScriptListeners.commandName(RecommendCommand.class));
   }
 
   @Test

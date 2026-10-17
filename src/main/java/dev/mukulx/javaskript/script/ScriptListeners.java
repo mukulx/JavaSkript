@@ -106,14 +106,14 @@ final class ScriptListeners {
             + scriptClass.getSimpleName());
   }
 
-  /** The {@link ScriptCommand} value, else the class name without "command" or "cmd". */
+  /** The {@link ScriptCommand} value, else the class name without a trailing "Command" or "Cmd". */
   static String commandName(Class<?> scriptClass) {
     ScriptCommand named = scriptClass.getAnnotation(ScriptCommand.class);
     if (named != null) {
       return named.value().toLowerCase();
     }
     String className = scriptClass.getSimpleName();
-    String commandName = className.toLowerCase().replace("command", "").replace("cmd", "");
+    String commandName = className.toLowerCase().replaceFirst("(command|cmd)$", "");
     return commandName.isEmpty() ? className.toLowerCase() : commandName;
   }
 
