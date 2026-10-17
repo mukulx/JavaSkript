@@ -2664,14 +2664,21 @@ http.request("https://api.example.com/v1/punish")
     .bearerAuth("my-secret-token")
     .bodyJson(Map.of("target", target.getName(), "reason", "Kicked"))
     .timeout(Duration.ofSeconds(5))
-    .onError(ex -> getLogger().warning("HTTP request failed: " + ex.getMessage()))
+    .onError(ex -> Bukkit.getLogger().warning("HTTP request failed: " + ex.getMessage()))
     .send((code, response) -> {
-        getLogger().info("Response code: " + code);
+        Bukkit.getLogger().info("Response code: " + code);
     });
 ```
 
 ### 3. Server-Scheduler Safe Callbacks (`sendGlobal` & `getGlobal`)
-By default, callbacks passed to `send(...)` and `sendJson(...)` are safely dispatched back onto the server's global scheduler (Paper main thread / Folia global region scheduler).
+Every callback runs on the server's global scheduler (Paper main thread / Folia global region): `send(...)`, `sendJson(...)`, `sendGlobal(...)`, `onError(...)` and webhook results.
+
+When a request fails:
+- The future from `sendAsync()`, `http.get/post/put/delete(...)` completes exceptionally instead of with `null`, so use `.exceptionally(...)` or `.whenComplete(...)` on it.
+- `onError(...)` or the failure callback of `sendGlobal(...)` is called. A failed JSON parse in `sendJson(...)` also goes there.
+- With neither, the failure is logged with only the host name, since URLs such as webhooks can contain tokens.
+
+When the script unloads, callbacks of requests still in flight are dropped, so a late response never runs old code.
 
 You can also use explicit global callbacks:
 ```java
@@ -2685,7 +2692,7 @@ http.request("https://api.example.com/players/stats")
     .GET()
     .sendGlobal(
         response -> player.sendMessage("Stats: " + response.body()),
-        error -> getLogger().warning("Failed to fetch stats: " + error.getMessage())
+        error -> Bukkit.getLogger().warning("Failed to fetch stats: " + error.getMessage())
     );
 ```
 

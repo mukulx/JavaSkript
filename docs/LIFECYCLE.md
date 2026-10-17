@@ -337,7 +337,10 @@ JavaSkript automatically cleans up:
 | Custom Crafting Recipes | Yes | No |
 | Cooldowns & Action Bar Tickers | Yes | No |
 | ActionBars & BossBars | Yes | No |
-| Open GUIs & Inventory Listeners | Yes | No |
+| Open GUIs & Inventory Listeners (menus are closed, their handlers never run again) | Yes | No |
+| HTTP callbacks of requests still in flight | Yes | No |
+| Economy providers & currencies the script registered | Yes | No |
+| Resource packs (kept for 2 seconds so a reload does not re-download them) | Yes | No |
 | Placeholders (PlaceholderHelper) | Yes | No |
 | Config Files (ScriptConfig) | Yes | No |
 | Script ClassLoader (Bytecode Memory) | Yes | No |
@@ -347,7 +350,7 @@ JavaSkript automatically cleans up:
 
 ### How cleanup works
 
-Every helper JavaSkript injects into a script (scheduler, database, placeholders, recipes, holograms, commands, cooldowns, events, chat) registers its cleanup with the script's lifecycle context the moment it is created. When the script unloads, or when its startup fails part way through, the context runs those cleanups in the order they were registered:
+Every helper JavaSkript injects into a script (scheduler, database, placeholders, recipes, holograms, commands, cooldowns, events, chat, HTTP, menus, economy providers, resource packs) registers its cleanup with the script's lifecycle context the moment it is created. When the script unloads, or when its startup fails part way through, the context runs those cleanups in the order they were registered:
 
 - A cleanup that throws is logged and skipped. The remaining cleanups still run, so one broken subsystem cannot leave the rest of the script registered.
 - If a script fails during startup (for example `onEnable()` registers a task and a later step throws), only what was actually created is released. `onDisable()` runs only for scripts that finished loading.

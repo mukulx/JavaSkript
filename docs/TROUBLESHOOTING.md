@@ -105,7 +105,7 @@ See [Multiple Classes Guide](MULTIPLE_CLASSES.md) for details.
 ### APIs Not Injected
 
 **Check:**
-1. Field names are exact: `scheduler`, `config`, `database`, `placeholders`
+1. Field types are right (`ScriptScheduler`, `ScriptConfig`, `DatabaseHelper`, ...); fields are matched by type, so the name does not matter
 2. Fields are `private` (not `public` or `static`)
 3. Not trying to use them in constructor
 

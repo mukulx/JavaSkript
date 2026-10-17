@@ -51,20 +51,18 @@ Without the annotation, the name is derived from the class name:
 |------------|--------------|--------------|
 | `FlyCommand` | `/fly` | Removes "Command" suffix, converts to lowercase |
 | `HealCommand` | `/heal` | Removes "Command" suffix, converts to lowercase |
-| `TeleportCmd` | `/teleport` | Removes "Cmd" suffix, converts to lowercase |
+| `WarpCmd` | `/warp` | Removes "Cmd" suffix, converts to lowercase |
+| `RecommendCommand` | `/recommend` | Only a trailing "Command" or "Cmd" is removed |
 | `Warp` | `/warp` | Uses class name as-is, converts to lowercase |
 
 **Code in `ScriptListeners.commandName`:**
 ```java
 String className = scriptClass.getSimpleName();
-String commandName = className.toLowerCase()
-    .replace("command", "")
-    .replace("cmd", "");
-
-if (commandName.isEmpty()) {
-    commandName = className.toLowerCase();
-}
+String commandName = className.toLowerCase().replaceFirst("(command|cmd)$", "");
+return commandName.isEmpty() ? className.toLowerCase() : commandName;
 ```
+
+If another plugin or vanilla already owns the name (for example `/teleport` or `/tp`), it is left alone and your command is only available as `/javaskript:<name>`; the console logs a warning. Pick another name with `@ScriptCommand`.
 
 ### 3. Dynamic Registration
 
