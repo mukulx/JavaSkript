@@ -139,6 +139,10 @@ public class ScriptInstance {
       context.own("chat prompts", chat::cleanup);
       context.own("menus", () -> GUIManager.closeMenusOf(classLoader));
       this.economy = plugin.getEconomyHelper();
+      if (economy != null) {
+        var economyHelper = economy;
+        context.own("economy providers", () -> economyHelper.releaseProvidersFrom(classLoader));
+      }
       this.variables = plugin.getVariableHelper();
       this.scriptVariables =
           new dev.mukulx.javaskript.api.variable.ScriptVariables(variables, scriptKey);

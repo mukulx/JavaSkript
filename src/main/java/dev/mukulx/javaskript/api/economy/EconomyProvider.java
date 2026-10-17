@@ -1,5 +1,7 @@
 package dev.mukulx.javaskript.api.economy;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.bukkit.OfflinePlayer;
 
@@ -71,4 +73,9 @@ public interface EconomyProvider {
 
   /** Format amount with compact suffix (e.g. "$1.5k", "$2.3M", "$5.0B"). */
   String formatShort(double amount);
+
+  /** Richest accounts first. Providers that cannot list accounts return an empty list. */
+  default List<Map.Entry<UUID, Double>> getTopBalances(int limit) {
+    return List.of();
+  }
 }

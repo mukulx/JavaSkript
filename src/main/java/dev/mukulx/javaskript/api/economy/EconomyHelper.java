@@ -3,6 +3,7 @@ package dev.mukulx.javaskript.api.economy;
 import dev.mukulx.javaskript.JavaSkriptPlugin;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -28,6 +29,9 @@ public class EconomyHelper {
   private final Map<String, EconomyProvider> customCurrencies;
   private EconomyProvider primaryProvider;
   private BuiltinEconomyProvider builtinProvider;
+  private volatile EconomyProvider overrideProvider;
+  // Object, not JavaSkriptVaultHook: Vault is optional and must not be needed to load this class
+  private Object vaultHook;
   private boolean enabled;
 
   public EconomyHelper(JavaSkriptPlugin plugin) {
@@ -38,13 +42,54 @@ public class EconomyHelper {
 
   /** Check if the economy subsystem is enabled in configuration and active. */
   public boolean isEnabled() {
-    return enabled && !(primaryProvider instanceof DisabledEconomyProvider);
+    return overrideProvider != null
+        || (enabled && !(primaryProvider instanceof DisabledEconomyProvider));
   }
 
-  /** Reload the economy subsystem according to the latest config.yml values. */
+  /**
+   * Reload the configured economy from config.yml. A provider set with {@link #setProvider} and
+   * registered currencies are kept.
+   */
   public synchronized void reload() {
-    shutdown();
+    closeConfiguredProvider();
     initProvider();
+  }
+
+  /**
+   * Replace the main economy with a custom one. Everything that uses the economy follows it: {@link
+   * Economy}, team banks and, when JavaSkript is registered with Vault, other plugins. It works
+   * even when the economy module is disabled in config.yml.
+   */
+  public void setProvider(EconomyProvider provider) {
+    this.overrideProvider = Objects.requireNonNull(provider, "provider cannot be null");
+    plugin.getLogger().info("Using custom economy provider: " + provider.getName());
+  }
+
+  /** Go back to the economy configured in config.yml. */
+  public void resetProvider() {
+    if (overrideProvider != null) {
+      overrideProvider = null;
+      plugin.getLogger().info("Custom economy provider removed; using the configured economy");
+    }
+  }
+
+  /** Whether a custom provider replaced the configured economy. */
+  public boolean hasCustomProvider() {
+    return overrideProvider != null;
+  }
+
+  /**
+   * Remove every provider and currency defined by an unloading script, so nothing keeps calling its
+   * classes.
+   */
+  public void releaseProvidersFrom(ClassLoader scriptLoader) {
+    EconomyProvider override = overrideProvider;
+    if (override != null && override.getClass().getClassLoader() == scriptLoader) {
+      resetProvider();
+    }
+    customCurrencies
+        .entrySet()
+        .removeIf(entry -> entry.getValue().getClass().getClassLoader() == scriptLoader);
   }
 
   private void initProvider() {
@@ -137,9 +182,12 @@ public class EconomyHelper {
       return;
     }
     try {
-      JavaSkriptVaultHook hook = new JavaSkriptVaultHook(builtinProvider);
+      // Follows getProvider(), so a custom provider set later is what Vault sees
+      Supplier<EconomyProvider> current = this::getProvider;
+      JavaSkriptVaultHook hook = new JavaSkriptVaultHook(current);
       Bukkit.getServicesManager()
           .register(net.milkbowl.vault.economy.Economy.class, hook, plugin, ServicePriority.Normal);
+      vaultHook = hook;
       plugin.getLogger().info("Registered JavaSkript as the server's Vault Economy provider!");
     } catch (Throwable t) {
       plugin.getLogger().warning("Could not register JavaSkript Vault service: " + t.getMessage());
@@ -148,6 +196,10 @@ public class EconomyHelper {
 
   /** Get the active primary economy provider. */
   public EconomyProvider getProvider() {
+    EconomyProvider override = overrideProvider;
+    if (override != null) {
+      return override;
+    }
     if (enabled && primaryProvider instanceof DisabledEconomyProvider) {
       // Lazy attempt to hook Vault if an external economy plugin registered after startup
       String mode = plugin.getConfig().getString("modules.economy.mode", "vault").toLowerCase();
@@ -175,6 +227,16 @@ public class EconomyHelper {
       customCurrencies.put(name.toLowerCase(), provider);
       plugin.getLogger().info("Registered custom currency: " + name);
     }
+  }
+
+  /** Remove a registered currency. Returns whether one was registered under that name. */
+  public boolean unregisterCurrency(String name) {
+    return name != null && customCurrencies.remove(name.toLowerCase()) != null;
+  }
+
+  /** Names of every registered currency, lower case. */
+  public Set<String> getCurrencyNames() {
+    return Collections.unmodifiableSet(customCurrencies.keySet());
   }
 
   /** Access a specific currency provider by name. Returns empty if not registered. */
@@ -277,19 +339,30 @@ public class EconomyHelper {
     return getProvider().formatShort(amount);
   }
 
-  /** Get top richest players if using built-in economy engine. */
+  /** Richest accounts of the active provider; empty when it cannot list them (e.g. Vault). */
   public List<Map.Entry<UUID, Double>> getTopBalances(int limit) {
-    if (builtinProvider != null) {
-      return builtinProvider.getTopBalances(limit);
-    }
-    return Collections.emptyList();
+    return getProvider().getTopBalances(limit);
   }
 
-  public void shutdown() {
+  /** Called when the plugin disables. */
+  public synchronized void shutdown() {
+    closeConfiguredProvider();
+    overrideProvider = null;
+    customCurrencies.clear();
+  }
+
+  private void closeConfiguredProvider() {
+    if (vaultHook != null) {
+      try {
+        Bukkit.getServicesManager().unregister(net.milkbowl.vault.economy.Economy.class, vaultHook);
+      } catch (Throwable t) {
+        plugin.debug("Could not unregister the Vault economy service: " + t.getMessage());
+      }
+      vaultHook = null;
+    }
     if (builtinProvider != null) {
       builtinProvider.close();
       builtinProvider = null;
     }
-    customCurrencies.clear();
   }
 }

@@ -206,7 +206,7 @@ public class BuiltinEconomyProvider implements EconomyProvider {
     cache.put(uuid, balance);
   }
 
-  /** Get top players by balance for /baltop. */
+  @Override
   public List<Map.Entry<UUID, Double>> getTopBalances(int limit) {
     List<Map.Entry<UUID, Double>> top = new ArrayList<>();
     try {

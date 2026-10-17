@@ -2159,7 +2159,14 @@ modules:
     enabled: false
     mode: vault # vault | builtin | auto (Vault if present, else builtin)
     register-vault-service: false # builtin/auto only
+    currency:
+      symbol: "$"
+      name-singular: Coin
+      name-plural: Coins
+      starting-balance: 0.0
 ```
+
+A script can also supply the whole economy itself; see [Custom Economies](#6-custom-economies-replace-the-main-economy).
 
 ### Auto-Injection & Static Facade
 ```java
@@ -2211,8 +2218,9 @@ if (result.isSuccess()) {
 ```
 
 ### 4. Leaderboard (`Economy.getTopBalances`)
+Works with the built-in engine and with any custom provider that implements `getTopBalances`. Vault cannot list accounts, so it returns an empty list there.
 ```java
-// Get top 10 richest players on the server (when using built-in engine):
+// Get top 10 richest players on the server:
 List<Map.Entry<UUID, Double>> top = Economy.getTopBalances(10);
 for (Map.Entry<UUID, Double> entry : top) {
     OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
@@ -2268,7 +2276,15 @@ public class GemsCurrencyProvider implements EconomyProvider {
 ```java
 // Register in your script's onEnable():
 economy.registerCurrency("gems", new GemsCurrencyProvider());
+
+// Look it up anywhere, or remove it again
+Economy.currency("gems").ifPresent(gems -> gems.deposit(player, 5));
+Economy.unregisterCurrency("gems");
 ```
+
+A currency a script registers is removed automatically when that script unloads or reloads, so register it again in `onEnable()`. A config reload (`/js reload`) keeps it.
+
+Set `modules.teams.bank.currency: gems` to make team banks use it.
 
 #### C. Multi-Balance Hybrid Transaction (Coins + Gems)
 Purchase an item requiring **both** $5,000 Coins AND 25 Gems with full rollback safety:
@@ -2309,6 +2325,23 @@ if (Economy.has(player, 10000.0)) {
     Players.msg(player, "<green>Converted $10,000 Coins into 10 Gems!");
 }
 ```
+
+### 6. Custom Economies (Replace the Main Economy)
+
+A script can provide the server's main economy. Implement `EconomyProvider` as in [section 5](#a-creating-a-custom-currency-provider), then:
+```java
+public void onEnable() {
+    economy.setProvider(new MyEconomy());
+}
+```
+
+From then on every economy call goes to it: `Economy.*`, the injected `EconomyHelper`, team banks and, if `register-vault-service` is on, every Vault plugin on the server. It works even with `modules.economy.enabled: false`.
+
+- `Economy.getProvider()` returns the provider in use, and `economy.hasCustomProvider()` reports whether one is set.
+- `economy.resetProvider()` returns to the economy in `config.yml`.
+- The provider is removed automatically when the script that defined it unloads, so a reload never leaves calls going to unloaded code. Set it again in `onEnable()`.
+- Override `getTopBalances(int limit)` to support leaderboards.
+- Store balances somewhere persistent (the [DatabaseHelper](#databasehelper), a file, ...); JavaSkript does not save a custom provider's data.
 
 ---
 
