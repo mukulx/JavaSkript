@@ -95,6 +95,9 @@ final class ScriptInjector {
               field.set(instance, owner.getVariables());
             } else if (dev.mukulx.javaskript.api.http.HttpHelper.class.isAssignableFrom(type)) {
               field.set(instance, owner.getHttp());
+            } else if (dev.mukulx.javaskript.api.resourcepack.ResourcePackHelper.class
+                .isAssignableFrom(type)) {
+              field.set(instance, owner.getResourcePacks());
             } else if (dev.mukulx.javaskript.api.team.TeamHelper.class.isAssignableFrom(type)) {
               field.set(instance, owner.getTeams());
             } else if (dev.mukulx.javaskript.api.message.MessageManager.class.isAssignableFrom(

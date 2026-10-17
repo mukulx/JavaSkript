@@ -39,3 +39,11 @@ modules: # a disabled module loads nothing
       enabled: true
       vanilla-scoreboard: auto # auto (only without TAB plugin) | always | never
       player-format: "{prefix}{player}{suffix}" # also {suffix} {tag} {team} {role}
+
+  resource-packs:
+    enabled: true # packs from scripts are sent to every player who joins
+    port: 8163 # HTTP port the packs are downloaded from; open it in your firewall
+    bind-address: "" # empty = all interfaces
+    public-address: "" # empty = the address players joined with; set it behind a proxy, e.g. "play.example.com" or "https://packs.example.com"
+    required: false # default for packs that do not say; players who decline are disconnected
+    prompt: "<gray>This server uses a resource pack for its custom content.</gray>"

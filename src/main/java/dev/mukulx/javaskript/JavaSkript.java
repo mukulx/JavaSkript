@@ -93,6 +93,15 @@ public final class JavaSkript {
   }
 
   /**
+   * Get the resource pack manager.
+   *
+   * @return ResourcePackManager instance
+   */
+  public static dev.mukulx.javaskript.api.resourcepack.ResourcePackManager getResourcePacks() {
+    return getAPI().getResourcePackManager();
+  }
+
+  /**
    * Get the MannequinHelper for creating and controlling Paper mannequins.
    *
    * @return MannequinHelper instance

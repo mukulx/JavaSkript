@@ -51,6 +51,7 @@ public class ScriptInstance {
   private dev.mukulx.javaskript.api.variable.VariableHelper variables;
   private dev.mukulx.javaskript.api.variable.ScriptVariables scriptVariables;
   private dev.mukulx.javaskript.api.http.HttpHelper http;
+  private dev.mukulx.javaskript.api.resourcepack.ResourcePackHelper resourcePacks;
   private dev.mukulx.javaskript.api.team.TeamHelper teams;
 
   public ScriptInstance(
@@ -151,6 +152,12 @@ public class ScriptInstance {
         context.own("http callbacks", http::close);
       }
       this.teams = plugin.getTeamHelper();
+      if (plugin.getResourcePackManager() != null) {
+        this.resourcePacks =
+            new dev.mukulx.javaskript.api.resourcepack.ResourcePackHelper(
+                plugin.getResourcePackManager(), scriptKey);
+        context.own("resource packs", resourcePacks::close);
+      }
 
       // Inject API helpers into script instance
       plugin.debug("Injecting APIs into script: " + scriptKey);
@@ -458,6 +465,10 @@ public class ScriptInstance {
 
   public dev.mukulx.javaskript.api.variable.VariableHelper getVariables() {
     return variables;
+  }
+
+  public dev.mukulx.javaskript.api.resourcepack.ResourcePackHelper getResourcePacks() {
+    return resourcePacks;
   }
 
   public dev.mukulx.javaskript.api.http.HttpHelper getHttp() {

@@ -31,6 +31,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
 26. [MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)](#mannequinhelper--mannequins-paper-12111-npcs--statues)
 27. [AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)](#advancementhelper--advancements-paper-12111-toasts--custom-advancements)
+28. [ResourcePackHelper & ResourcePacks (Custom Textures, Models & Sounds)](#resourcepackhelper--resourcepacks-custom-textures-models--sounds)
 
 ---
 
@@ -3079,6 +3080,120 @@ When a script unloads or reloads:
 
 ---
 
+## ResourcePackHelper & ResourcePacks (Custom Textures, Models & Sounds)
+
+Scripts ship resource packs without any external hosting. JavaSkript builds each pack in memory, serves it from a small built-in HTTP server and sends it to every player who joins. Every script can have its own packs: players receive all of them in a single prompt, and each pack is downloaded only once until its content changes.
+
+### Configuration (`config.yml`)
+```yaml
+modules:
+  resource-packs:
+    enabled: true
+    port: 8163           # HTTP port packs are downloaded from; open it in your firewall
+    bind-address: ""     # empty = all interfaces
+    public-address: ""   # empty = the address players joined with
+    required: false      # default for packs that do not say
+    prompt: "<gray>This server uses a resource pack for its custom content.</gray>"
+```
+
+- The HTTP server only starts once a script registers a pack that needs hosting, so servers that never use packs open no port.
+- Players download from the address they typed to join (e.g. `play.example.com:8163`). Behind a proxy such as Velocity, or when the HTTP port is forwarded differently, set `public-address` to a host (`play.example.com`, the port is added) or a full URL (`https://packs.example.com`, e.g. through a reverse proxy).
+- `/js configreload` applies changes; online players get the packs again from the new address.
+- The kick message for a required pack is `resource-packs.required-failed` in `messages.yml`.
+
+### Accessing Resource Packs
+```java
+// In scripts: injected, and every pack is removed when the script unloads
+private ResourcePackHelper resourcePacks;
+
+// In plugins and addons: unregister your packs yourself in onDisable()
+ResourcePacks.builder(myPlugin, "main")...register();
+ResourcePacks.unregister("MyPlugin:main");
+```
+
+Relative paths resolve against `plugins/JavaSkript/resourcepacks/`.
+
+### 1. Existing Packs (Folder, Zip or URL)
+```java
+public void onEnable() {
+    resourcePacks.fromFolder("main", "my-pack");          // resourcepacks/my-pack/assets/...
+    resourcePacks.fromZip("ui", "ui-pack.zip");           // resourcepacks/ui-pack.zip
+    resourcePacks.external("music", "https://cdn.example.com/music.zip",
+        "4f1c...e2a9");                                    // hosted elsewhere, SHA-1 of the zip
+    resourcePacks.external("lobby", "https://cdn.example.com/lobby.zip")
+        .thenAccept(pack -> Bukkit.getLogger().info("Hashed " + pack.getHash())); // hashed for you
+}
+```
+
+### 2. Custom Items (2D Textures)
+Since Minecraft 1.21.4 any item can use any model through its `item_model` component, so custom items no longer need `CustomModelData`:
+```java
+ResourcePack pack = resourcePacks.create("weapons")
+    .itemModel("ruby", Path.of("weapons/ruby.png"))                    // flat item
+    .handheldItemModel("ruby_sword", Path.of("weapons/ruby_sword.png")) // held like a sword
+    .register();
+
+ItemStack sword = pack.applyModel(new ItemStack(Material.DIAMOND_SWORD), "ruby_sword");
+// or: meta.setItemModel(pack.itemModel("ruby_sword"));
+```
+The builder writes the texture, the model and the item definition (`assets/<namespace>/items/<name>.json`) for you.
+
+### 3. 3D Models (Blockbench)
+Export a model from Blockbench as **Java Block/Item**, add the textures it uses, and make the model refer to them as `<namespace>:<path>`:
+```java
+ResourcePack pack = resourcePacks.create("props")
+    .namespace("props")                                   // set before adding files
+    .texture("item/hammer", Path.of("props/hammer.png"))  // props:item/hammer
+    .itemModel3d("hammer", Path.of("props/hammer.json"))
+    .register();
+
+pack.applyModel(item, "hammer");
+```
+
+### 4. Textures, Sounds and Any Other File
+```java
+resourcePacks.create("extras")
+    .texture("gui/badge", Path.of("extras/badge.png"))
+    .sound("boom", Path.of("extras/boom.ogg"))            // sounds.json is generated
+    .file("assets/minecraft/lang/en_us.json", "{\"item.minecraft.emerald\":\"Gem\"}")
+    .file("assets/minecraft/textures/block/stone.png", Path.of("extras/stone.png"))
+    .register();
+
+pack.playSound(player, "boom", 1f, 1f);                   // or "<namespace>:boom"
+```
+Sources can be combined: start from `.folder(...)` or `.zip(...)` and add or replace files on top. A `pack.mcmeta` is generated unless the pack has one.
+
+### 5. Builder Options
+
+| Method | Purpose |
+|---|---|
+| `description(text)` | Text in the client's pack list |
+| `namespace(ns)` | Namespace for textures, models and sounds; defaults to the script name. Call it first |
+| `priority(n)` | Higher priority packs are applied on top and win when two packs change the same file |
+| `required(bool)` | Players must accept it or are disconnected; defaults to `required` in config.yml |
+| `packFormat(min, max)` | Pack format range; defaults to 75 (1.21.11). Raise `max` for newer clients |
+| `onLoaded(player -> ...)` | Runs when a player has applied the pack |
+| `onFailed((player, status) -> ...)` | Runs when a player declines it or it fails to download |
+
+`register()` validates everything and throws `IllegalArgumentException` with a clear message for a bad name, a path outside the pack, a file that is not a PNG or OGG, invalid JSON, or a pack over the client's 250 MiB limit.
+
+### 6. Player State
+```java
+resourcePacks.isLoaded(player, pack);   // true once applied
+resourcePacks.getStatus(player, pack);  // last PlayerResourcePackStatusEvent.Status
+resourcePacks.resend(player);           // send every pack again, e.g. after declining
+```
+`PlayerResourcePackStatusEvent#getID()` equals `pack.getUniqueId()`.
+
+### 7. Several Scripts, Several Packs
+- Each pack is sent on its own, so packs from different scripts never overwrite each other's files unless they use the same namespace and path. Use `priority` when two packs change the same vanilla file on purpose.
+- If some packs are required and others are not, required ones are sent in one prompt and optional ones in a second.
+- Pack ids are `<owner>:<name>`, so two scripts may both name a pack `main`.
+- When a script reloads, its packs stay on players for two seconds. If it registers them again unchanged, nobody downloads anything; if they changed, players get the new version.
+- When a script unloads for good, its packs are removed from online players.
+
+---
+
 ## Best Practices
 
 1. **Always check for null** - Especially in event handlers
@@ -3099,4 +3214,4 @@ When a script unloads or reloads:
 
 ---
 
-**Last Updated:** 2026-08-31
+**Last Updated:** 2026-10-17

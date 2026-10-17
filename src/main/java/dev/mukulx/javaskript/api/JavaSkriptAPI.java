@@ -406,6 +406,15 @@ public class JavaSkriptAPI {
   }
 
   /**
+   * Get the resource pack manager, for plugins and addons that register packs.
+   *
+   * @return The ResourcePackManager instance
+   */
+  public dev.mukulx.javaskript.api.resourcepack.ResourcePackManager getResourcePackManager() {
+    return plugin.getResourcePackManager();
+  }
+
+  /**
    * Get the HttpHelper for making asynchronous HTTP requests and sending Discord webhooks.
    *
    * @return The HttpHelper instance

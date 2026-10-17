@@ -43,3 +43,6 @@ teams:
   bank-insufficient: "<red>Insufficient team funds! Current balance: {balance}</red>"
   bank-player-insufficient: "<red>You need {amount} to deposit that much.</red>"
   bank-unavailable: "<red>The team bank is unavailable right now.</red>"
+
+resource-packs:
+  required-failed: "<red>This server requires its resource pack. Rejoin and accept it to play.</red>"

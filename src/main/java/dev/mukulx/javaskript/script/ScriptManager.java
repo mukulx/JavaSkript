@@ -1325,6 +1325,8 @@ public class ScriptManager {
       "SharedVariablesAndEventsExample.java",
       "HttpAndDiscordExample.java",
       "MannequinExample.java",
+      "AdvancementExample.java",
+      "ResourcePackExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

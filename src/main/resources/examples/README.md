@@ -24,6 +24,7 @@ Copy any example to `plugins/JavaSkript/scripts/` on your server to use it.
 - **PDCExample.java** - PersistentDataContainer (PDC / NBT) on items and entities
 - **HologramExample.java** - Modern Display Entity holograms (floating text, 3D items, blocks)
 - **MannequinExample.java** - Paper 1.21.11+ Mannequins (interactive NPCs, player skins, poses, equipment)
+- **ResourcePackExample.java** - Resource packs with custom item models, hosted by JavaSkript and sent to every player
 - **AdvancementExample.java** - Paper 1.21.11+ Advancements (instant toasts, custom tabs & backgrounds, quest criteria, completion callbacks)
 - **PlaceholderExample.java** - Custom PlaceholderAPI placeholders
 - **PermissionExample.java** - Dynamic permission registration
