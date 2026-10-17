@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +31,7 @@ public class TeamStorage {
   private final File dbFile;
   private Connection connection;
   private final ExecutorService asyncExecutor;
+  private boolean closed;
 
   public TeamStorage(JavaSkriptPlugin plugin) {
     this.plugin = plugin;
@@ -107,8 +109,14 @@ public class TeamStorage {
   }
 
   private synchronized Connection getConnection() throws SQLException {
+    if (closed) {
+      throw new SQLException("Team storage is closed");
+    }
     if (connection == null || connection.isClosed()) {
       initDatabase();
+    }
+    if (connection == null) {
+      throw new SQLException("Team database is not available");
     }
     return connection;
   }
@@ -467,24 +475,33 @@ public class TeamStorage {
         });
   }
 
-  /** Closes database connection and shuts down background executor service. */
-  public synchronized void close() {
+  /**
+   * Writes every queued save, then closes the database. Not synchronized: the queued saves need
+   * this object's lock to run, so holding it while waiting would stall them until the timeout.
+   */
+  public void close() {
+    asyncExecutor.shutdown();
     try {
-      asyncExecutor.shutdown();
-      if (!asyncExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-        asyncExecutor.shutdownNow();
+      if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+        List<Runnable> dropped = asyncExecutor.shutdownNow();
+        plugin
+            .getLogger()
+            .warning("Team storage did not finish in time; " + dropped.size() + " save(s) lost");
       }
     } catch (InterruptedException e) {
       asyncExecutor.shutdownNow();
       Thread.currentThread().interrupt();
     }
 
-    try {
-      if (connection != null && !connection.isClosed()) {
-        connection.close();
+    synchronized (this) {
+      closed = true;
+      try {
+        if (connection != null && !connection.isClosed()) {
+          connection.close();
+        }
+      } catch (SQLException e) {
+        plugin.getLogger().log(Level.WARNING, "Error closing Team SQLite connection", e);
       }
-    } catch (SQLException e) {
-      plugin.getLogger().log(Level.WARNING, "Error closing Team SQLite connection", e);
     }
   }
 }
