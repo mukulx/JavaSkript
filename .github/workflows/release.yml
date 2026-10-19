@@ -65,41 +65,12 @@ jobs:
         if: steps.check_release.outputs.exists != 'true'
         run: ./gradlew clean build shadowJar --no-daemon
 
-      - name: Generate Changelog
-        if: steps.check_release.outputs.exists != 'true'
-        id: changelog
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.get_version.outputs.tag }}^" 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            echo "Generating changelog since $PREV_TAG..."
-            COMMITS=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges)
-          else
-            echo "Initial release. Generating changelog from recent commits..."
-            COMMITS=$(git log --oneline --no-merges -n 30)
-          fi
-
-          {
-            echo "### Changes in v${{ steps.get_version.outputs.version }}"
-            echo ""
-            echo "$COMMITS" | while IFS= read -r line; do
-              [ -n "$line" ] && echo "- $line"
-            done
-            echo ""
-            echo "---"
-            echo "**Compatibility:** Paper & Folia 1.21.x | Java 21+"
-            if [ -n "$PREV_TAG" ]; then
-              echo ""
-              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.get_version.outputs.tag }}"
-            fi
-          } > release_notes.md
-
       - name: Create or Update GitHub Release
         if: steps.check_release.outputs.exists != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: JavaSkript v${{ steps.get_version.outputs.version }}
-          body_path: release_notes.md
           files: build/libs/JavaSkript-*.jar
           draft: false
           prerelease: false
