@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.profiler;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Thread-safe statistical record for profiling execution times of script events, tasks, and
@@ -90,12 +91,12 @@ public class ProfileRecord {
    * Performance rating color indicator: 🟢 Green: < 0.05 ms (optimal) 🟡 Yellow: 0.05ms - 0.50ms
    * (moderate) 🟠 Gold: 0.50ms - 2.00ms (heavy) 🔴 Red: > 2.00ms (lag spike / slow)
    */
-  public String getStatusColor() {
+  public NamedTextColor getStatusColor() {
     double avg = getAverageMillis();
-    if (avg < 0.05) return "§a"; // Green
-    if (avg < 0.50) return "§e"; // Yellow
-    if (avg < 2.00) return "§6"; // Gold
-    return "§c"; // Red
+    if (avg < 0.05) return NamedTextColor.GREEN;
+    if (avg < 0.50) return NamedTextColor.YELLOW;
+    if (avg < 2.00) return NamedTextColor.GOLD;
+    return NamedTextColor.RED;
   }
 
   public String getFormattedAverage() {

@@ -30,6 +30,7 @@ public final class JavaSkriptPlugin extends JavaPlugin {
   private dev.mukulx.javaskript.api.variable.VariableHelper variableHelper;
   private dev.mukulx.javaskript.api.event.ScriptEventBus eventBus;
   private dev.mukulx.javaskript.api.http.HttpHelper httpHelper;
+  private dev.mukulx.javaskript.api.resourcepack.ResourcePackManager resourcePackManager;
   private dev.mukulx.javaskript.api.message.MessageManager messageManager;
   private dev.mukulx.javaskript.api.team.TeamHelper teamHelper;
   private dev.mukulx.javaskript.command.TeamCommand teamCommand;
@@ -124,6 +125,12 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       // Built-in async HTTP & Discord Webhook client
       this.httpHelper = new dev.mukulx.javaskript.api.http.HttpHelper(this);
       dev.mukulx.javaskript.api.http.Http.setInstance(httpHelper);
+
+      // Resource packs from scripts, hosted on demand and sent to every player
+      this.resourcePackManager =
+          new dev.mukulx.javaskript.api.resourcepack.ResourcePackManager(this);
+      getServer().getPluginManager().registerEvents(resourcePackManager, this);
+      dev.mukulx.javaskript.api.resourcepack.ResourcePacks.setInstance(resourcePackManager);
 
       // Economy subsystem (Vault & Built-in SQLite)
       try {
@@ -282,6 +289,15 @@ public final class JavaSkriptPlugin extends JavaPlugin {
       debug("Error shutting down economy helper: " + t.getMessage());
     }
 
+    // Stop the resource pack server after scripts have released their packs
+    try {
+      if (resourcePackManager != null) {
+        resourcePackManager.shutdown();
+      }
+    } catch (Throwable t) {
+      debug("Error shutting down resource packs: " + t.getMessage());
+    }
+
     // Shutdown team subsystem
     try {
       if (teamHelper != null) {
@@ -364,6 +380,9 @@ public final class JavaSkriptPlugin extends JavaPlugin {
     }
     if (economyHelper != null) {
       economyHelper.reload();
+    }
+    if (resourcePackManager != null) {
+      resourcePackManager.reload();
     }
     reloadTeamHelper();
     boolean watcherEnabled = getConfig().getBoolean("scripts.hot-reload.enabled", true);
@@ -458,6 +477,10 @@ public final class JavaSkriptPlugin extends JavaPlugin {
 
   public dev.mukulx.javaskript.api.event.ScriptEventBus getEventBus() {
     return eventBus;
+  }
+
+  public dev.mukulx.javaskript.api.resourcepack.ResourcePackManager getResourcePackManager() {
+    return resourcePackManager;
   }
 
   public dev.mukulx.javaskript.api.http.HttpHelper getHttpHelper() {

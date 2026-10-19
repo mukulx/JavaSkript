@@ -22,7 +22,7 @@ You can find the downloads for each version with their release notes in the [rel
 
 Documentation, tutorials, and examples are available in the [`docs/`](docs/) directory:
 
-- [API Reference](docs/API.md) - Reference guide for all 24 built-in subsystems and static facades.
+- [API Reference](docs/API.md) - Reference guide for every built-in subsystem and static facade.
 - [Quick Start](docs/QUICKSTART.md) - 5-minute setup and walkthrough.
 - [Tutorial](docs/TUTORIAL.md) - Step-by-step guide to writing scripts from scratch.
 - [Examples](docs/EXAMPLES.md) - Code examples and patterns for common server mechanics.

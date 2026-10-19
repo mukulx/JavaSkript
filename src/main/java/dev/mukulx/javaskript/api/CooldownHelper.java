@@ -7,7 +7,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -17,7 +20,7 @@ import org.bukkit.scheduler.BukkitTask;
  *
  * <p>Supports: - Per-player and global/system cooldowns - Precise millisecond, second, and Duration
  * queries - Normalized progress calculation (0.0 to 1.0) - Animated visual Action Bar progress bars
- * with auto-expiration - Automatic background purging of expired keys to prevent memory leaks
+ * with auto-expiration - Expired keys purged every few minutes as new cooldowns are set
  */
 public class CooldownHelper {
 
@@ -26,6 +29,8 @@ public class CooldownHelper {
   private final Map<UUID, Map<String, CooldownEntry>> playerCooldowns = new ConcurrentHashMap<>();
   private final Map<String, CooldownEntry> globalCooldowns = new ConcurrentHashMap<>();
   private final Map<String, Object> activeTickerTasks = new ConcurrentHashMap<>();
+  private static final long PURGE_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(5);
+  private final AtomicLong lastPurge = new AtomicLong(System.currentTimeMillis());
 
   public CooldownHelper(JavaSkriptPlugin plugin, String scriptKey) {
     this.plugin = plugin;
@@ -58,10 +63,17 @@ public class CooldownHelper {
   public void set(UUID uuid, String key, long millis) {
     if (uuid == null || key == null || millis <= 0) return;
     long now = System.currentTimeMillis();
-    String normalizedKey = key.toLowerCase();
-    playerCooldowns
-        .computeIfAbsent(uuid, u -> new ConcurrentHashMap<>())
-        .put(normalizedKey, new CooldownEntry(now, now + millis));
+    CooldownEntry entry = new CooldownEntry(now, now + millis);
+    // Inside compute, so a purge dropping this player's empty map cannot discard the new entry
+    playerCooldowns.compute(
+        uuid,
+        (id, cooldowns) -> {
+          Map<String, CooldownEntry> map =
+              cooldowns != null ? cooldowns : new ConcurrentHashMap<>();
+          map.put(key.toLowerCase(), entry);
+          return map;
+        });
+    purgeIfDue(now);
   }
 
   public boolean isOnCooldown(Player player, String key) {
@@ -181,6 +193,7 @@ public class CooldownHelper {
     if (key == null || millis <= 0) return;
     long now = System.currentTimeMillis();
     globalCooldowns.put(key.toLowerCase(), new CooldownEntry(now, now + millis));
+    purgeIfDue(now);
   }
 
   public boolean isGlobalOnCooldown(String key) {
@@ -240,32 +253,40 @@ public class CooldownHelper {
             }
 
             if (!isOnCooldown(player, key)) {
-              player.sendActionBar(Component.text("§a✔ §l" + displayName + " §aReady to use!"));
+              player.sendActionBar(
+                  Component.text("✔ ", NamedTextColor.GREEN)
+                      .append(
+                          Component.text(displayName, NamedTextColor.GREEN, TextDecoration.BOLD))
+                      .append(Component.text(" Ready to use!", NamedTextColor.GREEN)));
               cancelTicker(tickerKey);
               return;
             }
 
             double progress = getProgress(player, key);
             double remainingSec = getRemainingMillis(player, key) / 1000.0;
-            String bar = renderProgressBar(progress, 15);
-
             player.sendActionBar(
-                Component.text(
-                    "§e"
-                        + displayName
-                        + " §8["
-                        + bar
-                        + "§8] §f"
-                        + String.format("%.1fs", remainingSec)));
+                Component.text(displayName, NamedTextColor.YELLOW)
+                    .append(Component.text(" [", NamedTextColor.DARK_GRAY))
+                    .append(renderProgressBar(progress, 15))
+                    .append(Component.text("] ", NamedTextColor.DARK_GRAY))
+                    .append(
+                        Component.text(
+                            String.format("%.1fs", remainingSec), NamedTextColor.WHITE)));
           }
         };
 
     if (ServerUtil.isFolia()) {
       try {
+        // Null when the player has already left
         Object task = player.getScheduler().runAtFixedRate(plugin, t -> ticker.run(), null, 1L, 4L);
-        activeTickerTasks.put(tickerKey, task);
-      } catch (Exception e) {
-        // Fallback
+        if (task != null) {
+          activeTickerTasks.put(tickerKey, task);
+        }
+      } catch (RuntimeException e) {
+        plugin
+            .getLogger()
+            .warning(
+                "[" + scriptKey + "] Could not start the cooldown ticker for " + key + ": " + e);
       }
     } else {
       BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, ticker, 1L, 4L);
@@ -285,27 +306,37 @@ public class CooldownHelper {
     }
   }
 
-  private String renderProgressBar(double progress, int totalBars) {
+  private Component renderProgressBar(double progress, int totalBars) {
     int filled = (int) Math.round(progress * totalBars);
     filled = Math.max(0, Math.min(totalBars, filled));
     int empty = totalBars - filled;
-    return "§a" + "■".repeat(filled) + "§7" + "□".repeat(empty);
+    return Component.text("■".repeat(filled), NamedTextColor.GREEN)
+        .append(Component.text("□".repeat(empty), NamedTextColor.GRAY));
   }
 
   // ==========================================
   // Cleanup & Lifecycle
   // ==========================================
 
-  /** Purges all expired entries to guarantee zero memory leaks over long server uptimes. */
+  /** Remove every expired cooldown, including those of players who never come back. */
   public void purgeExpired() {
     long now = System.currentTimeMillis();
-    for (Map.Entry<UUID, Map<String, CooldownEntry>> pe : playerCooldowns.entrySet()) {
-      pe.getValue().entrySet().removeIf(e -> now >= e.getValue().expireTimeMillis);
-      if (pe.getValue().isEmpty()) {
-        playerCooldowns.remove(pe.getKey());
-      }
+    for (UUID uuid : playerCooldowns.keySet()) {
+      playerCooldowns.computeIfPresent(
+          uuid,
+          (id, cooldowns) -> {
+            cooldowns.values().removeIf(e -> now >= e.expireTimeMillis);
+            return cooldowns.isEmpty() ? null : cooldowns;
+          });
     }
-    globalCooldowns.entrySet().removeIf(e -> now >= e.getValue().expireTimeMillis);
+    globalCooldowns.values().removeIf(e -> now >= e.expireTimeMillis);
+  }
+
+  private void purgeIfDue(long now) {
+    long last = lastPurge.get();
+    if (now - last >= PURGE_INTERVAL_MILLIS && lastPurge.compareAndSet(last, now)) {
+      purgeExpired();
+    }
   }
 
   /** Clears all cooldowns and cancels all active ticker tasks. Called on script unload. */

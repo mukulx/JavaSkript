@@ -31,6 +31,7 @@ Complete reference for all JavaSkript APIs available to scripts.
 25. [TeamHelper & Teams (Team / Clan / Party Engine)](#teamhelper--teams-native-team--clan-engine)
 26. [MannequinHelper & Mannequins (Paper 1.21.11+ NPCs & Statues)](#mannequinhelper--mannequins-paper-12111-npcs--statues)
 27. [AdvancementHelper & Advancements (Paper 1.21.11+ Toasts & Custom Advancements)](#advancementhelper--advancements-paper-12111-toasts--custom-advancements)
+28. [ResourcePackHelper & ResourcePacks (Custom Textures, Models & Sounds)](#resourcepackhelper--resourcepacks-custom-textures-models--sounds)
 
 ---
 
@@ -2159,7 +2160,14 @@ modules:
     enabled: false
     mode: vault # vault | builtin | auto (Vault if present, else builtin)
     register-vault-service: false # builtin/auto only
+    currency:
+      symbol: "$"
+      name-singular: Coin
+      name-plural: Coins
+      starting-balance: 0.0
 ```
+
+A script can also supply the whole economy itself; see [Custom Economies](#6-custom-economies-replace-the-main-economy).
 
 ### Auto-Injection & Static Facade
 ```java
@@ -2211,8 +2219,9 @@ if (result.isSuccess()) {
 ```
 
 ### 4. Leaderboard (`Economy.getTopBalances`)
+Works with the built-in engine and with any custom provider that implements `getTopBalances`. Vault cannot list accounts, so it returns an empty list there.
 ```java
-// Get top 10 richest players on the server (when using built-in engine):
+// Get top 10 richest players on the server:
 List<Map.Entry<UUID, Double>> top = Economy.getTopBalances(10);
 for (Map.Entry<UUID, Double> entry : top) {
     OfflinePlayer p = Bukkit.getOfflinePlayer(entry.getKey());
@@ -2268,7 +2277,15 @@ public class GemsCurrencyProvider implements EconomyProvider {
 ```java
 // Register in your script's onEnable():
 economy.registerCurrency("gems", new GemsCurrencyProvider());
+
+// Look it up anywhere, or remove it again
+Economy.currency("gems").ifPresent(gems -> gems.deposit(player, 5));
+Economy.unregisterCurrency("gems");
 ```
+
+A currency a script registers is removed automatically when that script unloads or reloads, so register it again in `onEnable()`. A config reload (`/js reload`) keeps it.
+
+Set `modules.teams.bank.currency: gems` to make team banks use it.
 
 #### C. Multi-Balance Hybrid Transaction (Coins + Gems)
 Purchase an item requiring **both** $5,000 Coins AND 25 Gems with full rollback safety:
@@ -2309,6 +2326,23 @@ if (Economy.has(player, 10000.0)) {
     Players.msg(player, "<green>Converted $10,000 Coins into 10 Gems!");
 }
 ```
+
+### 6. Custom Economies (Replace the Main Economy)
+
+A script can provide the server's main economy. Implement `EconomyProvider` as in [section 5](#a-creating-a-custom-currency-provider), then:
+```java
+public void onEnable() {
+    economy.setProvider(new MyEconomy());
+}
+```
+
+From then on every economy call goes to it: `Economy.*`, the injected `EconomyHelper`, team banks and, if `register-vault-service` is on, every Vault plugin on the server. It works even with `modules.economy.enabled: false`.
+
+- `Economy.getProvider()` returns the provider in use, and `economy.hasCustomProvider()` reports whether one is set.
+- `economy.resetProvider()` returns to the economy in `config.yml`.
+- The provider is removed automatically when the script that defined it unloads, so a reload never leaves calls going to unloaded code. Set it again in `onEnable()`.
+- Override `getTopBalances(int limit)` to support leaderboards.
+- Store balances somewhere persistent (the [DatabaseHelper](#databasehelper), a file, ...); JavaSkript does not save a custom provider's data.
 
 ---
 
@@ -2630,14 +2664,21 @@ http.request("https://api.example.com/v1/punish")
     .bearerAuth("my-secret-token")
     .bodyJson(Map.of("target", target.getName(), "reason", "Kicked"))
     .timeout(Duration.ofSeconds(5))
-    .onError(ex -> getLogger().warning("HTTP request failed: " + ex.getMessage()))
+    .onError(ex -> Bukkit.getLogger().warning("HTTP request failed: " + ex.getMessage()))
     .send((code, response) -> {
-        getLogger().info("Response code: " + code);
+        Bukkit.getLogger().info("Response code: " + code);
     });
 ```
 
 ### 3. Server-Scheduler Safe Callbacks (`sendGlobal` & `getGlobal`)
-By default, callbacks passed to `send(...)` and `sendJson(...)` are safely dispatched back onto the server's global scheduler (Paper main thread / Folia global region scheduler).
+Every callback runs on the server's global scheduler (Paper main thread / Folia global region): `send(...)`, `sendJson(...)`, `sendGlobal(...)`, `onError(...)` and webhook results.
+
+When a request fails:
+- The future from `sendAsync()`, `http.get/post/put/delete(...)` completes exceptionally instead of with `null`, so use `.exceptionally(...)` or `.whenComplete(...)` on it.
+- `onError(...)` or the failure callback of `sendGlobal(...)` is called. A failed JSON parse in `sendJson(...)` also goes there.
+- With neither, the failure is logged with only the host name, since URLs such as webhooks can contain tokens.
+
+When the script unloads, callbacks of requests still in flight are dropped, so a late response never runs old code.
 
 You can also use explicit global callbacks:
 ```java
@@ -2651,7 +2692,7 @@ http.request("https://api.example.com/players/stats")
     .GET()
     .sendGlobal(
         response -> player.sendMessage("Stats: " + response.body()),
-        error -> getLogger().warning("Failed to fetch stats: " + error.getMessage())
+        error -> Bukkit.getLogger().warning("Failed to fetch stats: " + error.getMessage())
     );
 ```
 
@@ -2659,91 +2700,134 @@ http.request("https://api.example.com/players/stats")
 
 ## TeamHelper & Teams (Native Team / Clan Engine)
 
-JavaSkript provides a built-in, zero-boilerplate Team, Clan, and Party system backed by SQLite persistence with WAL mode and in-memory caches.
+A built-in team, clan and party system. Teams are kept in memory and saved to `data/teams.db` (SQLite) in the background.
 
 ### Features
-- O(1) in-memory teammate checks (`areTeammates(p1, p2)`), ideal for high-frequency PvP events.
-- Hierarchical role system: `LEADER`, `CAPTAIN`, `MEMBER`.
-- Built-in friendly fire prevention.
-- Team bank account, team private chat, and waypoint home teleportation.
-- Seamless visual integration: Vanilla tab list and Paper scoreboard nametag support.
-- TAB Plugin by NEZNAMY compatibility via built-in PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, etc.).
-- Prefixes and suffixes are empty by default; they only display when explicitly configured.
-- Comprehensive Bukkit event pipeline for third-party plugins and scripts.
+- O(1) teammate checks (`areTeammates(p1, p2)`), cheap enough for every PvP hit.
+- Roles: `LEADER`, `CAPTAIN`, `MEMBER`.
+- Built-in friendly fire protection, team chat, a shared bank and a team home.
+- Tab list names and PlaceholderAPI placeholders (`%javaskript_team%`, `%javaskript_team_prefix%`, `%javaskript_team_tag%`, ...) for TAB and scoreboard plugins.
+- Every player-facing message is configurable in `messages.yml` under `teams:`.
+- Bukkit events for every change, most of them cancellable.
+
+### Configuration (`config.yml`)
+```yaml
+modules:
+  teams:
+    enabled: true
+    register-command: true # /team, /clan, /party, /t
+    defaults:
+      max-size: 0 # 0 = unlimited
+      friendly-fire: false
+      open: false # true = join without invite
+    bank:
+      currency: "" # empty = main economy; or a currency a script registered, e.g. "gems"
+    tab:
+      enabled: true
+      vanilla-scoreboard: auto # auto (only without TAB plugin) | always | never
+      player-format: "{prefix}{player}{suffix}" # also {tag} {team} {role}
+```
 
 ### Accessing Teams
 ```java
-// Method 1: Field injection
-@Inject private TeamHelper teams;
+// Option A: injected into any script field of this type
+private TeamHelper teams;
 
-// Method 2: Static 1-line facade
+// Option B: static facade, usable anywhere
 Teams.areTeammates(player1, player2);
 ```
 
-### Core API Examples
+### Roles
 
-#### 1. Friendly Fire Blocker (PvP Listener)
-```java
-@EventHandler
-public void onPvP(EntityDamageByEntityEvent event) {
-    if (event.getDamager() instanceof Player damager && event.getEntity() instanceof Player victim) {
-        if (Teams.areTeammates(damager, victim) && !Teams.get(damager).get().isFriendlyFireEnabled()) {
-            event.setCancelled(true);
-            Players.actionbar(damager, "<red>You cannot hurt teammates!</red>");
-        }
-    }
-}
-```
+| Action | Member | Captain | Leader |
+|---|---|---|---|
+| Deposit into the bank | ✔ | ✔ | ✔ |
+| Invite, set home, change settings, withdraw | | ✔ | ✔ |
+| Kick | | lower roles only | lower roles only |
+| Disband, transfer leadership | | | ✔ |
 
-#### 2. Creating and Managing Teams
+`TeamRole` exposes these checks (`canInvite()`, `canKick(target)`, `canWithdraw()`, ...). The `/team` command enforces them; the API methods do not, so scripts decide who may do what.
+
+### Creating and Managing Teams
 ```java
-// Create a new team
 Team team = Teams.create("dragons", "The Dragons", leaderPlayer);
 
-// Configure visuals (empty by default)
-team.setTag("[DRG]");
-team.setPrefix("<gold>[DRG] </gold>");
-Teams.save(team);
-
-// Add and kick members
 Teams.addMember(team, targetPlayer, TeamRole.MEMBER);
 Teams.kick(team, targetPlayer, kickerPlayer, "Inactivity");
-
-// Disband team
+Teams.setRole(team, member.getUniqueId(), TeamRole.CAPTAIN, actor.getUniqueId());
+Teams.transferLeadership(team, newLeader.getUniqueId(), oldLeader.getUniqueId());
+Teams.rename(team, "Sky Dragons", actor.getUniqueId());
 Teams.disband(team);
 ```
 
-#### 3. Team Chat Channel
+Setting a member's role to `LEADER` with `setRole` transfers leadership; the old leader becomes a captain. The current leader's role can only change through a transfer, so a team never has two leaders or none.
+
+### Changing a Team Directly
+Change any field on the `Team` object, then call `save`. It writes the team to disk and refreshes its members' tab names:
 ```java
-@Command("tc")
-public void onTeamChat(Player player, String[] args) {
-    String msg = String.join(" ", args);
-    Teams.sendTeamChat(player, msg);
+team.setTag("[DRG]");
+team.setPrefix("<gold>[DRG] </gold>");
+team.setColor(NamedTextColor.GOLD);
+team.setMaxSize(10);
+team.setOpen(true);
+team.setFriendlyFire(false);
+Teams.save(team);
+```
+
+### Custom Team Data (Metadata)
+Attach your own data to a team. It is saved with the team as text, so after a restart every value comes back as a `String`:
+```java
+team.setMetadata("kills", 42);
+Teams.save(team);
+
+// After a restart
+int kills = Integer.parseInt(String.valueOf(team.getMetadata("kills")));
+```
+
+### Team Chat
+```java
+Teams.sendTeamChat(player, "Meet at the base");
+```
+The format is `teams.chat-format` in `messages.yml`. It supports `<role>`, `<player>`, `<team>`, `<tag>` and `<message>`; player text cannot inject formatting.
+
+### Team Bank
+```java
+Teams.deposit(team, player, 250.0);  // takes the money from the player
+Teams.withdraw(team, player, 100.0); // pays the player out of the bank
+```
+- The bank uses the main economy, or the currency named in `modules.teams.bank.currency`. That can be a currency a script registers, so a team bank can hold gems, tokens or anything else (see [Custom Economies](#6-custom-economies-replace-the-main-economy)).
+- If the configured currency is not registered, deposits and withdrawals are refused instead of creating money.
+- With no economy at all, the bank keeps its own balance like a points pool.
+- Amounts in messages are formatted by that currency (`Teams.getBankEconomy()`, `TeamHelper.formatBank(amount)`).
+- `TeamBankTransactionEvent` can change the amount or cancel the transaction.
+
+### Team Home
+```java
+Teams.setHome(team, player.getLocation());
+Teams.teleportHome(team, player); // async teleport, works on Folia
+```
+
+### Bukkit Events
+Listen to these from scripts or plugins (`dev.mukulx.javaskript.event.team`):
+- `TeamCreateEvent` (cancellable)
+- `TeamDisbandEvent` (cancellable)
+- `TeamJoinEvent` (cancellable)
+- `TeamLeaveEvent`
+- `TeamKickEvent` (cancellable)
+- `TeamRenameEvent` (cancellable, can change the new name)
+- `TeamRoleChangeEvent` (cancellable, can change the new role). A leadership transfer fires one for each member.
+- `TeamDamageTeammateEvent` (cancellable; cancel it to allow the hit despite friendly fire being off)
+- `TeamChatEvent` (cancellable, can change message and recipients)
+- `TeamBankTransactionEvent` (cancellable, can change the amount)
+
+```java
+@EventHandler
+public void onRename(TeamRenameEvent event) {
+    if (event.getNewName().length() > 16) {
+        event.setCancelled(true);
+    }
 }
 ```
-
-#### 4. Team Bank & Waypoints
-```java
-// Shared bank deposit & withdraw
-Teams.deposit(team, player, 250.0);
-Teams.withdraw(team, player, 100.0);
-
-// Waypoint home
-Teams.setHome(team, player.getLocation());
-Teams.teleportHome(team, player);
-```
-
-#### 5. Bukkit Events
-Scripts and plugins can listen to native team events:
-- `TeamCreateEvent` (Cancellable)
-- `TeamDisbandEvent` (Cancellable)
-- `TeamJoinEvent` (Cancellable)
-- `TeamLeaveEvent`
-- `TeamKickEvent` (Cancellable)
-- `TeamRoleChangeEvent` (Cancellable)
-- `TeamDamageTeammateEvent` (Cancellable)
-- `TeamChatEvent` (Cancellable)
-- `TeamBankTransactionEvent` (Cancellable)
 
 ---
 
@@ -3003,6 +3087,120 @@ When a script unloads or reloads:
 
 ---
 
+## ResourcePackHelper & ResourcePacks (Custom Textures, Models & Sounds)
+
+Scripts ship resource packs without any external hosting. JavaSkript builds each pack in memory, serves it from a small built-in HTTP server and sends it to every player who joins. Every script can have its own packs: players receive all of them in a single prompt, and each pack is downloaded only once until its content changes.
+
+### Configuration (`config.yml`)
+```yaml
+modules:
+  resource-packs:
+    enabled: true
+    port: 8163           # HTTP port packs are downloaded from; open it in your firewall
+    bind-address: ""     # empty = all interfaces
+    public-address: ""   # empty = the address players joined with
+    required: false      # default for packs that do not say
+    prompt: "<gray>This server uses a resource pack for its custom content.</gray>"
+```
+
+- The HTTP server only starts once a script registers a pack that needs hosting, so servers that never use packs open no port.
+- Players download from the address they typed to join (e.g. `play.example.com:8163`). Behind a proxy such as Velocity, or when the HTTP port is forwarded differently, set `public-address` to a host (`play.example.com`, the port is added) or a full URL (`https://packs.example.com`, e.g. through a reverse proxy).
+- `/js configreload` applies changes; online players get the packs again from the new address.
+- The kick message for a required pack is `resource-packs.required-failed` in `messages.yml`.
+
+### Accessing Resource Packs
+```java
+// In scripts: injected, and every pack is removed when the script unloads
+private ResourcePackHelper resourcePacks;
+
+// In plugins and addons: unregister your packs yourself in onDisable()
+ResourcePacks.builder(myPlugin, "main")...register();
+ResourcePacks.unregister("MyPlugin:main");
+```
+
+Relative paths resolve against `plugins/JavaSkript/resourcepacks/`.
+
+### 1. Existing Packs (Folder, Zip or URL)
+```java
+public void onEnable() {
+    resourcePacks.fromFolder("main", "my-pack");          // resourcepacks/my-pack/assets/...
+    resourcePacks.fromZip("ui", "ui-pack.zip");           // resourcepacks/ui-pack.zip
+    resourcePacks.external("music", "https://cdn.example.com/music.zip",
+        "4f1c...e2a9");                                    // hosted elsewhere, SHA-1 of the zip
+    resourcePacks.external("lobby", "https://cdn.example.com/lobby.zip")
+        .thenAccept(pack -> Bukkit.getLogger().info("Hashed " + pack.getHash())); // hashed for you
+}
+```
+
+### 2. Custom Items (2D Textures)
+Since Minecraft 1.21.4 any item can use any model through its `item_model` component, so custom items no longer need `CustomModelData`:
+```java
+ResourcePack pack = resourcePacks.create("weapons")
+    .itemModel("ruby", Path.of("weapons/ruby.png"))                    // flat item
+    .handheldItemModel("ruby_sword", Path.of("weapons/ruby_sword.png")) // held like a sword
+    .register();
+
+ItemStack sword = pack.applyModel(new ItemStack(Material.DIAMOND_SWORD), "ruby_sword");
+// or: meta.setItemModel(pack.itemModel("ruby_sword"));
+```
+The builder writes the texture, the model and the item definition (`assets/<namespace>/items/<name>.json`) for you.
+
+### 3. 3D Models (Blockbench)
+Export a model from Blockbench as **Java Block/Item**, add the textures it uses, and make the model refer to them as `<namespace>:<path>`:
+```java
+ResourcePack pack = resourcePacks.create("props")
+    .namespace("props")                                   // set before adding files
+    .texture("item/hammer", Path.of("props/hammer.png"))  // props:item/hammer
+    .itemModel3d("hammer", Path.of("props/hammer.json"))
+    .register();
+
+pack.applyModel(item, "hammer");
+```
+
+### 4. Textures, Sounds and Any Other File
+```java
+resourcePacks.create("extras")
+    .texture("gui/badge", Path.of("extras/badge.png"))
+    .sound("boom", Path.of("extras/boom.ogg"))            // sounds.json is generated
+    .file("assets/minecraft/lang/en_us.json", "{\"item.minecraft.emerald\":\"Gem\"}")
+    .file("assets/minecraft/textures/block/stone.png", Path.of("extras/stone.png"))
+    .register();
+
+pack.playSound(player, "boom", 1f, 1f);                   // or "<namespace>:boom"
+```
+Sources can be combined: start from `.folder(...)` or `.zip(...)` and add or replace files on top. A `pack.mcmeta` is generated unless the pack has one.
+
+### 5. Builder Options
+
+| Method | Purpose |
+|---|---|
+| `description(text)` | Text in the client's pack list |
+| `namespace(ns)` | Namespace for textures, models and sounds; defaults to the script name. Call it first |
+| `priority(n)` | Higher priority packs are applied on top and win when two packs change the same file |
+| `required(bool)` | Players must accept it or are disconnected; defaults to `required` in config.yml |
+| `packFormat(min, max)` | Pack format range; defaults to 75 (1.21.11). Raise `max` for newer clients |
+| `onLoaded(player -> ...)` | Runs when a player has applied the pack |
+| `onFailed((player, status) -> ...)` | Runs when a player declines it or it fails to download |
+
+`register()` validates everything and throws `IllegalArgumentException` with a clear message for a bad name, a path outside the pack, a file that is not a PNG or OGG, invalid JSON, or a pack over the client's 250 MiB limit.
+
+### 6. Player State
+```java
+resourcePacks.isLoaded(player, pack);   // true once applied
+resourcePacks.getStatus(player, pack);  // last PlayerResourcePackStatusEvent.Status
+resourcePacks.resend(player);           // send every pack again, e.g. after declining
+```
+`PlayerResourcePackStatusEvent#getID()` equals `pack.getUniqueId()`.
+
+### 7. Several Scripts, Several Packs
+- Each pack is sent on its own, so packs from different scripts never overwrite each other's files unless they use the same namespace and path. Use `priority` when two packs change the same vanilla file on purpose.
+- If some packs are required and others are not, required ones are sent in one prompt and optional ones in a second.
+- Pack ids are `<owner>:<name>`, so two scripts may both name a pack `main`.
+- When a script reloads, its packs stay on players for two seconds. If it registers them again unchanged, nobody downloads anything; if they changed, players get the new version.
+- When a script unloads for good, its packs are removed from online players.
+
+---
+
 ## Best Practices
 
 1. **Always check for null** - Especially in event handlers
@@ -3023,4 +3221,4 @@ When a script unloads or reloads:
 
 ---
 
-**Last Updated:** 2026-08-31
+**Last Updated:** 2026-10-17

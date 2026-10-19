@@ -169,9 +169,24 @@ class ScriptLoadingTest {
     @ScriptCommand("Fly")
     class Named {}
     class HealCommand {}
+    class RecommendCommand {}
 
     assertEquals("fly", ScriptListeners.commandName(Named.class));
     assertEquals("heal", ScriptListeners.commandName(HealCommand.class));
+    assertEquals("recommend", ScriptListeners.commandName(RecommendCommand.class));
+  }
+
+  @Test
+  void failedReloadKeepsThePreviousVersionRunning() throws Exception {
+    File script = write("Flaky.java", "public class Flaky { public void onEnable() {} }");
+    assertTrue(manager.loadScript(script));
+
+    write(
+        "Flaky.java",
+        "public class Flaky { public void onEnable() { throw new IllegalStateException(); } }");
+
+    assertFalse(manager.loadScript(script));
+    assertNotNull(manager.getScript("Flaky"));
   }
 
   @Test

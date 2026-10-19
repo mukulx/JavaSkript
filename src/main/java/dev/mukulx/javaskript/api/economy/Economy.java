@@ -121,7 +121,27 @@ public final class Economy {
     get().registerCurrency(name, provider);
   }
 
-  /** Get top richest players if using built-in engine. */
+  /** Remove a registered currency. */
+  public static boolean unregisterCurrency(String name) {
+    return get().unregisterCurrency(name);
+  }
+
+  /** Replace the main economy with a custom provider. See {@link EconomyHelper#setProvider}. */
+  public static void setProvider(EconomyProvider provider) {
+    get().setProvider(provider);
+  }
+
+  /** Go back to the economy configured in config.yml. */
+  public static void resetProvider() {
+    get().resetProvider();
+  }
+
+  /** The provider every economy call currently goes to. */
+  public static EconomyProvider getProvider() {
+    return get().getProvider();
+  }
+
+  /** Richest accounts of the active provider; empty when it cannot list them (e.g. Vault). */
   public static List<Map.Entry<UUID, Double>> getTopBalances(int limit) {
     return get().getTopBalances(limit);
   }

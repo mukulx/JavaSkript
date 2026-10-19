@@ -2,6 +2,7 @@ package dev.mukulx.javaskript.api.economy;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import net.milkbowl.vault.economy.AbstractEconomy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
@@ -14,10 +15,14 @@ import org.bukkit.OfflinePlayer;
 @SuppressWarnings("deprecation")
 public class JavaSkriptVaultHook extends AbstractEconomy {
 
-  private final BuiltinEconomyProvider provider;
+  private final Supplier<EconomyProvider> source;
 
-  public JavaSkriptVaultHook(BuiltinEconomyProvider provider) {
-    this.provider = provider;
+  public JavaSkriptVaultHook(EconomyProvider provider) {
+    this(() -> provider);
+  }
+
+  public JavaSkriptVaultHook(Supplier<EconomyProvider> source) {
+    this.source = source;
   }
 
   @Override
@@ -42,17 +47,17 @@ public class JavaSkriptVaultHook extends AbstractEconomy {
 
   @Override
   public String format(double amount) {
-    return provider.format(amount);
+    return source.get().format(amount);
   }
 
   @Override
   public String currencyNamePlural() {
-    return provider.getCurrencyPlural();
+    return source.get().getCurrencyPlural();
   }
 
   @Override
   public String currencyNameSingular() {
-    return provider.getCurrencySingular();
+    return source.get().getCurrencySingular();
   }
 
   @Override
@@ -86,7 +91,7 @@ public class JavaSkriptVaultHook extends AbstractEconomy {
   @Override
   public double getBalance(OfflinePlayer player) {
     if (player == null) return 0.0;
-    return provider.getBalance(player.getUniqueId());
+    return source.get().getBalance(player.getUniqueId());
   }
 
   @Override
@@ -136,7 +141,7 @@ public class JavaSkriptVaultHook extends AbstractEconomy {
       return new EconomyResponse(
           0, 0, EconomyResponse.ResponseType.FAILURE, "Player cannot be null");
     }
-    EconomyResult res = provider.withdraw(player.getUniqueId(), amount);
+    EconomyResult res = source.get().withdraw(player.getUniqueId(), amount);
     if (res.isSuccess()) {
       return new EconomyResponse(
           res.getAmount(), res.getBalance(), EconomyResponse.ResponseType.SUCCESS, null);
@@ -173,7 +178,7 @@ public class JavaSkriptVaultHook extends AbstractEconomy {
       return new EconomyResponse(
           0, 0, EconomyResponse.ResponseType.FAILURE, "Player cannot be null");
     }
-    EconomyResult res = provider.deposit(player.getUniqueId(), amount);
+    EconomyResult res = source.get().deposit(player.getUniqueId(), amount);
     if (res.isSuccess()) {
       return new EconomyResponse(
           res.getAmount(), res.getBalance(), EconomyResponse.ResponseType.SUCCESS, null);

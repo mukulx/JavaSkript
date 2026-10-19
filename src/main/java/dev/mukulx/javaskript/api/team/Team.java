@@ -291,6 +291,10 @@ public class Team {
     return false;
   }
 
+  /**
+   * Custom data scripts attach to the team. It is saved with the team as text, so after a restart
+   * every value comes back as a {@code String}.
+   */
   public Map<String, Object> getMetadata() {
     return metadata;
   }

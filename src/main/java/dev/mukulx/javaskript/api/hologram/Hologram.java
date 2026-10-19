@@ -45,6 +45,7 @@ public class Hologram {
   // Auto update task
   private BukkitTask bukkitTask = null;
   private Object foliaTask = null;
+  private long updateTicks = 0;
 
   public Hologram(JavaSkriptPlugin plugin, Location location) {
     this.plugin = plugin;
@@ -378,18 +379,25 @@ public class Hologram {
   /** Auto-update dynamic text lines every {@code ticks}. */
   public Hologram updateInterval(long ticks) {
     stopUpdateTask();
+    this.updateTicks = ticks;
     if (ticks > 0) {
       if (ServerUtil.isFolia()) {
         try {
-          this.foliaTask =
-              Bukkit.getGlobalRegionScheduler()
-                  .runAtFixedRate(
-                      plugin,
-                      task -> {
-                        update();
-                      },
-                      ticks,
-                      ticks);
+          // Lines are entities owned by the region at the hologram, not the global region
+          if (location == null || location.getWorld() == null) {
+            plugin.debug("Hologram has no location yet; dynamic lines will not auto-update");
+          } else {
+            this.foliaTask =
+                Bukkit.getRegionScheduler()
+                    .runAtFixedRate(
+                        plugin,
+                        location,
+                        task -> {
+                          update();
+                        },
+                        ticks,
+                        ticks);
+          }
         } catch (Exception e) {
           plugin.debug("Could not schedule Folia hologram update task: " + e.getMessage());
         }
@@ -456,6 +464,10 @@ public class Hologram {
     if (newLocation == null) return;
     this.location = newLocation.clone();
     reposition();
+    if (foliaTask != null) {
+      // Follow the hologram to the region that now owns its lines
+      updateInterval(updateTicks);
+    }
   }
 
   public void update() {

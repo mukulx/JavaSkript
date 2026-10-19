@@ -1,9 +1,13 @@
 package dev.mukulx.javaskript.api.command;
 
+import dev.mukulx.javaskript.util.TextUtil;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -11,10 +15,15 @@ import org.bukkit.entity.Player;
 /** Builder for subcommands and nested arguments. */
 public class SubcommandBuilder {
 
+  private static final Component PLAYERS_ONLY =
+      Component.text("Only players can execute this command.", NamedTextColor.RED);
+  private static final Component CONSOLE_ONLY =
+      Component.text("This command can only be executed from console.", NamedTextColor.RED);
+
   protected final String name;
   protected String description = "";
   protected String permission = null;
-  protected String permissionMessage = "§cYou do not have permission to execute this command.";
+  protected String permissionMessage = "&cYou do not have permission to execute this command.";
   protected final List<CommandArgument<?>> arguments = new ArrayList<>();
   protected final Map<String, SubcommandBuilder> subcommands = new LinkedHashMap<>();
   protected CommandCallback callback = null;
@@ -90,7 +99,7 @@ public class SubcommandBuilder {
     this.callback =
         (sender, ctx) -> {
           if (!(sender instanceof Player p)) {
-            sender.sendMessage(Component.text("§cOnly players can execute this command."));
+            sender.sendMessage(PLAYERS_ONLY);
             return;
           }
           callback.execute(p, ctx);
@@ -103,7 +112,7 @@ public class SubcommandBuilder {
     this.callback =
         (sender, ctx) -> {
           if (!(sender instanceof ConsoleCommandSender c)) {
-            sender.sendMessage(Component.text("§cThis command can only be executed from console."));
+            sender.sendMessage(CONSOLE_ONLY);
             return;
           }
           callback.execute(c, ctx);
@@ -120,17 +129,17 @@ public class SubcommandBuilder {
     if (args == null) args = new String[0];
 
     if (permission != null && !permission.isEmpty() && !sender.hasPermission(permission)) {
-      sender.sendMessage(Component.text(permissionMessage));
+      sender.sendMessage(TextUtil.legacy(permissionMessage));
       return true;
     }
 
     if (playerOnly && !(sender instanceof Player)) {
-      sender.sendMessage(Component.text("§cOnly players can execute this command."));
+      sender.sendMessage(PLAYERS_ONLY);
       return true;
     }
 
     if (consoleOnly && !(sender instanceof ConsoleCommandSender)) {
-      sender.sendMessage(Component.text("§cThis command can only be executed from console."));
+      sender.sendMessage(CONSOLE_ONLY);
       return true;
     }
 
@@ -166,7 +175,7 @@ public class SubcommandBuilder {
           Object val = currentArg.parse(sender, greedy.toString());
           parsed.put(currentArg.getName().toLowerCase(), val);
         } catch (CommandArgumentException e) {
-          sender.sendMessage(Component.text("§c" + e.getMessage()));
+          sender.sendMessage(Component.text(e.getMessage(), NamedTextColor.RED));
           return true;
         }
         argIndex++;
@@ -176,7 +185,7 @@ public class SubcommandBuilder {
           Object val = currentArg.parse(sender, args[i]);
           parsed.put(currentArg.getName().toLowerCase(), val);
         } catch (CommandArgumentException e) {
-          sender.sendMessage(Component.text("§c" + e.getMessage()));
+          sender.sendMessage(Component.text(e.getMessage(), NamedTextColor.RED));
           return true;
         }
         argIndex++;
@@ -188,7 +197,8 @@ public class SubcommandBuilder {
       CommandArgument<?> missing = arguments.get(a);
       if (!missing.isOptional()) {
         sender.sendMessage(
-            Component.text("§cMissing required argument: <" + missing.getName() + ">"));
+            Component.text(
+                "Missing required argument: <" + missing.getName() + ">", NamedTextColor.RED));
         sendUsage(sender, label);
         return true;
       }
@@ -200,9 +210,10 @@ public class SubcommandBuilder {
       try {
         callback.execute(sender, ctx);
       } catch (Exception e) {
+        Bukkit.getLogger().log(Level.SEVERE, "Error executing /" + label, e);
         sender.sendMessage(
-            Component.text("§cAn error occurred executing this command: " + e.getMessage()));
-        e.printStackTrace();
+            Component.text(
+                "An error occurred while executing /" + label + ".", NamedTextColor.RED));
       }
       return true;
     }
@@ -267,7 +278,9 @@ public class SubcommandBuilder {
   protected void sendUsage(CommandSender sender, String label) {
     if (!subcommands.isEmpty()) {
       sender.sendMessage(
-          Component.text("§eAvailable subcommands: §f" + String.join(", ", subcommands.keySet())));
+          Component.text("Available subcommands: ", NamedTextColor.YELLOW)
+              .append(
+                  Component.text(String.join(", ", subcommands.keySet()), NamedTextColor.WHITE)));
     }
   }
 

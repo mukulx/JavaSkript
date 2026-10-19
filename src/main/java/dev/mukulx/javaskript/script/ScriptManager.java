@@ -47,6 +47,8 @@ public class ScriptManager {
   private final Map<String, CachedScript> compilationCache;
   // Bumped on every load and unload so an async load can tell its result is outdated
   private final Map<String, AtomicInteger> loadGenerations = new ConcurrentHashMap<>();
+  // What each running script was started from, to bring it back if a reload fails to enable
+  private final Map<String, ActiveVersion> activeVersions = new ConcurrentHashMap<>();
   private final ExecutorService compileExecutor;
   private final Consumer<Runnable> serverThread;
 
@@ -522,6 +524,10 @@ public class ScriptManager {
   private record Prepared(
       String key, File file, String source, long lastModified, List<String> dependencies) {}
 
+  /** The inputs a running script was activated from. */
+  private record ActiveVersion(
+      Prepared prepared, Map<String, byte[]> classes, List<File> dependencies) {}
+
   /**
    * Load or reload a script on the calling (server) thread, blocking while it compiles. Returns
    * whether the script is now running. Use {@link #loadScriptAsync} where a compile should not
@@ -914,6 +920,7 @@ public class ScriptManager {
 
       // Do not take a running script down for a bad edit. Compilation and class validation have
       // completed successfully; only now is it safe to replace the active instance.
+      ActiveVersion previous = isReload ? activeVersions.get(scriptKey) : null;
       if (isReload) {
         unloadScript(scriptKey, true);
       }
@@ -923,10 +930,18 @@ public class ScriptManager {
       if (!instance.initialize()) {
         plugin.getLogger().severe("Failed to initialize script: " + scriptKey);
         classLoader.unloadAll();
+        if (previous != null) {
+          // The old instance is already gone, so start the version that was running before
+          plugin.getLogger().warning("Restoring the previous version of " + scriptKey);
+          if (!activate(previous.prepared(), previous.classes(), previous.dependencies())) {
+            plugin.getLogger().severe("Could not restore the previous version of " + scriptKey);
+          }
+        }
         return false;
       }
 
       loadedScripts.put(scriptKey, instance);
+      activeVersions.put(scriptKey, new ActiveVersion(prepared, compiledClasses, dependencyFiles));
       plugin.getLogger().info("Loaded: " + scriptKey);
 
       // Fire lifecycle events for external plugins and addons
@@ -985,6 +1000,7 @@ public class ScriptManager {
       pendingDependencies.remove(scriptKey);
       if (!keepCompilationCache) {
         compilationCache.remove(scriptKey);
+        activeVersions.remove(scriptKey);
       }
       plugin.debug("Unloaded script: " + scriptKey);
       return true;
@@ -1309,6 +1325,8 @@ public class ScriptManager {
       "SharedVariablesAndEventsExample.java",
       "HttpAndDiscordExample.java",
       "MannequinExample.java",
+      "AdvancementExample.java",
+      "ResourcePackExample.java",
     };
 
     File examplesDir = new File(scriptsFolder, "examples");

@@ -1,8 +1,11 @@
 package dev.mukulx.javaskript.api.gui;
 
+import dev.mukulx.javaskript.JavaSkriptPlugin;
+import dev.mukulx.javaskript.util.ServerUtil;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -74,6 +77,34 @@ public class GUIManager implements Listener {
       }
     }
     openGUIs.clear();
+  }
+
+  /**
+   * Close the menus whose handlers belong to an unloading script. They are unregistered first, so
+   * neither their click nor their close handlers run again.
+   */
+  public static void closeMenusOf(ClassLoader scriptLoader) {
+    for (Map.Entry<UUID, GUI> entry : openGUIs.entrySet()) {
+      GUI gui = entry.getValue();
+      if (!gui.hasHandlersFrom(scriptLoader) || !openGUIs.remove(entry.getKey(), gui)) {
+        continue;
+      }
+      Player player = Bukkit.getPlayer(entry.getKey());
+      if (player == null) {
+        continue;
+      }
+      Runnable close =
+          () -> {
+            if (player.getOpenInventory().getTopInventory().equals(gui.getInventory())) {
+              player.closeInventory();
+            }
+          };
+      if (ServerUtil.isFolia()) {
+        ServerUtil.runForPlayer(JavaSkriptPlugin.getInstance(), player, close);
+      } else {
+        close.run();
+      }
+    }
   }
 
   @EventHandler

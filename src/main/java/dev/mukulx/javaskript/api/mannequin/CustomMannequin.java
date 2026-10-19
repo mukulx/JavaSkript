@@ -1149,6 +1149,11 @@ public class CustomMannequin {
     if (targetLocation == null) return false;
     this.location = targetLocation.clone();
     if (spawned && entity != null) {
+      if (dev.mukulx.javaskript.util.ServerUtil.isFolia()) {
+        // Folia rejects sync teleports; the outcome is only known later, use teleportAsync for it
+        entity.teleportAsync(targetLocation);
+        return true;
+      }
       return entity.teleport(targetLocation);
     }
     return true;

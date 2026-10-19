@@ -114,9 +114,9 @@ public class FirstJoinScript implements Listener {
                 new org.bukkit.inventory.ItemStack(org.bukkit.Material.BREAD, 16)
             );
             
-            // Teleport to spawn
+            // Teleport to spawn (Folia only supports async teleports)
             var spawn = player.getWorld().getSpawnLocation();
-            player.teleport(spawn);
+            player.teleportAsync(spawn);
         }
     }
 }
@@ -222,11 +222,11 @@ public class TeleportCommand implements CommandExecutor, TabCompleter {
         }
         
         if (args.length == 0) {
-            player.sendMessage(Component.text("Usage: /tp <player>").color(NamedTextColor.RED));
+            player.sendMessage(Component.text("Usage: /" + label + " <player>").color(NamedTextColor.RED));
             return true;
         }
         
-        Player target = Bukkit.getPlayer(args[0]);
+        Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
             player.sendMessage(Component.text("Player not found!").color(NamedTextColor.RED));
             return true;
@@ -237,10 +237,14 @@ public class TeleportCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        player.teleport(target.getLocation());
-        player.sendMessage(
-            Component.text("Teleported to " + target.getName() + "!").color(NamedTextColor.GREEN)
-        );
+        // Folia only supports async teleports
+        player.teleportAsync(target.getLocation()).thenAccept(success -> {
+            if (success) {
+                player.sendMessage(
+                    Component.text("Teleported to " + target.getName() + "!").color(NamedTextColor.GREEN)
+                );
+            }
+        });
         
         return true;
     }

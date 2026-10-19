@@ -55,9 +55,11 @@ public class DynamicCommandRegistry {
                       "Unhandled exception in command /" + commandName + ": " + t.getMessage(),
                       t);
               if (sender != null) {
+                // The details stay in the console; they can expose paths or queries to players
                 sender.sendMessage(
                     net.kyori.adventure.text.Component.text(
-                        "§cAn error occurred while executing /" + label + ": " + t.getMessage()));
+                        "An error occurred while executing /" + label + ".",
+                        net.kyori.adventure.text.format.NamedTextColor.RED));
               }
               return true;
             }
@@ -93,7 +95,7 @@ public class DynamicCommandRegistry {
         command.setPermission(permission);
       }
       if (permissionMessage != null && !permissionMessage.isEmpty()) {
-        command.permissionMessage(net.kyori.adventure.text.Component.text(permissionMessage));
+        command.permissionMessage(dev.mukulx.javaskript.util.TextUtil.legacy(permissionMessage));
       }
       if (aliases != null && !aliases.isEmpty()) {
         command.setAliases(aliases);
@@ -135,59 +137,16 @@ public class DynamicCommandRegistry {
 
   public synchronized boolean registerCommand(
       String commandName, CommandExecutor executor, String... aliases) {
-    if (commandName == null || commandName.isEmpty() || executor == null) {
-      plugin.getLogger().warning("Cannot register command with null name or executor");
-      return false;
-    }
-
-    try {
-      Constructor<PluginCommand> constructor =
-          PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
-      constructor.setAccessible(true);
-
-      PluginCommand command = constructor.newInstance(commandName.toLowerCase(), plugin);
-      command.setExecutor(executor);
-
-      if (executor instanceof TabCompleter tabCompleter) {
-        command.setTabCompleter(tabCompleter);
-      }
-
-      if (aliases != null && aliases.length > 0) {
-        command.setAliases(Arrays.asList(aliases));
-      }
-
-      CommandMap commandMap = getCommandMap();
-      if (commandMap == null) {
-        plugin.getLogger().severe("Failed to get command map!");
-        return false;
-      }
-
-      unregisterCommandSilent(commandName);
-
-      boolean claimedLabel = commandMap.register(plugin.getName().toLowerCase(), command);
-
-      // The prefixed label is always registered, so track the command either way
-      registeredCommands.put(commandName.toLowerCase(), command);
-      if (!claimedLabel) {
-        plugin
-            .getLogger()
-            .warning(
-                "/"
-                    + commandName
-                    + " is already provided by another plugin and was left untouched. "
-                    + "The script command is available as /"
-                    + plugin.getName().toLowerCase()
-                    + ":"
-                    + commandName.toLowerCase());
-      }
-      plugin.debug("Dynamically registered command: /" + commandName);
-      syncCommands();
-      return true;
-
-    } catch (Exception e) {
-      plugin.getLogger().log(Level.SEVERE, "Error registering command: " + commandName, e);
-      return false;
-    }
+    // Same path as the full overload, so these commands get the same error isolation
+    return registerCommand(
+        commandName,
+        executor,
+        null,
+        null,
+        null,
+        null,
+        null,
+        aliases != null ? Arrays.asList(aliases) : null);
   }
 
   public synchronized boolean unregisterCommand(String commandName) {

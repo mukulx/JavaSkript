@@ -84,7 +84,8 @@ public class ItemHologramLine implements HologramLine {
   @Override
   public void teleport(Location location) {
     if (entity != null && entity.isValid()) {
-      entity.teleport(location);
+      // Folia only supports async teleports; on Paper this completes at once for loaded chunks
+      entity.teleportAsync(location);
     }
   }
 

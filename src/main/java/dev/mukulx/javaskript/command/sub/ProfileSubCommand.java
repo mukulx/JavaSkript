@@ -50,15 +50,7 @@ public class ProfileSubCommand extends SubCommand {
                   "   #%d [%s] %s :: %s",
                   rank++, rec.getCategory(), entry.getKey(), rec.getIdentifier());
           sender.sendMessage(Component.text(line).color(NamedTextColor.YELLOW));
-          String stats =
-              String.format(
-                  "      Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
-                  rec.getCount(),
-                  rec.getStatusColor(),
-                  rec.getFormattedAverage(),
-                  rec.getFormattedMax(),
-                  rec.getFormattedTotal());
-          sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+          sender.sendMessage(stats("      ", rec));
         }
       } else {
         sender.sendMessage(
@@ -158,15 +150,7 @@ public class ProfileSubCommand extends SubCommand {
                 "  #%d [%s] %s :: %s", rank++, rec.getCategory(), scriptKey, rec.getIdentifier());
         sender.sendMessage(Component.text(line).color(NamedTextColor.YELLOW));
 
-        String stats =
-            String.format(
-                "     Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
-                rec.getCount(),
-                rec.getStatusColor(),
-                rec.getFormattedAverage(),
-                rec.getFormattedMax(),
-                rec.getFormattedTotal());
-        sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+        sender.sendMessage(stats("     ", rec));
       }
       return;
     }
@@ -197,15 +181,7 @@ public class ProfileSubCommand extends SubCommand {
     for (dev.mukulx.javaskript.profiler.ProfileRecord rec : records.values()) {
       String title = String.format("  [%s] %s", rec.getCategory(), rec.getIdentifier());
       sender.sendMessage(Component.text(title).color(NamedTextColor.AQUA));
-      String stats =
-          String.format(
-              "    Calls: %d | Avg: %s%s§7 | Max: %s | Total: %s",
-              rec.getCount(),
-              rec.getStatusColor(),
-              rec.getFormattedAverage(),
-              rec.getFormattedMax(),
-              rec.getFormattedTotal());
-      sender.sendMessage(Component.text(stats).color(NamedTextColor.GRAY));
+      sender.sendMessage(stats("    ", rec));
     }
   }
 
@@ -242,5 +218,14 @@ public class ProfileSubCommand extends SubCommand {
           .collect(Collectors.toList());
     }
     return List.of();
+  }
+
+  private static Component stats(String indent, dev.mukulx.javaskript.profiler.ProfileRecord rec) {
+    return Component.text(indent + "Calls: " + rec.getCount() + " | Avg: ", NamedTextColor.GRAY)
+        .append(Component.text(rec.getFormattedAverage(), rec.getStatusColor()))
+        .append(
+            Component.text(
+                " | Max: " + rec.getFormattedMax() + " | Total: " + rec.getFormattedTotal(),
+                NamedTextColor.GRAY));
   }
 }
