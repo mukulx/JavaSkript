@@ -87,6 +87,10 @@ jobs:
             echo ""
             echo "---"
             echo "**Compatibility:** Paper & Folia 1.21.x | Java 21+"
+            if [ -n "$PREV_TAG" ]; then
+              echo ""
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.get_version.outputs.tag }}"
+            fi
           } > release_notes.md
 
       - name: Create or Update GitHub Release
@@ -99,6 +103,5 @@ jobs:
           files: build/libs/JavaSkript-*.jar
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
